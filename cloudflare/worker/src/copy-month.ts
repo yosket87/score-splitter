@@ -1,5 +1,12 @@
 import type { D1DatabaseLike, D1PreparedStatementLike, Runtime } from './d1'
-import { assertObject, parseBoolean, parseMonth, parsePerson, parseString } from './validation'
+import {
+  assertObject,
+  parseBoolean,
+  parseInteger,
+  parseMonth,
+  parsePerson,
+  parseString,
+} from './validation'
 import { insertRecordStatement } from './records'
 
 type CopyMode = 'add' | 'skip' | 'replace'
@@ -239,13 +246,13 @@ function parseSelectedItems(value: unknown): SelectedCopyItem[] {
       input.itemCopyMode === 'withAmount' || input.itemCopyMode === 'labelOnly'
         ? input.itemCopyMode
         : null
-    if (!type || !itemCopyMode || !Number.isInteger(input.amount)) {
+    if (!type || !itemCopyMode) {
       throw new Error('selectedItemsが不正です')
     }
     return {
       id: parseString(input.id, 'id'),
       label: parseString(input.label, 'label'),
-      amount: input.amount,
+      amount: parseInteger(input.amount, 'amount'),
       person: parsePerson(input.person),
       type,
       itemCopyMode,

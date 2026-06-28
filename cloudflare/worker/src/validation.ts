@@ -43,7 +43,7 @@ export function parseInteger(value: unknown, name: string): number {
   if (!Number.isInteger(value)) {
     throw new HttpError(`${name}が不正です`, 400)
   }
-  return value
+  return value as number
 }
 
 export function parseBoolean(value: unknown, name: string): boolean {

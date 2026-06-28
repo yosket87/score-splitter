@@ -1,34 +1,22 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
+import {
+  createIncome as createIncomeRecord,
+  deleteIncome as deleteIncomeRecord,
+  getIncomesByMonth as getIncomeRecordsByMonth,
+  updateIncome as updateIncomeRecord,
+} from '@/lib/api/records'
 import { incomeSchema } from '@/lib/validations/income'
 import type { Income, ActionResult } from '@/types'
 
 export async function getIncomesByMonth(month: string): Promise<ActionResult<Income[]>> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('incomes')
-    .select('*')
-    .eq('month', month)
-    .order('amount', { ascending: false })
-    .order('id', { ascending: true })
-
-  if (error) {
+  try {
+    const data = await getIncomeRecordsByMonth(month)
+    return { success: true, data }
+  } catch (error) {
     console.error('収入取得エラー:', error)
     return { success: false, error: '収入データの取得に失敗しました' }
-  }
-
-  return {
-    success: true,
-    data: data.map((row) => ({
-      id: row.id,
-      month: row.month,
-      label: row.label,
-      amount: row.amount,
-      person: row.person,
-      createdAt: row.created_at,
-    })),
   }
 }
 
@@ -47,34 +35,18 @@ export async function createIncome(
     return { success: false, error: parsed.error.issues[0].message }
   }
 
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('incomes')
-    .insert({
+  try {
+    const data = await createIncomeRecord({
       month: parsed.data.month,
       label: parsed.data.label,
       amount: parsed.data.amount,
       person: parsed.data.person,
     })
-    .select()
-    .single()
-
-  if (error) {
+    revalidatePath('/')
+    return { success: true, data }
+  } catch (error) {
     console.error('収入作成エラー:', error)
     return { success: false, error: '収入の作成に失敗しました' }
-  }
-
-  revalidatePath('/')
-  return {
-    success: true,
-    data: {
-      id: data.id,
-      month: data.month,
-      label: data.label,
-      amount: data.amount,
-      person: data.person,
-      createdAt: data.created_at,
-    },
   }
 }
 
@@ -94,46 +66,28 @@ export async function updateIncome(
     return { success: false, error: parsed.error.issues[0].message }
   }
 
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('incomes')
-    .update({
+  try {
+    const data = await updateIncomeRecord(id, {
+      month: parsed.data.month,
       label: parsed.data.label,
       amount: parsed.data.amount,
       person: parsed.data.person,
     })
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) {
+    revalidatePath('/')
+    return { success: true, data }
+  } catch (error) {
     console.error('収入更新エラー:', error)
     return { success: false, error: '収入の更新に失敗しました' }
-  }
-
-  revalidatePath('/')
-  return {
-    success: true,
-    data: {
-      id: data.id,
-      month: data.month,
-      label: data.label,
-      amount: data.amount,
-      person: data.person,
-      createdAt: data.created_at,
-    },
   }
 }
 
 export async function deleteIncome(id: string): Promise<ActionResult> {
-  const supabase = await createClient()
-  const { error } = await supabase.from('incomes').delete().eq('id', id)
-
-  if (error) {
+  try {
+    await deleteIncomeRecord(id)
+    revalidatePath('/')
+    return { success: true }
+  } catch (error) {
     console.error('収入削除エラー:', error)
     return { success: false, error: '収入の削除に失敗しました' }
   }
-
-  revalidatePath('/')
-  return { success: true }
 }

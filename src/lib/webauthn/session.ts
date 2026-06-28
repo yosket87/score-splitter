@@ -1,5 +1,9 @@
 import { cookies } from 'next/headers'
-import { createClient } from '@/lib/supabase/server'
+import {
+  createSession as createApiSession,
+  deleteSession as deleteApiSession,
+  getSession as getApiSession,
+} from '@/lib/api/sessions'
 import type { Person } from '@/types'
 
 const SESSION_COOKIE_NAME = 'household_session'
@@ -18,16 +22,16 @@ export async function createSession(
   const token = generateToken()
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE * 1000)
 
-  const supabase = await createClient()
-  const { error } = await supabase.from('sessions').insert({
+  try {
+    await createApiSession({
     token,
     person,
-    auth_method: authMethod,
-    expires_at: expiresAt.toISOString(),
-  })
-
-  if (error) {
-    throw new Error(`セッション作成に失敗しました: ${error.message}`)
+      authMethod,
+      expiresAt: expiresAt.toISOString(),
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '不明なエラー'
+    throw new Error(`セッション作成に失敗しました: ${message}`)
   }
 
   const cookieStore = await cookies()
@@ -55,25 +59,20 @@ export async function getSession(): Promise<SessionInfo | null> {
     return null
   }
 
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('sessions')
-    .select('person, auth_method, expires_at')
-    .eq('token', cookie.value)
-    .single()
+  const data = await getApiSession(cookie.value)
 
   if (!data) {
     return null
   }
 
-  if (new Date(data.expires_at) < new Date()) {
+  if (new Date(data.expiresAt) < new Date()) {
     await deleteSession()
     return null
   }
 
   return {
     person: data.person as Person | null,
-    authMethod: data.auth_method as 'password' | 'passkey',
+    authMethod: data.authMethod,
   }
 }
 
@@ -87,8 +86,7 @@ export async function deleteSession(): Promise<void> {
   const cookie = cookieStore.get(SESSION_COOKIE_NAME)
 
   if (cookie?.value) {
-    const supabase = await createClient()
-    await supabase.from('sessions').delete().eq('token', cookie.value)
+    await deleteApiSession(cookie.value)
   }
 
   cookieStore.delete(SESSION_COOKIE_NAME)
@@ -102,16 +100,10 @@ export async function isAuthenticated(): Promise<boolean> {
     return false
   }
 
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('sessions')
-    .select('expires_at')
-    .eq('token', cookie.value)
-    .single()
-
+  const data = await getApiSession(cookie.value)
   if (!data) {
     return false
   }
 
-  return new Date(data.expires_at) > new Date()
+  return new Date(data.expiresAt) > new Date()
 }

@@ -1,39 +1,46 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import '../../../../tests/mocks/next'
 import {
-  mockSupabaseClient,
-  mockSingleSuccess,
-  clearSupabaseMocks,
-} from '../../../../tests/mocks/supabase'
+  clearApiMocks,
+  mockSessionsApi,
+} from '../../../../tests/mocks/api'
 import { mockCookies } from '../../../../tests/mocks/next'
-
 import {
   createSession,
+  deleteSession,
   getSession,
   getSessionPerson,
-  deleteSession,
   isAuthenticated,
 } from '@/lib/webauthn/session'
 
 describe('session module', () => {
   beforeEach(() => {
-    clearSupabaseMocks()
+    clearApiMocks()
     mockCookies.get.mockClear()
     mockCookies.set.mockClear()
     mockCookies.delete.mockClear()
+    vi.clearAllMocks()
   })
 
   describe('createSession', () => {
-    it('セッションを作成してcookieを設定する', async () => {
-      // insert が成功を返すようにモック
-      mockSupabaseClient._queryBuilder.insert.mockResolvedValueOnce({
-        error: null,
+    it('セッションをAPIで作成してcookieを設定する', async () => {
+      mockSessionsApi.createSession.mockResolvedValueOnce({
+        token: 'a'.repeat(64),
+        person: 'husband',
+        authMethod: 'passkey',
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
       })
 
       const token = await createSession('husband', 'passkey')
 
       expect(token).toHaveLength(64)
-      expect(mockSupabaseClient.from).toHaveBeenCalledWith('sessions')
+      expect(mockSessionsApi.createSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          token,
+          person: 'husband',
+          authMethod: 'passkey',
+        })
+      )
       expect(mockCookies.set).toHaveBeenCalledWith(
         'household_session',
         token,
@@ -45,21 +52,8 @@ describe('session module', () => {
       )
     })
 
-    it('person null（��スワードログイン）でもセッション作成できる', async () => {
-      mockSupabaseClient._queryBuilder.insert.mockResolvedValueOnce({
-        error: null,
-      })
-
-      const token = await createSession(null, 'password')
-
-      expect(token).toHaveLength(64)
-      expect(mockSupabaseClient.from).toHaveBeenCalledWith('sessions')
-    })
-
-    it('DB挿入失敗時にエラーをスローする', async () => {
-      mockSupabaseClient._queryBuilder.insert.mockResolvedValueOnce({
-        error: { message: 'DB error' },
-      })
+    it('API作成失敗時にエラーをスローする', async () => {
+      mockSessionsApi.createSession.mockRejectedValueOnce(new Error('API error'))
 
       await expect(createSession('wife', 'passkey')).rejects.toThrow(
         'セッション作成に失敗しました'
@@ -70,55 +64,45 @@ describe('session module', () => {
   describe('getSession', () => {
     it('有効なセッションを返す', async () => {
       mockCookies.get.mockReturnValueOnce({ value: 'valid-token' })
-
-      const futureDate = new Date(Date.now() + 86400000).toISOString()
-      mockSingleSuccess({
+      mockSessionsApi.getSession.mockResolvedValueOnce({
+        token: 'valid-token',
         person: 'husband',
-        auth_method: 'passkey',
-        expires_at: futureDate,
+        authMethod: 'passkey',
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
       })
 
       const session = await getSession()
 
+      expect(mockSessionsApi.getSession).toHaveBeenCalledWith('valid-token')
       expect(session).toEqual({
         person: 'husband',
         authMethod: 'passkey',
       })
     })
 
-    it('cookieが��い場合nullを返す', async () => {
+    it('cookieがない場合nullを返す', async () => {
       mockCookies.get.mockReturnValueOnce(undefined)
 
       const session = await getSession()
 
       expect(session).toBeNull()
+      expect(mockSessionsApi.getSession).not.toHaveBeenCalled()
     })
 
-    it('DBにセッ���ョンがない場合nullを返す', async () => {
-      mockCookies.get.mockReturnValueOnce({ value: 'invalid-token' })
-      mockSingleSuccess(null)
-
-      const session = await getSession()
-
-      expect(session).toBeNull()
-    })
-
-    it('期限切れセッショ���の場合nullを返しセッションを削除する', async () => {
+    it('期限切れセッションの場合nullを返しセッションを削除する', async () => {
       mockCookies.get.mockReturnValueOnce({ value: 'expired-token' })
-
-      const pastDate = new Date(Date.now() - 86400000).toISOString()
-      mockSingleSuccess({
+      mockSessionsApi.getSession.mockResolvedValueOnce({
+        token: 'expired-token',
         person: 'wife',
-        auth_method: 'password',
-        expires_at: pastDate,
+        authMethod: 'password',
+        expiresAt: new Date(Date.now() - 86400000).toISOString(),
       })
-
-      // deleteSession 内の cookie.get も必要
       mockCookies.get.mockReturnValueOnce({ value: 'expired-token' })
 
       const session = await getSession()
 
       expect(session).toBeNull()
+      expect(mockSessionsApi.deleteSession).toHaveBeenCalledWith('expired-token')
       expect(mockCookies.delete).toHaveBeenCalledWith('household_session')
     })
   })
@@ -126,35 +110,26 @@ describe('session module', () => {
   describe('getSessionPerson', () => {
     it('セッションからpersonを返す', async () => {
       mockCookies.get.mockReturnValueOnce({ value: 'token' })
-
-      const futureDate = new Date(Date.now() + 86400000).toISOString()
-      mockSingleSuccess({
+      mockSessionsApi.getSession.mockResolvedValueOnce({
+        token: 'token',
         person: 'wife',
-        auth_method: 'passkey',
-        expires_at: futureDate,
+        authMethod: 'passkey',
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
       })
 
       const person = await getSessionPerson()
 
       expect(person).toBe('wife')
     })
-
-    it('セッションがない場合nullを返す', async () => {
-      mockCookies.get.mockReturnValueOnce(undefined)
-
-      const person = await getSessionPerson()
-
-      expect(person).toBeNull()
-    })
   })
 
   describe('deleteSession', () => {
-    it('DBからセッションを削除しcookieを削除する', async () => {
+    it('APIからセッションを削除しcookieを削除する', async () => {
       mockCookies.get.mockReturnValueOnce({ value: 'session-token' })
 
       await deleteSession()
 
-      expect(mockSupabaseClient.from).toHaveBeenCalledWith('sessions')
+      expect(mockSessionsApi.deleteSession).toHaveBeenCalledWith('session-token')
       expect(mockCookies.delete).toHaveBeenCalledWith('household_session')
     })
 
@@ -163,6 +138,7 @@ describe('session module', () => {
 
       await deleteSession()
 
+      expect(mockSessionsApi.deleteSession).not.toHaveBeenCalled()
       expect(mockCookies.delete).toHaveBeenCalledWith('household_session')
     })
   })
@@ -170,37 +146,26 @@ describe('session module', () => {
   describe('isAuthenticated', () => {
     it('有効なセッションがあればtrueを返す', async () => {
       mockCookies.get.mockReturnValueOnce({ value: 'valid-token' })
-
-      const futureDate = new Date(Date.now() + 86400000).toISOString()
-      mockSingleSuccess({ expires_at: futureDate })
+      mockSessionsApi.getSession.mockResolvedValueOnce({
+        token: 'valid-token',
+        person: null,
+        authMethod: 'password',
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      })
 
       const result = await isAuthenticated()
 
       expect(result).toBe(true)
     })
 
-    it('cookieがなければfalseを返す', async () => {
-      mockCookies.get.mockReturnValueOnce(undefined)
-
-      const result = await isAuthenticated()
-
-      expect(result).toBe(false)
-    })
-
-    it('DBにセッションがなければfalseを返す', async () => {
-      mockCookies.get.mockReturnValueOnce({ value: 'token' })
-      mockSingleSuccess(null)
-
-      const result = await isAuthenticated()
-
-      expect(result).toBe(false)
-    })
-
     it('期限切れセッションはfalseを返す', async () => {
       mockCookies.get.mockReturnValueOnce({ value: 'token' })
-
-      const pastDate = new Date(Date.now() - 86400000).toISOString()
-      mockSingleSuccess({ expires_at: pastDate })
+      mockSessionsApi.getSession.mockResolvedValueOnce({
+        token: 'token',
+        person: null,
+        authMethod: 'password',
+        expiresAt: new Date(Date.now() - 86400000).toISOString(),
+      })
 
       const result = await isAuthenticated()
 

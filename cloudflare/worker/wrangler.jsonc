@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "score-splitter-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-28",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "score-splitter",
+      "database_id": "replace-with-cloudflare-d1-database-id",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

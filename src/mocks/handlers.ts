@@ -19,6 +19,16 @@ const WORKER_API_TOKEN = process.env.CLOUDFLARE_WORKER_API_TOKEN || 'mock-worker
 type Row = Record<string, unknown>
 
 export const handlers = [
+  http.get(`${WORKER_API_URL}/copy-month/preview`, ({ request }) => {
+    if (!isAuthorized(request)) return unauthorized()
+    const url = new URL(request.url)
+    const sourceMonth = url.searchParams.get('sourceMonth') ?? ''
+    const targetMonth = url.searchParams.get('targetMonth') ?? ''
+    return HttpResponse.json({
+      data: buildCopyMonthPreview(sourceMonth, targetMonth),
+    })
+  }),
+
   http.get(`${WORKER_API_URL}/:table`, ({ params, request }) => {
     if (!isAuthorized(request)) return unauthorized()
     const table = params.table as string
@@ -198,5 +208,45 @@ function copyMonth(body: Row) {
       carryovers: body.includeCarryover ? getTable('carryovers').length : 0,
     },
     skipped: { incomes: 0, expenses: 0, carryovers: 0 },
+  }
+}
+
+function buildCopyMonthPreview(sourceMonth: string, targetMonth: string) {
+  const sourceIncomes = applyFilters([...getTable('incomes')], {
+    month: `eq.${sourceMonth}`,
+  })
+  const sourceExpenses = applyFilters([...getTable('expenses')], {
+    month: `eq.${sourceMonth}`,
+  })
+  const sourceCarryovers = applyFilters([...getTable('carryovers')], {
+    month: `eq.${sourceMonth}`,
+  })
+  const targetCount =
+    applyFilters([...getTable('incomes')], { month: `eq.${targetMonth}` }).length +
+    applyFilters([...getTable('expenses')], { month: `eq.${targetMonth}` }).length +
+    applyFilters([...getTable('carryovers')], { month: `eq.${targetMonth}` }).length
+  const regularExpenses = sourceExpenses.filter((item) => item.is_carryover !== true)
+
+  return {
+    sourceMonth,
+    targetMonth,
+    items: [
+      ...sourceIncomes.map((item) => ({
+        id: item.id,
+        label: item.label,
+        amount: item.amount,
+        person: item.person,
+        type: 'income',
+      })),
+      ...regularExpenses.map((item) => ({
+        id: item.id,
+        label: item.label,
+        amount: item.amount,
+        person: item.person,
+        type: 'expense',
+      })),
+    ],
+    carryoverCount: sourceCarryovers.length + (sourceExpenses.length - regularExpenses.length),
+    existingCount: targetCount,
   }
 }

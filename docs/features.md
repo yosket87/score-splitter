@@ -108,9 +108,7 @@ type Person = 'husband' | 'wife'
 
 ### パスワードハッシュの管理
 
-以下のいずれかで管理：
-- 環境変数
-- Supabase設定テーブル
+環境変数 `APP_PASSWORD_HASH_BASE64` で管理します。
 
 ### 認証フロー
 

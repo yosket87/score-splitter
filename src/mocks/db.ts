@@ -1,6 +1,6 @@
 /**
  * インメモリデータベースストア
- * PostgREST互換のクエリ操作を提供する
+ * Worker APIモック用のクエリ操作を提供する
  */
 
 import { seedData } from './data'
@@ -20,7 +20,9 @@ export function initStore(): void {
     incomes: structuredClone(seedData.incomes),
     expenses: structuredClone(seedData.expenses),
     carryovers: structuredClone(seedData.carryovers),
-    app_settings: structuredClone(seedData.app_settings),
+    sessions: [],
+    passkey_credentials: structuredClone(seedData.passkey_credentials),
+    webauthn_challenges: [],
   }
   console.log('[MSW] モックデータベースを初期化しました')
 }
@@ -34,7 +36,7 @@ export function getTable(table: string): Row[] {
 }
 
 /**
- * PostgREST形式のフィルタを適用
+ * `column=operator.value`形式のフィルタを適用
  * 例: { month: 'eq.202602', person: 'eq.husband' }
  */
 export function applyFilters(rows: Row[], filters: Record<string, string>): Row[] {
@@ -70,7 +72,7 @@ export function applyFilters(rows: Row[], filters: Record<string, string>): Row[
 }
 
 /**
- * PostgREST形式のorder句を適用
+ * `column.direction`形式のorder句を適用
  * 例: 'created_at.asc' or 'amount.desc'
  */
 export function applyOrder(rows: Row[], orderParam: string): Row[] {

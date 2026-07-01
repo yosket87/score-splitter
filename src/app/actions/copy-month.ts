@@ -10,6 +10,17 @@ import type {
   ActionResult,
 } from '@/types'
 
+type CarryoverInsertItem = {
+  month: string
+  label: string
+  amount: number
+  person: string
+}
+
+function getCarryoverCopyKey(item: Omit<CarryoverInsertItem, 'month'>): string {
+  return `${item.label}|${item.amount}|${item.person}`
+}
+
 /**
  * コピー操作のプレビューを取得
  * 収入・支出の項目リストと繰越件数を返す
@@ -134,20 +145,34 @@ async function copyCarryovers(
   if (mode === 'skip') {
     const { data: existingData } = await supabase
       .from('carryovers')
-      .select('label, person')
+      .select('label, amount, person')
       .eq('month', targetMonth)
 
     existingKeys = new Set(
-      (existingData ?? []).map((d) => `${d.label}|${d.person}`)
+      (existingData ?? []).map((d) => getCarryoverCopyKey(d))
     )
   }
 
-  const itemsToInsert: Array<{
-    month: string
-    label: string
-    amount: number
-    person: string
-  }> = []
+  const itemsToInsert: CarryoverInsertItem[] = []
+  const insertingKeys = new Set<string>()
+
+  const appendCarryover = (item: Omit<CarryoverInsertItem, 'month'>): void => {
+    const key = getCarryoverCopyKey(item)
+
+    if (existingKeys.has(key) || insertingKeys.has(key)) {
+      skipped++
+      return
+    }
+
+    insertingKeys.add(key)
+    itemsToInsert.push({
+      month: targetMonth,
+      label: item.label,
+      amount: item.amount,
+      person: item.person,
+    })
+    copied++
+  }
 
   // 繰越テーブルのレコードを処理（清算済みはスキップ）
   for (const item of carryoverResult.data ?? []) {
@@ -156,47 +181,24 @@ async function copyCarryovers(
       continue
     }
 
-    const key = `${item.label}|${item.person}`
-
-    if (mode === 'skip' && existingKeys.has(key)) {
-      skipped++
-      continue
-    }
-
-    itemsToInsert.push({
-      month: targetMonth,
-      label: item.label,
-      amount: item.amount,
-      person: item.person,
-    })
-    copied++
+    appendCarryover(item)
   }
 
   // 繰越フラグ付き支出も繰越としてコピー
   for (const item of carryoverExpenseResult.data ?? []) {
-    const key = `${item.label}|${item.person}`
-
-    if (mode === 'skip' && existingKeys.has(key)) {
-      skipped++
-      continue
-    }
-
-    itemsToInsert.push({
-      month: targetMonth,
-      label: item.label,
-      amount: item.amount,
-      person: item.person,
-    })
-    copied++
+    appendCarryover(item)
   }
 
   if (itemsToInsert.length > 0) {
-    const { error: insertError } = await supabase
+    const { error: upsertError } = await supabase
       .from('carryovers')
-      .insert(itemsToInsert)
+      .upsert(itemsToInsert, {
+        onConflict: 'month,label,amount,person',
+        ignoreDuplicates: true,
+      })
 
-    if (insertError) {
-      throw new Error(`繰越の挿入に失敗: ${insertError.message}`)
+    if (upsertError) {
+      throw new Error(`繰越の挿入に失敗: ${upsertError.message}`)
     }
   }
 

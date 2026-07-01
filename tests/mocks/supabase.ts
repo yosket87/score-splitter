@@ -10,6 +10,7 @@ export interface SupabaseResponse<T = unknown> {
 export interface MockQueryBuilder {
   select: Mock
   insert: Mock
+  upsert: Mock
   update: Mock
   delete: Mock
   eq: Mock
@@ -23,6 +24,7 @@ export function createMockQueryBuilder(): MockQueryBuilder {
   const builder: MockQueryBuilder = {
     select: vi.fn(),
     insert: vi.fn(),
+    upsert: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
     eq: vi.fn(),
@@ -34,6 +36,7 @@ export function createMockQueryBuilder(): MockQueryBuilder {
   // 各メソッドがビルダー自身を返すように設定
   builder.select.mockReturnValue(builder)
   builder.insert.mockReturnValue(builder)
+  builder.upsert.mockReturnValue(builder)
   builder.update.mockReturnValue(builder)
   builder.delete.mockReturnValue(builder)
   builder.eq.mockReturnValue(builder)
@@ -146,6 +149,7 @@ export function clearSupabaseMocks() {
   mockSupabaseClient.from.mockClear()
   qb.select.mockClear()
   qb.insert.mockClear()
+  qb.upsert.mockClear()
   qb.update.mockClear()
   qb.delete.mockClear()
   qb.eq.mockClear()

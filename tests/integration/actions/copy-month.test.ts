@@ -8,7 +8,7 @@ import { mockRevalidatePath } from '../../../tests/mocks/next'
 import {
   copyMonthData,
 } from '@/app/actions/copy-month'
-import type { CopyMonthOptions, SelectedCopyItem } from '@/types'
+import type { CopyMonthOptions } from '@/types'
 
 describe('copy-month actions', () => {
   beforeEach(() => {
@@ -174,7 +174,7 @@ describe('copy-month actions', () => {
           error: null,
         })
 
-        qb.insert.mockResolvedValue({ data: null, error: null })
+        qb.upsert.mockResolvedValue({ data: null, error: null })
 
         const options: CopyMonthOptions = {
           sourceMonth: '202601',
@@ -211,6 +211,7 @@ describe('copy-month actions', () => {
         })
 
         qb.insert.mockResolvedValue({ data: null, error: null })
+        qb.upsert.mockResolvedValue({ data: null, error: null })
 
         const options: CopyMonthOptions = {
           sourceMonth: '202601',
@@ -234,6 +235,56 @@ describe('copy-month actions', () => {
         expect(result.success).toBe(true)
         expect(result.copied.expenses).toBe(1)
         expect(result.copied.carryovers).toBe(2)
+      })
+
+      it('同一キーの繰越はコピー時に1件へ重複排除される', async () => {
+        const qb = mockSupabaseClient._queryBuilder
+
+        qb.select.mockReturnValue(qb)
+        qb.eq.mockResolvedValueOnce({
+          data: [
+            { label: '前月繰越', amount: -10000, person: 'husband', is_cleared: false },
+            { label: '前月繰越', amount: -10000, person: 'husband', is_cleared: false },
+          ],
+          error: null,
+        })
+        qb.eq.mockReturnValueOnce(qb)
+        qb.eq.mockResolvedValueOnce({
+          data: [
+            { label: '前月繰越', amount: -10000, person: 'husband' },
+          ],
+          error: null,
+        })
+
+        qb.upsert.mockResolvedValue({ data: null, error: null })
+
+        const options: CopyMonthOptions = {
+          sourceMonth: '202601',
+          targetMonth: '202602',
+          mode: 'add',
+          selectedItems: [],
+          includeCarryover: true,
+        }
+
+        const result = await copyMonthData(options)
+
+        expect(result.success).toBe(true)
+        expect(result.copied.carryovers).toBe(1)
+        expect(result.skipped.carryovers).toBe(2)
+        expect(qb.upsert).toHaveBeenCalledWith(
+          [
+            {
+              month: '202602',
+              label: '前月繰越',
+              amount: -10000,
+              person: 'husband',
+            },
+          ],
+          {
+            onConflict: 'month,label,amount,person',
+            ignoreDuplicates: true,
+          }
+        )
       })
     })
 
@@ -338,8 +389,8 @@ describe('copy-month actions', () => {
           error: null,
         })
 
-        // insertの結果
-        qb.insert.mockResolvedValue({ data: null, error: null })
+        // upsertの結果
+        qb.upsert.mockResolvedValue({ data: null, error: null })
 
         const options: CopyMonthOptions = {
           sourceMonth: '202601',
@@ -372,8 +423,8 @@ describe('copy-month actions', () => {
           error: null,
         })
 
-        // insertの結果
-        qb.insert.mockResolvedValue({ data: null, error: null })
+        // upsertの結果
+        qb.upsert.mockResolvedValue({ data: null, error: null })
 
         const options: CopyMonthOptions = {
           sourceMonth: '202601',
@@ -531,7 +582,7 @@ describe('copy-month actions', () => {
         })
 
         // 繰越挿入は失敗
-        qb.insert.mockResolvedValueOnce({
+        qb.upsert.mockResolvedValueOnce({
           data: null,
           error: { message: 'Insert failed' },
         })

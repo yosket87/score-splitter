@@ -47,7 +47,7 @@ src/
 │   └── animations/  # アニメーション
 ├── hooks/           # カスタムフック
 ├── lib/
-│   ├── supabase/    # Supabase設定
+│   ├── api/         # Cloudflare Worker APIクライアント
 │   ├── utils/       # ユーティリティ (計算、フォーマット)
 │   └── validations/ # Zodスキーマ
 └── types/           # 型定義
@@ -65,7 +65,7 @@ tests/
 ### 技術スタック
 - Next.js 16 + React 19 + TypeScript
 - Tailwind CSS 4 + shadcn/ui
-- Supabase (PostgreSQL)
+- Cloudflare Workers + D1
 - Vitest + Playwright
 
 詳細: [docs/tech-stack.md](docs/tech-stack.md)
@@ -112,7 +112,7 @@ type Person = 'husband' | 'wife'
 
 UIやフロントエンドの変更時は、必ず以下の手順でブラウザ上の表示を検証すること。
 
-1. `npm run dev:mock` でモック付きdevサーバーを起動（MSWがSupabaseをモック）
+1. `npm run dev:mock` でモック付きdevサーバーを起動（MSWがWorker APIをモック）
 2. Playwright MCPでブラウザを操作し、ログイン → 対象画面を表示（パスワード: `password`）
 3. スクリーンショットを撮影し、表示崩れ・データ表示・操作性を目視確認
 4. 正常系だけでなく、空データや境界値のケースも確認する

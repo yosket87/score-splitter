@@ -1,163 +1,252 @@
 /**
- * MSWハンドラー: Supabase PostgREST APIをインターセプト
- *
- * Supabase JSクライアントは内部的にPostgREST REST APIを使う。
- * URL形式: {SUPABASE_URL}/rest/v1/{table}?select=...&column=eq.value&order=...
+ * MSWハンドラー: Cloudflare Worker APIをインターセプト
  */
 
 import { http, HttpResponse } from 'msw'
 import {
-  getTable,
   applyFilters,
   applyOrder,
-  applySelect,
+  deleteRows,
+  getTable,
   insertRows,
   updateRows,
-  deleteRows,
 } from './db'
 
-// PostgRESTの予約クエリパラメータ（フィルタではない）
-const RESERVED_PARAMS = new Set(['select', 'order', 'limit', 'offset', 'on_conflict'])
+const WORKER_API_URL =
+  process.env.CLOUDFLARE_WORKER_API_URL || 'http://mock-worker.local'
+const WORKER_API_TOKEN = process.env.CLOUDFLARE_WORKER_API_TOKEN || 'mock-worker-token'
 
-/**
- * URLのクエリパラメータからフィルタ条件を抽出
- * select, order等の予約パラメータを除外し、column=operator.value 形式のみ抽出
- */
-function extractFilters(searchParams: URLSearchParams): Record<string, string> {
-  const filters: Record<string, string> = {}
-  for (const [key, value] of searchParams.entries()) {
-    if (!RESERVED_PARAMS.has(key) && value.includes('.')) {
-      filters[key] = value
-    }
-  }
-  return filters
-}
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://mock-supabase.local'
+type Row = Record<string, unknown>
 
 export const handlers = [
-  // GET: SELECT クエリ
-  http.get(`${SUPABASE_URL}/rest/v1/:table`, ({ params, request }) => {
-    const table = params.table as string
+  http.get(`${WORKER_API_URL}/copy-month/preview`, ({ request }) => {
+    if (!isAuthorized(request)) return unauthorized()
     const url = new URL(request.url)
-
-    const selectParam = url.searchParams.get('select') || '*'
-    const orderParam = url.searchParams.get('order')
-    const filters = extractFilters(url.searchParams)
-
-    let rows = getTable(table)
-    rows = applyFilters([...rows], filters)
-    if (orderParam) {
-      rows = applyOrder(rows, orderParam)
-    }
-    rows = applySelect(rows, selectParam)
-
-    // Prefer: count=exact ヘッダーの場合、Content-Rangeにカウントを含める
-    const prefer = request.headers.get('Prefer') || ''
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    }
-    if (prefer.includes('count=exact')) {
-      headers['Content-Range'] = `0-${Math.max(0, rows.length - 1)}/${rows.length}`
-    }
-
-    // Accept: application/vnd.pgrst.object+json → 単一オブジェクトを返す
-    const accept = request.headers.get('Accept') || ''
-    if (accept.includes('application/vnd.pgrst.object+json')) {
-      if (rows.length === 0) {
-        return new HttpResponse(
-          JSON.stringify({
-            message: 'JSON object requested, multiple (or no) rows returned',
-            details: 'Results contain 0 rows',
-          }),
-          { status: 406, headers: { 'Content-Type': 'application/json' } }
-        )
-      }
-      return HttpResponse.json(rows[0], { headers })
-    }
-
-    return HttpResponse.json(rows, { headers })
-  }),
-
-  // HEAD: COUNT クエリ (head: true)
-  http.head(`${SUPABASE_URL}/rest/v1/:table`, ({ params, request }) => {
-    const table = params.table as string
-    const url = new URL(request.url)
-    const filters = extractFilters(url.searchParams)
-
-    let rows = getTable(table)
-    rows = applyFilters([...rows], filters)
-
-    return new HttpResponse(null, {
-      status: 200,
-      headers: {
-        'Content-Range': `*/${rows.length}`,
-      },
+    const sourceMonth = url.searchParams.get('sourceMonth') ?? ''
+    const targetMonth = url.searchParams.get('targetMonth') ?? ''
+    return HttpResponse.json({
+      data: buildCopyMonthPreview(sourceMonth, targetMonth),
     })
   }),
 
-  // POST: INSERT
-  http.post(`${SUPABASE_URL}/rest/v1/:table`, async ({ params, request }) => {
+  http.get(`${WORKER_API_URL}/:table`, ({ params, request }) => {
+    if (!isAuthorized(request)) return unauthorized()
     const table = params.table as string
-    const body = await request.json()
-    const rowsToInsert = Array.isArray(body) ? body : [body]
-
-    const inserted = insertRows(table, rowsToInsert as Record<string, unknown>[])
-
-    const prefer = request.headers.get('Prefer') || ''
-    const accept = request.headers.get('Accept') || ''
-
-    // return=representation: 挿入されたデータを返す
-    if (prefer.includes('return=representation')) {
-      if (accept.includes('application/vnd.pgrst.object+json')) {
-        return HttpResponse.json(inserted[0], { status: 201 })
-      }
-      return HttpResponse.json(inserted, { status: 201 })
+    if (table === 'monthly-amounts') {
+      return HttpResponse.json({
+        data: {
+          incomes: getTable('incomes').map(({ month, amount }) => ({ month, amount })),
+          expenses: getTable('expenses').map(({ month, amount }) => ({ month, amount })),
+        },
+      })
     }
+    if (!isRecordTable(table)) return notFound()
 
-    // return=minimal: 空レスポンス
-    return new HttpResponse(null, { status: 201 })
+    const month = new URL(request.url).searchParams.get('month')
+    const rows = applyOrder(
+      month ? applyFilters([...getTable(table)], { month: `eq.${month}` }) : [...getTable(table)],
+      orderForTable(table)
+    )
+
+    return HttpResponse.json({ data: rows.map((row) => toApiRecord(table, row)) })
   }),
 
-  // PATCH: UPDATE
-  http.patch(`${SUPABASE_URL}/rest/v1/:table`, async ({ params, request }) => {
+  http.post(`${WORKER_API_URL}/:table`, async ({ params, request }) => {
+    if (!isAuthorized(request)) return unauthorized()
     const table = params.table as string
-    const url = new URL(request.url)
-    const filters = extractFilters(url.searchParams)
-    const body = (await request.json()) as Record<string, unknown>
+    const body = (await request.json()) as Row
 
-    const updated = updateRows(table, filters, body)
-
-    const prefer = request.headers.get('Prefer') || ''
-    const accept = request.headers.get('Accept') || ''
-
-    if (prefer.includes('return=representation')) {
-      if (accept.includes('application/vnd.pgrst.object+json')) {
-        if (updated.length === 0) {
-          return new HttpResponse(
-            JSON.stringify({
-              message: 'JSON object requested, multiple (or no) rows returned',
-              details: 'Results contain 0 rows',
-            }),
-            { status: 406, headers: { 'Content-Type': 'application/json' } }
-          )
-        }
-        return HttpResponse.json(updated[0], { status: 200 })
-      }
-      return HttpResponse.json(updated, { status: 200 })
+    if (table === 'sessions') {
+      const inserted = insertRows('sessions', [
+        {
+          token: body.token,
+          person: body.person,
+          auth_method: body.authMethod,
+          expires_at: body.expiresAt,
+        },
+      ])[0]
+      return HttpResponse.json({ data: toApiSession(inserted) }, { status: 201 })
     }
 
-    return new HttpResponse(null, { status: 204 })
+    if (table === 'copy-month') {
+      return HttpResponse.json(copyMonth(body))
+    }
+
+    if (!isRecordTable(table)) return notFound()
+    const inserted = insertRows(table, [toDbRecord(table, body)])[0]
+    return HttpResponse.json({ data: toApiRecord(table, inserted) }, { status: 201 })
   }),
 
-  // DELETE
-  http.delete(`${SUPABASE_URL}/rest/v1/:table`, ({ params, request }) => {
+  http.patch(`${WORKER_API_URL}/:table/:id`, async ({ params, request }) => {
+    if (!isAuthorized(request)) return unauthorized()
     const table = params.table as string
-    const url = new URL(request.url)
-    const filters = extractFilters(url.searchParams)
+    const id = params.id as string
+    const body = (await request.json()) as Row
 
-    deleteRows(table, filters)
+    if (table === 'passkeys') {
+      updateRows('passkey_credentials', { id: `eq.${id}` }, { counter: body.counter })
+      return HttpResponse.json({ success: true })
+    }
 
-    return new HttpResponse(null, { status: 204 })
+    if (!isRecordTable(table)) return notFound()
+    const updated = updateRows(table, { id: `eq.${id}` }, toDbRecord(table, body))
+    return HttpResponse.json({ data: toApiRecord(table, updated[0]) })
+  }),
+
+  http.patch(`${WORKER_API_URL}/expenses/:id/carryover`, async ({ params, request }) => {
+    if (!isAuthorized(request)) return unauthorized()
+    const body = (await request.json()) as { isCarryover: boolean }
+    updateRows('expenses', { id: `eq.${params.id}` }, { is_carryover: body.isCarryover })
+    return HttpResponse.json({ success: true })
+  }),
+
+  http.patch(`${WORKER_API_URL}/carryovers/:id/cleared`, async ({ params, request }) => {
+    if (!isAuthorized(request)) return unauthorized()
+    const body = (await request.json()) as { isCleared: boolean }
+    updateRows('carryovers', { id: `eq.${params.id}` }, { is_cleared: body.isCleared })
+    return HttpResponse.json({ success: true })
+  }),
+
+  http.delete(`${WORKER_API_URL}/:table/:id`, ({ params, request }) => {
+    if (!isAuthorized(request)) return unauthorized()
+    const table = params.table as string
+    const id = params.id as string
+
+    if (table === 'sessions') {
+      deleteRows('sessions', { token: `eq.${id}` })
+      return HttpResponse.json({ success: true })
+    }
+
+    if (!isRecordTable(table)) return notFound()
+    deleteRows(table, { id: `eq.${id}` })
+    return HttpResponse.json({ success: true })
+  }),
+
+  http.get(`${WORKER_API_URL}/sessions/:token`, ({ params, request }) => {
+    if (!isAuthorized(request)) return unauthorized()
+    const token = params.token as string
+    const row = applyFilters([...getTable('sessions')], { token: `eq.${token}` })[0]
+    return HttpResponse.json({ data: row ? toApiSession(row) : null })
   }),
 ]
+
+function isAuthorized(request: Request): boolean {
+  return request.headers.get('authorization') === `Bearer ${WORKER_API_TOKEN}`
+}
+
+function unauthorized() {
+  return HttpResponse.json({ error: '認証に失敗しました' }, { status: 401 })
+}
+
+function notFound() {
+  return HttpResponse.json({ error: 'エンドポイントが見つかりません' }, { status: 404 })
+}
+
+function isRecordTable(table: string): table is 'incomes' | 'expenses' | 'carryovers' {
+  return table === 'incomes' || table === 'expenses' || table === 'carryovers'
+}
+
+function orderForTable(table: 'incomes' | 'expenses' | 'carryovers'): string {
+  if (table === 'incomes') return 'amount.desc'
+  if (table === 'expenses') return 'amount.asc'
+  return 'created_at.asc'
+}
+
+function toApiRecord(table: string, row: Row) {
+  const base = {
+    id: row.id,
+    month: row.month,
+    label: row.label,
+    amount: row.amount,
+    person: row.person,
+    createdAt: row.created_at,
+  }
+  if (table === 'expenses') {
+    return { ...base, isCarryover: row.is_carryover ?? false }
+  }
+  if (table === 'carryovers') {
+    return { ...base, isCleared: row.is_cleared ?? false }
+  }
+  return base
+}
+
+function toDbRecord(table: string, row: Row) {
+  const base = {
+    month: row.month,
+    label: row.label,
+    amount: row.amount,
+    person: row.person,
+  }
+  if (table === 'expenses') {
+    return { ...base, is_carryover: row.isCarryover ?? false }
+  }
+  if (table === 'carryovers') {
+    return { ...base, is_cleared: row.isCleared ?? false }
+  }
+  return base
+}
+
+function toApiSession(row: Row) {
+  return {
+    token: row.token,
+    person: row.person,
+    authMethod: row.auth_method,
+    expiresAt: row.expires_at,
+  }
+}
+
+function copyMonth(body: Row) {
+  return {
+    success: true,
+    copied: {
+      incomes: Array.isArray(body.selectedItems)
+        ? body.selectedItems.filter((item: { type: string }) => item.type === 'income').length
+        : 0,
+      expenses: Array.isArray(body.selectedItems)
+        ? body.selectedItems.filter((item: { type: string }) => item.type === 'expense').length
+        : 0,
+      carryovers: body.includeCarryover ? getTable('carryovers').length : 0,
+    },
+    skipped: { incomes: 0, expenses: 0, carryovers: 0 },
+  }
+}
+
+function buildCopyMonthPreview(sourceMonth: string, targetMonth: string) {
+  const sourceIncomes = applyFilters([...getTable('incomes')], {
+    month: `eq.${sourceMonth}`,
+  })
+  const sourceExpenses = applyFilters([...getTable('expenses')], {
+    month: `eq.${sourceMonth}`,
+  })
+  const sourceCarryovers = applyFilters([...getTable('carryovers')], {
+    month: `eq.${sourceMonth}`,
+  })
+  const targetCount =
+    applyFilters([...getTable('incomes')], { month: `eq.${targetMonth}` }).length +
+    applyFilters([...getTable('expenses')], { month: `eq.${targetMonth}` }).length +
+    applyFilters([...getTable('carryovers')], { month: `eq.${targetMonth}` }).length
+  const regularExpenses = sourceExpenses.filter((item) => item.is_carryover !== true)
+
+  return {
+    sourceMonth,
+    targetMonth,
+    items: [
+      ...sourceIncomes.map((item) => ({
+        id: item.id,
+        label: item.label,
+        amount: item.amount,
+        person: item.person,
+        type: 'income',
+      })),
+      ...regularExpenses.map((item) => ({
+        id: item.id,
+        label: item.label,
+        amount: item.amount,
+        person: item.person,
+        type: 'expense',
+      })),
+    ],
+    carryoverCount: sourceCarryovers.length + (sourceExpenses.length - regularExpenses.length),
+    existingCount: targetCount,
+  }
+}

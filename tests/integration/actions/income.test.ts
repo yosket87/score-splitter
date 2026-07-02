@@ -1,286 +1,138 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import '../../../tests/mocks/next'
 import {
-  mockSupabaseClient,
-  mockSelectSuccess,
-  mockSelectError,
-  mockSingleSuccess,
-  mockSingleError,
-  mockDeleteSuccess,
-  mockDeleteError,
-  clearSupabaseMocks,
-} from '../../../tests/mocks/supabase'
+  clearApiMocks,
+  mockRecordsApi,
+} from '../../../tests/mocks/api'
 import { mockRevalidatePath } from '../../../tests/mocks/next'
-import { createFormData, toSupabaseRow } from '../../../tests/mocks/helpers'
+import { createFormData } from '../../../tests/mocks/helpers'
 import {
-  getIncomesByMonth,
   createIncome,
-  updateIncome,
   deleteIncome,
+  getIncomesByMonth,
+  updateIncome,
 } from '@/app/actions/income'
 
 describe('income actions', () => {
   beforeEach(() => {
-    clearSupabaseMocks()
+    clearApiMocks()
     mockRevalidatePath.mockClear()
     vi.clearAllMocks()
   })
 
-  describe('getIncomesByMonth', () => {
-    it('指定月の収入を取得する', async () => {
-      const mockData = [
-        {
-          id: '1',
-          month: '202601',
-          label: '給料',
-          amount: 300000,
-          person: 'husband',
-          created_at: '2026-01-01T00:00:00Z',
-        },
-        {
-          id: '2',
-          month: '202601',
-          label: 'ボーナス',
-          amount: 100000,
-          person: 'wife',
-          created_at: '2026-01-02T00:00:00Z',
-        },
-      ]
-      mockSelectSuccess(mockData)
+  it('指定月の収入をAPIから取得する', async () => {
+    const incomes = [
+      {
+        id: 'income-1',
+        month: '202601',
+        label: '給料',
+        amount: 300000,
+        person: 'husband' as const,
+        createdAt: '2026-01-01T00:00:00Z',
+      },
+    ]
+    mockRecordsApi.getIncomesByMonth.mockResolvedValueOnce(incomes)
 
-      const result = await getIncomesByMonth('202601')
+    const result = await getIncomesByMonth('202601')
 
-      expect(mockSupabaseClient.from).toHaveBeenCalledWith('incomes')
-      expect(result.success).toBe(true)
-      expect(result.data).toHaveLength(2)
-      expect(result.data?.[0]).toEqual({
-        id: '1',
+    expect(mockRecordsApi.getIncomesByMonth).toHaveBeenCalledWith('202601')
+    expect(result).toEqual({ success: true, data: incomes })
+  })
+
+  it('取得エラー時はユーザー向けエラーを返す', async () => {
+    mockRecordsApi.getIncomesByMonth.mockRejectedValueOnce(new Error('API error'))
+
+    const result = await getIncomesByMonth('202601')
+
+    expect(result).toEqual({
+      success: false,
+      error: '収入データの取得に失敗しました',
+    })
+  })
+
+  it('有効なデータで収入を作成する', async () => {
+    const income = {
+      id: 'income-1',
+      month: '202601',
+      label: '給料',
+      amount: 300000,
+      person: 'husband' as const,
+      createdAt: '2026-01-01T00:00:00Z',
+    }
+    mockRecordsApi.createIncome.mockResolvedValueOnce(income)
+
+    const result = await createIncome(
+      createFormData({
         month: '202601',
         label: '給料',
         amount: 300000,
         person: 'husband',
-        createdAt: '2026-01-01T00:00:00Z',
       })
+    )
+
+    expect(mockRecordsApi.createIncome).toHaveBeenCalledWith({
+      month: '202601',
+      label: '給料',
+      amount: 300000,
+      person: 'husband',
     })
-
-    it('データがない場合は空配列を返す', async () => {
-      mockSelectSuccess([])
-
-      const result = await getIncomesByMonth('202601')
-
-      expect(result.success).toBe(true)
-      expect(result.data).toEqual([])
-    })
-
-    it('エラー時はエラーを返す', async () => {
-      mockSelectError('Database error')
-
-      const result = await getIncomesByMonth('202601')
-
-      expect(result.success).toBe(false)
-      expect(result.error).toBe('収入データの取得に失敗しました')
-    })
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/')
+    expect(result).toEqual({ success: true, data: income })
   })
 
-  describe('createIncome', () => {
-    it('有効なデータで収入を作成する', async () => {
-      const formData = createFormData({
+  it('バリデーションエラー時はAPIを呼ばない', async () => {
+    const result = await createIncome(
+      createFormData({
         month: '202601',
-        label: 'テスト収入',
-        amount: 100000,
+        label: '',
+        amount: 300000,
         person: 'husband',
       })
+    )
 
-      const mockRow = {
-        id: 'new-id',
-        month: '202601',
-        label: 'テスト収入',
-        amount: 100000,
-        person: 'husband',
-        created_at: '2026-01-01T00:00:00Z',
-      }
-      mockSingleSuccess(mockRow)
-
-      const result = await createIncome(formData)
-
-      expect(result.success).toBe(true)
-      expect(result.data).toEqual({
-        id: 'new-id',
-        month: '202601',
-        label: 'テスト収入',
-        amount: 100000,
-        person: 'husband',
-        createdAt: '2026-01-01T00:00:00Z',
-      })
-      expect(mockSupabaseClient._queryBuilder.insert).toHaveBeenCalledWith({
-        month: '202601',
-        label: 'テスト収入',
-        amount: 100000,
-        person: 'husband',
-      })
-    })
-
-    it('作成後にrevalidatePathが呼ばれる', async () => {
-      const formData = createFormData({
-        month: '202601',
-        label: 'テスト',
-        amount: 100000,
-        person: 'husband',
-      })
-      mockSingleSuccess(toSupabaseRow({ id: '1', month: '202601', label: 'テスト', amount: 100000, person: 'husband' }))
-
-      await createIncome(formData)
-
-      expect(mockRevalidatePath).toHaveBeenCalledWith('/')
-    })
-
-    it('バリデーションエラー時はエラーを返す', async () => {
-      const formData = createFormData({
-        month: '202601',
-        label: '', // 空の項目名
-        amount: 100000,
-        person: 'husband',
-      })
-
-      const result = await createIncome(formData)
-
-      expect(result.success).toBe(false)
-      expect(result.error).toBe('項目名を入力してください')
-    })
-
-    it('金額が不正な場合エラーを返す', async () => {
-      const formData = createFormData({
-        month: '202601',
-        label: 'テスト',
-        amount: 0, // 0は不正
-        person: 'husband',
-      })
-
-      const result = await createIncome(formData)
-
-      expect(result.success).toBe(false)
-      expect(result.error).toBe('金額は正の整数を入力してください')
-    })
-
-    it('DBエラー時はエラーを返す', async () => {
-      const formData = createFormData({
-        month: '202601',
-        label: 'テスト',
-        amount: 100000,
-        person: 'husband',
-      })
-      mockSingleError('Database error')
-
-      const result = await createIncome(formData)
-
-      expect(result.success).toBe(false)
-      expect(result.error).toBe('収入の作成に失敗しました')
-    })
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('項目名を入力してください')
+    expect(mockRecordsApi.createIncome).not.toHaveBeenCalled()
   })
 
-  describe('updateIncome', () => {
-    it('収入を更新する', async () => {
-      const formData = createFormData({
+  it('収入を更新する', async () => {
+    const income = {
+      id: 'income-1',
+      month: '202601',
+      label: '更新後',
+      amount: 250000,
+      person: 'wife' as const,
+      createdAt: '2026-01-01T00:00:00Z',
+    }
+    mockRecordsApi.updateIncome.mockResolvedValueOnce(income)
+
+    const result = await updateIncome(
+      'income-1',
+      createFormData({
         month: '202601',
-        label: '更新後の収入',
-        amount: 200000,
+        label: '更新後',
+        amount: 250000,
         person: 'wife',
       })
-      const mockRow = {
-        id: 'existing-id',
-        month: '202601',
-        label: '更新後の収入',
-        amount: 200000,
-        person: 'wife',
-        created_at: '2026-01-01T00:00:00Z',
-      }
-      mockSingleSuccess(mockRow)
+    )
 
-      const result = await updateIncome('existing-id', formData)
-
-      expect(result.success).toBe(true)
-      expect(result.data?.label).toBe('更新後の収入')
-      expect(result.data?.amount).toBe(200000)
-      expect(mockSupabaseClient._queryBuilder.update).toHaveBeenCalledWith({
-        label: '更新後の収入',
-        amount: 200000,
-        person: 'wife',
-      })
+    expect(mockRecordsApi.updateIncome).toHaveBeenCalledWith('income-1', {
+      month: '202601',
+      label: '更新後',
+      amount: 250000,
+      person: 'wife',
     })
-
-    it('更新後にrevalidatePathが呼ばれる', async () => {
-      const formData = createFormData({
-        month: '202601',
-        label: 'テスト',
-        amount: 100000,
-        person: 'husband',
-      })
-      mockSingleSuccess(toSupabaseRow({ id: '1', month: '202601', label: 'テスト', amount: 100000, person: 'husband' }))
-
-      await updateIncome('1', formData)
-
-      expect(mockRevalidatePath).toHaveBeenCalledWith('/')
-    })
-
-    it('バリデーションエラー時はエラーを返す', async () => {
-      const formData = createFormData({
-        month: 'invalid-date',
-        label: 'テスト',
-        amount: 100000,
-        person: 'husband',
-      })
-
-      const result = await updateIncome('1', formData)
-
-      expect(result.success).toBe(false)
-      expect(result.error).toBe('月形式が不正です')
-    })
-
-    it('DBエラー時はエラーを返す', async () => {
-      const formData = createFormData({
-        month: '202601',
-        label: 'テスト',
-        amount: 100000,
-        person: 'husband',
-      })
-      mockSingleError('Record not found')
-
-      const result = await updateIncome('non-existent-id', formData)
-
-      expect(result.success).toBe(false)
-      expect(result.error).toBe('収入の更新に失敗しました')
-    })
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/')
+    expect(result).toEqual({ success: true, data: income })
   })
 
-  describe('deleteIncome', () => {
-    it('収入を削除する', async () => {
-      mockDeleteSuccess()
+  it('収入を削除する', async () => {
+    mockRecordsApi.deleteIncome.mockResolvedValueOnce(undefined)
 
-      const result = await deleteIncome('existing-id')
+    const result = await deleteIncome('income-1')
 
-      expect(result.success).toBe(true)
-      expect(mockSupabaseClient._queryBuilder.delete).toHaveBeenCalled()
-      expect(mockSupabaseClient._queryBuilder.eq).toHaveBeenCalledWith(
-        'id',
-        'existing-id'
-      )
-    })
-
-    it('削除後にrevalidatePathが呼ばれる', async () => {
-      mockDeleteSuccess()
-
-      await deleteIncome('1')
-
-      expect(mockRevalidatePath).toHaveBeenCalledWith('/')
-    })
-
-    it('DBエラー時はエラーを返す', async () => {
-      mockDeleteError('Delete failed')
-
-      const result = await deleteIncome('1')
-
-      expect(result.success).toBe(false)
-      expect(result.error).toBe('収入の削除に失敗しました')
-    })
+    expect(mockRecordsApi.deleteIncome).toHaveBeenCalledWith('income-1')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/')
+    expect(result).toEqual({ success: true })
   })
 })

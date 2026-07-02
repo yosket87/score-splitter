@@ -24,8 +24,8 @@
 
 | 技術 | バージョン | 用途 |
 |-----|----------|------|
-| Supabase | @supabase/ssr, @supabase/supabase-js | BaaS（Backend as a Service） |
-| PostgreSQL | - | データベース（Supabase経由） |
+| Cloudflare Workers | - | アプリ専用API |
+| Cloudflare D1 | - | SQLiteベースの永続データベース |
 
 ## 認証・セキュリティ
 
@@ -71,6 +71,7 @@
   "build": "next build",                // プロダクションビルド
   "start": "next start",                // プロダクションサーバー起動
   "lint": "eslint",                     // ESLintチェック
+  "migrate:supabase-to-d1": "node scripts/supabase-to-d1.mjs",
   "test": "vitest",                     // Vitestウォッチモード
   "test:run": "vitest run",             // Vitestシングルラン
   "test:coverage": "vitest run --coverage",  // カバレッジ付きテスト

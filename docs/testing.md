@@ -177,6 +177,6 @@ Playwrightによるブラウザテスト。
 
 `tests/mocks/`
 
-- Supabaseクライアントのモック
+- Worker APIクライアントのモック
 - 認証関数のモック
 - テストデータ（フィクスチャ）

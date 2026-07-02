@@ -86,26 +86,3 @@ export function createMockCarryovers(count: number = 3): Carryover[] {
     })
   )
 }
-
-// Supabaseのレスポンス形式に変換（created_at付き）
-export function toSupabaseRow<
-  T extends { id: string; month: string; label: string; amount: number; person: string },
->(item: T) {
-  const row: Record<string, unknown> = {
-    id: item.id,
-    month: item.month,
-    label: item.label,
-    amount: item.amount,
-    person: item.person,
-    created_at: new Date().toISOString(),
-  }
-  // Expense の isCarryover を DB形式に変換
-  if ('isCarryover' in item) {
-    row.is_carryover = (item as Record<string, unknown>).isCarryover ?? false
-  }
-  // Carryover の isCleared を DB形式に変換
-  if ('isCleared' in item) {
-    row.is_cleared = (item as Record<string, unknown>).isCleared ?? false
-  }
-  return row
-}

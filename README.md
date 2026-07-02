@@ -17,7 +17,8 @@
 
 - **フレームワーク**: Next.js 16 + React 19 + TypeScript
 - **スタイリング**: Tailwind CSS 4 + shadcn/ui
-- **データベース**: Supabase (PostgreSQL)
+- **データベース**: Cloudflare D1
+- **API**: Cloudflare Workers
 - **テスト**: Vitest + Playwright
 
 ## セットアップ
@@ -33,8 +34,9 @@ npm install
 `.env.local` ファイルを作成し、以下の環境変数を設定してください：
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+CLOUDFLARE_WORKER_API_URL=your_worker_api_url
+CLOUDFLARE_WORKER_API_TOKEN=your_worker_api_token
+APP_PASSWORD_HASH_BASE64=your_password_hash_base64
 ```
 
 ### 開発サーバーの起動
@@ -52,61 +54,15 @@ npm run dev
 | `npm run dev` | 開発サーバー起動 |
 | `npm run build` | 本番ビルド |
 | `npm run lint` | ESLint実行 |
+| `npm run migrate:supabase-to-d1` | 旧データをD1投入SQLへ変換 |
 | `npm run test` | テスト（ウォッチモード） |
 | `npm run test:run` | テスト（単発実行） |
 | `npm run test:coverage` | カバレッジ測定 |
 | `npm run test:e2e` | E2Eテスト |
 
-## Keepalive（Supabase Free プラン対策）
+## Cloudflare D1
 
-Supabase Free プランではアクティビティが低いプロジェクトが自動で pause されます。これを防ぐため、GitHub Actions で5日に1回 Supabase Edge Function を呼び出します。
-
-### 仕組み
-
-- `supabase/functions/keepalive/index.ts` - 軽量な Edge Function（JSON レスポンスを返すだけ）
-- `.github/workflows/keep-supabase-awake.yml` - 5日に1回自動実行（手動実行も可能）
-
-### セットアップ
-
-#### 1. Supabase Edge Function のデプロイ
-
-```bash
-supabase functions deploy keepalive
-```
-
-#### 2. Supabase 側の Secret 設定
-
-Supabase Dashboard > Edge Functions > Secrets で以下を設定：
-
-| Secret 名 | 値 |
-|-----------|---|
-| `KEEPALIVE_TOKEN` | 任意のランダム文字列（認証用） |
-
-#### 3. GitHub Secrets の設定
-
-リポジトリの Settings > Secrets and variables > Actions で以下を設定：
-
-| Secret 名 | 値 | 説明 |
-|-----------|---|------|
-| `SUPABASE_URL` | `https://<PROJECT_REF>.supabase.co` | Supabase プロジェクト URL |
-| `SUPABASE_KEEPALIVE_TOKEN` | Supabase 側の `KEEPALIVE_TOKEN` と同じ値 | 認証トークン |
-
-### 動作確認
-
-```bash
-# ローカルで関数を起動
-supabase functions serve keepalive
-
-# ローカルで確認
-curl http://localhost:54321/functions/v1/keepalive
-
-# デプロイ後の確認
-curl -H "Authorization: Bearer <KEEPALIVE_TOKEN>" \
-  https://<PROJECT_REF>.supabase.co/functions/v1/keepalive
-
-# GitHub Actions の手動実行
-# リポジトリの Actions タブ > "Keep Supabase Awake" > "Run workflow"
-```
+D1スキーマとWorker APIは `cloudflare/worker/` にあります。旧データの移行手順は [docs/cloudflare-migration.md](./docs/cloudflare-migration.md) を参照してください。
 
 ## ドキュメント
 
@@ -120,6 +76,7 @@ curl -H "Authorization: Bearer <KEEPALIVE_TOKEN>" \
 | [docs/components.md](./docs/components.md) | コンポーネント構造 |
 | [docs/features.md](./docs/features.md) | 主要機能の詳細 |
 | [docs/database.md](./docs/database.md) | データベース設計 |
+| [docs/cloudflare-migration.md](./docs/cloudflare-migration.md) | D1移行手順 |
 | [docs/testing.md](./docs/testing.md) | テスト構成 |
 | [docs/configuration.md](./docs/configuration.md) | 設定ファイル |
 

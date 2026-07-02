@@ -2,7 +2,6 @@
 
 import { redirect } from 'next/navigation'
 import bcrypt from 'bcryptjs'
-import { createClient } from '@/lib/supabase/server'
 import {
   createSession,
   deleteSession,
@@ -20,31 +19,14 @@ export async function login(
   }
 
   const hashBase64 = process.env.APP_PASSWORD_HASH_BASE64
-  const storedHash = hashBase64
-    ? Buffer.from(hashBase64, 'base64').toString('utf-8')
-    : null
+  if (!hashBase64) {
+    return { error: '認証設定が見つかりません' }
+  }
 
-  if (!storedHash) {
-    const supabase = await createClient()
-    const { data } = await supabase
-      .from('app_settings')
-      .select('value')
-      .eq('key', 'app_password_hash')
-      .single()
-
-    if (!data) {
-      return { error: '認証設定が見つかりません' }
-    }
-
-    const isValid = await bcrypt.compare(password, data.value)
-    if (!isValid) {
-      return { error: 'パスワードが正しくありません' }
-    }
-  } else {
-    const isValid = await bcrypt.compare(password, storedHash)
-    if (!isValid) {
-      return { error: 'パスワードが正しくありません' }
-    }
+  const storedHash = Buffer.from(hashBase64, 'base64').toString('utf-8')
+  const isValid = await bcrypt.compare(password, storedHash)
+  if (!isValid) {
+    return { error: 'パスワードが正しくありません' }
   }
 
   await createSession(null, 'password')

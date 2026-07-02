@@ -46,6 +46,7 @@ npm run test:e2e
 `.env.local` ファイルに以下の環境変数を設定してください：
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+CLOUDFLARE_WORKER_API_URL=your_worker_api_url
+CLOUDFLARE_WORKER_API_TOKEN=your_worker_api_token
+APP_PASSWORD_HASH_BASE64=your_password_hash_base64
 ```

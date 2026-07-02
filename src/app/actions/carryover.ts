@@ -1,35 +1,23 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
+import {
+  createCarryover as createCarryoverRecord,
+  deleteCarryover as deleteCarryoverRecord,
+  getCarryoversByMonth as getCarryoverRecordsByMonth,
+  toggleCarryoverCleared as toggleCarryoverClearedRecord,
+  updateCarryover as updateCarryoverRecord,
+} from '@/lib/api/records'
 import { carryoverSchema } from '@/lib/validations/carryover'
 import type { Carryover, ActionResult } from '@/types'
 
 export async function getCarryoversByMonth(month: string): Promise<ActionResult<Carryover[]>> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('carryovers')
-    .select('*')
-    .eq('month', month)
-    .order('created_at', { ascending: true })
-    .order('id', { ascending: true })
-
-  if (error) {
+  try {
+    const data = await getCarryoverRecordsByMonth(month)
+    return { success: true, data }
+  } catch (error) {
     console.error('繰越取得エラー:', error)
     return { success: false, error: '繰越データの取得に失敗しました' }
-  }
-
-  return {
-    success: true,
-    data: data.map((row) => ({
-      id: row.id,
-      month: row.month,
-      label: row.label,
-      amount: row.amount,
-      person: row.person,
-      isCleared: row.is_cleared ?? false,
-      createdAt: row.created_at,
-    })),
   }
 }
 
@@ -49,37 +37,20 @@ export async function createCarryover(
     return { success: false, error: parsed.error.issues[0].message }
   }
 
-  const supabase = await createClient()
-  // 入力は正の値、保存時に負の値に変換
-  const { data, error } = await supabase
-    .from('carryovers')
-    .insert({
+  try {
+    // 入力は正の値、保存時に負の値に変換
+    const data = await createCarryoverRecord({
       month: parsed.data.month,
       label: parsed.data.label,
       amount: -parsed.data.amount,
       person: parsed.data.person,
-      is_cleared: parsed.data.is_cleared,
+      isCleared: parsed.data.is_cleared,
     })
-    .select()
-    .single()
-
-  if (error) {
+    revalidatePath('/')
+    return { success: true, data }
+  } catch (error) {
     console.error('繰越作成エラー:', error)
     return { success: false, error: '繰越の作成に失敗しました' }
-  }
-
-  revalidatePath('/')
-  return {
-    success: true,
-    data: {
-      id: data.id,
-      month: data.month,
-      label: data.label,
-      amount: data.amount,
-      person: data.person,
-      isCleared: data.is_cleared,
-      createdAt: data.created_at,
-    },
   }
 }
 
@@ -100,37 +71,20 @@ export async function updateCarryover(
     return { success: false, error: parsed.error.issues[0].message }
   }
 
-  const supabase = await createClient()
-  // 入力は正の値、保存時に負の値に変換
-  const { data, error } = await supabase
-    .from('carryovers')
-    .update({
+  try {
+    // 入力は正の値、保存時に負の値に変換
+    const data = await updateCarryoverRecord(id, {
+      month: parsed.data.month,
       label: parsed.data.label,
       amount: -parsed.data.amount,
       person: parsed.data.person,
-      is_cleared: parsed.data.is_cleared,
+      isCleared: parsed.data.is_cleared,
     })
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) {
+    revalidatePath('/')
+    return { success: true, data }
+  } catch (error) {
     console.error('繰越更新エラー:', error)
     return { success: false, error: '繰越の更新に失敗しました' }
-  }
-
-  revalidatePath('/')
-  return {
-    success: true,
-    data: {
-      id: data.id,
-      month: data.month,
-      label: data.label,
-      amount: data.amount,
-      person: data.person,
-      isCleared: data.is_cleared,
-      createdAt: data.created_at,
-    },
   }
 }
 
@@ -138,30 +92,23 @@ export async function toggleCarryoverCleared(
   id: string,
   isCleared: boolean
 ): Promise<ActionResult> {
-  const supabase = await createClient()
-  const { error } = await supabase
-    .from('carryovers')
-    .update({ is_cleared: isCleared })
-    .eq('id', id)
-
-  if (error) {
+  try {
+    await toggleCarryoverClearedRecord(id, isCleared)
+    revalidatePath('/')
+    return { success: true }
+  } catch (error) {
     console.error('繰越清算フラグ更新エラー:', error)
     return { success: false, error: '清算フラグの更新に失敗しました' }
   }
-
-  revalidatePath('/')
-  return { success: true }
 }
 
 export async function deleteCarryover(id: string): Promise<ActionResult> {
-  const supabase = await createClient()
-  const { error } = await supabase.from('carryovers').delete().eq('id', id)
-
-  if (error) {
+  try {
+    await deleteCarryoverRecord(id)
+    revalidatePath('/')
+    return { success: true }
+  } catch (error) {
     console.error('繰越削除エラー:', error)
     return { success: false, error: '繰越の削除に失敗しました' }
   }
-
-  revalidatePath('/')
-  return { success: true }
 }

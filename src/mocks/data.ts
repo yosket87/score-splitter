@@ -1,6 +1,6 @@
 /**
  * モックモード用のサンプルデータ
- * 開発時にSupabase無しでアプリを動作確認するためのシードデータ
+ * 開発時にCloudflare Worker API無しでアプリを動作確認するためのシードデータ
  */
 
 interface MockRow {
@@ -10,15 +10,6 @@ interface MockRow {
   label: string
   amount: number
   person: 'husband' | 'wife'
-  created_at: string
-  updated_at: string
-}
-
-interface AppSettingRow {
-  [key: string]: unknown
-  id: string
-  key: string
-  value: string
   created_at: string
   updated_at: string
 }
@@ -171,21 +162,9 @@ const expenses202601: MockRow[] = [
 
 const carryovers202601: MockRow[] = []
 
-// app_settings テーブル（認証用）
-// パスワード "password" のbcryptハッシュ
-const appSettings: AppSettingRow[] = [
-  {
-    id: '00000000-0000-0000-0000-000000000001',
-    key: 'app_password_hash',
-    value: '$2b$10$W5tqJaYGYjKBGUM6uh1w7ODwzQzSoTMcPECTpDj3PtaMOOQNca50m',
-    created_at: ts('2026-01-01T00:00:00'),
-    updated_at: ts('2026-01-01T00:00:00'),
-  },
-]
-
 export const seedData = {
   incomes: [...incomes202601, ...incomes202602],
   expenses: [...expenses202601, ...expenses202602],
   carryovers: [...carryovers202601, ...carryovers202602],
-  app_settings: appSettings,
+  passkey_credentials: [],
 }

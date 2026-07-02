@@ -173,13 +173,13 @@ export default nextConfig
 `.env.local` ファイルで設定（gitignore対象）：
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+CLOUDFLARE_WORKER_API_URL=your_worker_api_url
+CLOUDFLARE_WORKER_API_TOKEN=your_worker_api_token
 APP_PASSWORD_HASH_BASE64=your_password_hash_base64
 ```
 
 | 変数 | 説明 |
 |-----|------|
-| NEXT_PUBLIC_SUPABASE_URL | SupabaseプロジェクトのURL |
-| SUPABASE_SERVICE_ROLE_KEY | Supabase service role key（サーバー専用、RLSバイパス用） |
+| CLOUDFLARE_WORKER_API_URL | Cloudflare Worker APIのURL |
+| CLOUDFLARE_WORKER_API_TOKEN | Worker API共有シークレット（サーバー専用） |
 | APP_PASSWORD_HASH_BASE64 | アプリパスワードのbcryptハッシュ（Base64エンコード） |

@@ -1,6 +1,6 @@
 /**
  * MSWサーバーセットアップ（Node.js環境用）
- * Next.jsのServer Actionsから発信されるSupabase HTTPリクエストをインターセプトする
+ * Next.jsのServer Actionsから発信されるWorker APIリクエストをインターセプトする
  */
 
 import { setupServer } from 'msw/node'

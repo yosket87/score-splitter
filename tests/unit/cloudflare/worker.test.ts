@@ -30,10 +30,28 @@ class FakeStatement implements D1PreparedStatementLike {
   }
 }
 
+type FakeIncomeRow = {
+  id: string
+  month: string
+  label: string
+  amount: number
+  person: 'husband' | 'wife'
+  created_at: string
+  updated_at: string
+}
+
+type FakeExpenseRow = FakeIncomeRow & {
+  is_carryover: number
+}
+
+type FakeCarryoverRow = FakeIncomeRow & {
+  is_cleared: number
+}
+
 class FakeD1Database implements D1DatabaseLike {
   readonly executed: Array<{ query: string; params: unknown[] }> = []
   readonly batched: Array<Array<{ query: string; params: unknown[] }>> = []
-  private incomeRows = [
+  private incomeRows: FakeIncomeRow[] = [
     {
       id: 'income-1',
       month: '202601',
@@ -44,7 +62,7 @@ class FakeD1Database implements D1DatabaseLike {
       updated_at: '2026-01-01T00:00:00.000Z',
     },
   ]
-  private expenseRows = [
+  private expenseRows: FakeExpenseRow[] = [
     {
       id: 'expense-1',
       month: '202601',
@@ -56,7 +74,7 @@ class FakeD1Database implements D1DatabaseLike {
       updated_at: '2026-01-02T00:00:00.000Z',
     },
   ]
-  private carryoverRows = [
+  private carryoverRows: FakeCarryoverRow[] = [
     {
       id: 'carryover-1',
       month: '202601',
@@ -68,6 +86,16 @@ class FakeD1Database implements D1DatabaseLike {
       updated_at: '2026-01-03T00:00:00.000Z',
     },
   ]
+
+  constructor(rows: {
+    incomes?: FakeIncomeRow[]
+    expenses?: FakeExpenseRow[]
+    carryovers?: FakeCarryoverRow[]
+  } = {}) {
+    this.incomeRows = rows.incomes ?? this.incomeRows
+    this.expenseRows = rows.expenses ?? this.expenseRows
+    this.carryoverRows = rows.carryovers ?? this.carryoverRows
+  }
 
   prepare(query: string): D1PreparedStatementLike {
     return new FakeStatement(this, query)
@@ -107,10 +135,20 @@ class FakeD1Database implements D1DatabaseLike {
       return { results: this.incomeRows as T[] }
     }
     if (query.includes('FROM expenses')) {
-      return { results: this.expenseRows as T[] }
+      let rows = this.expenseRows
+      if (query.includes('WHERE month = ?')) {
+        rows = rows.filter((row) => row.month === params[0])
+      }
+      if (query.includes('is_carryover = 1')) {
+        rows = rows.filter((row) => row.is_carryover === 1)
+      }
+      return { results: rows as T[] }
     }
     if (query.includes('FROM carryovers')) {
-      return { results: this.carryoverRows as T[] }
+      const rows = query.includes('WHERE month = ?')
+        ? this.carryoverRows.filter((row) => row.month === params[0])
+        : this.carryoverRows
+      return { results: rows as T[] }
     }
     return { results: [] }
   }
@@ -126,6 +164,18 @@ class FakeD1Database implements D1DatabaseLike {
         person: params[4] as string,
         created_at: params[5] as string,
         updated_at: params[6] as string,
+      })
+    }
+    if (query.startsWith('INSERT INTO carryovers')) {
+      this.carryoverRows.push({
+        id: params[0] as string,
+        month: params[1] as string,
+        label: params[2] as string,
+        amount: params[3] as number,
+        person: params[4] as 'husband' | 'wife',
+        is_cleared: params[5] as number,
+        created_at: params[6] as string,
+        updated_at: params[7] as string,
       })
     }
     if (query.startsWith('DELETE FROM incomes')) {
@@ -257,6 +307,76 @@ describe('Cloudflare Worker API', () => {
     expect(db.batched[0].map((item) => item.query)).toEqual([
       'DELETE FROM incomes WHERE month = ?',
       expect.stringContaining('INSERT INTO incomes'),
+    ])
+  })
+
+  it('月コピー時に同一キーの繰越を1件へ重複排除する', async () => {
+    const db = new FakeD1Database({
+      carryovers: [
+        {
+          id: 'carryover-1',
+          month: '202601',
+          label: '前月繰越',
+          amount: -10000,
+          person: 'husband',
+          is_cleared: 0,
+          created_at: '2026-01-03T00:00:00.000Z',
+          updated_at: '2026-01-03T00:00:00.000Z',
+        },
+        {
+          id: 'carryover-2',
+          month: '202601',
+          label: '前月繰越',
+          amount: -10000,
+          person: 'husband',
+          is_cleared: 0,
+          created_at: '2026-01-04T00:00:00.000Z',
+          updated_at: '2026-01-04T00:00:00.000Z',
+        },
+      ],
+      expenses: [
+        {
+          id: 'expense-1',
+          month: '202601',
+          label: '前月繰越',
+          amount: -10000,
+          person: 'husband',
+          is_carryover: 1,
+          created_at: '2026-01-02T00:00:00.000Z',
+          updated_at: '2026-01-02T00:00:00.000Z',
+        },
+      ],
+    })
+
+    const response = await handleRequest(
+      createRequest('/copy-month', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          sourceMonth: '202601',
+          targetMonth: '202602',
+          mode: 'add',
+          includeCarryover: true,
+          selectedItems: [],
+        }),
+      }),
+      createEnv(db),
+      {
+        randomUUID: vi.fn(() => 'copied-carryover-id'),
+        now: vi.fn(() => new Date('2026-02-03T04:05:06.000Z')),
+      }
+    )
+
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      copied: { incomes: 0, expenses: 0, carryovers: 1 },
+      skipped: { incomes: 0, expenses: 0, carryovers: 2 },
+    })
+    expect(db.batched[0].map((item) => item.query)).toEqual([
+      expect.stringContaining('INSERT INTO carryovers'),
     ])
   })
 })

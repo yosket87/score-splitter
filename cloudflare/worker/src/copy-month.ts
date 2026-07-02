@@ -37,6 +37,10 @@ interface SelectedCopyItem {
   itemCopyMode: ItemCopyMode
 }
 
+function getCarryoverCopyKey(item: Pick<CarryoverSourceItem, 'label' | 'amount' | 'person'>) {
+  return `${item.label}|${item.amount}|${item.person}`
+}
+
 export async function getCopyMonthPreview(
   db: D1DatabaseLike,
   sourceMonth: string,
@@ -196,12 +200,13 @@ async function buildCarryoverStatements(
       ? new Set(
           (
             await db
-              .prepare('SELECT label, person FROM carryovers WHERE month = ?')
+              .prepare('SELECT label, amount, person FROM carryovers WHERE month = ?')
               .bind(targetMonth)
-              .all<{ label: string; person: string }>()
-          ).results.map((item) => `${item.label}|${item.person}`)
+              .all<Pick<CarryoverSourceItem, 'label' | 'amount' | 'person'>>()
+          ).results.map(getCarryoverCopyKey)
         )
       : new Set<string>()
+  const insertingKeys = new Set<string>()
 
   let copied = 0
   let skipped = 0
@@ -210,11 +215,12 @@ async function buildCarryoverStatements(
       skipped++
       continue
     }
-    const key = `${item.label}|${item.person}`
-    if (existingKeys.has(key)) {
+    const key = getCarryoverCopyKey(item)
+    if (existingKeys.has(key) || insertingKeys.has(key)) {
       skipped++
       continue
     }
+    insertingKeys.add(key)
     statements.push(
       insertRecordStatement(db, runtime, 'carryover', {
         month: targetMonth,

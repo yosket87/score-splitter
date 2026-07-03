@@ -4,8 +4,12 @@ import {
   clearApiMocks,
   mockRecordsApi,
 } from '../../../tests/mocks/api'
-import { mockRevalidatePath } from '../../../tests/mocks/next'
-import { createFormData } from '../../../tests/mocks/helpers'
+import { mockRedirect, mockRevalidatePath } from '../../../tests/mocks/next'
+import {
+  createFormData,
+  mockAuthenticatedSession,
+  mockUnauthenticatedSession,
+} from '../../../tests/mocks/helpers'
 import {
   createIncome,
   deleteIncome,
@@ -18,6 +22,7 @@ describe('income actions', () => {
     clearApiMocks()
     mockRevalidatePath.mockClear()
     vi.clearAllMocks()
+    mockAuthenticatedSession()
   })
 
   it('指定月の収入をAPIから取得する', async () => {
@@ -37,6 +42,17 @@ describe('income actions', () => {
 
     expect(mockRecordsApi.getIncomesByMonth).toHaveBeenCalledWith('202601')
     expect(result).toEqual({ success: true, data: incomes })
+  })
+
+  it('無効セッション時はログインへリダイレクトしてAPIを呼ばない', async () => {
+    mockUnauthenticatedSession()
+
+    await expect(getIncomesByMonth('202601')).rejects.toThrow(
+      'NEXT_REDIRECT:/login'
+    )
+
+    expect(mockRedirect).toHaveBeenCalledWith('/login')
+    expect(mockRecordsApi.getIncomesByMonth).not.toHaveBeenCalled()
   })
 
   it('取得エラー時はユーザー向けエラーを返す', async () => {

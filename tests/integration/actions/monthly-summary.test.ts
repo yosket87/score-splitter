@@ -4,12 +4,18 @@ import {
   clearApiMocks,
   mockMonthlySummaryApi,
 } from '../../../tests/mocks/api'
+import { mockRedirect } from '../../../tests/mocks/next'
+import {
+  mockAuthenticatedSession,
+  mockUnauthenticatedSession,
+} from '../../../tests/mocks/helpers'
 import { getMonthlySummaries } from '@/app/actions/monthly-summary'
 
 describe('monthly-summary actions', () => {
   beforeEach(() => {
     clearApiMocks()
     vi.clearAllMocks()
+    mockAuthenticatedSession()
   })
 
   it('APIから取得した月別金額を集計する', async () => {
@@ -42,6 +48,15 @@ describe('monthly-summary actions', () => {
         balance: 180000,
       },
     ])
+  })
+
+  it('無効セッション時はログインへリダイレクトしてAPIを呼ばない', async () => {
+    mockUnauthenticatedSession()
+
+    await expect(getMonthlySummaries()).rejects.toThrow('NEXT_REDIRECT:/login')
+
+    expect(mockRedirect).toHaveBeenCalledWith('/login')
+    expect(mockMonthlySummaryApi.getMonthlyAmounts).not.toHaveBeenCalled()
   })
 
   it('APIエラー時はユーザー向けエラーを返す', async () => {

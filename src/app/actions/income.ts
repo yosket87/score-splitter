@@ -8,9 +8,12 @@ import {
   updateIncome as updateIncomeRecord,
 } from '@/lib/api/records'
 import { incomeSchema } from '@/lib/validations/income'
+import { requireAuth } from '@/lib/webauthn/session'
 import type { Income, ActionResult } from '@/types'
 
 export async function getIncomesByMonth(month: string): Promise<ActionResult<Income[]>> {
+  await requireAuth()
+
   try {
     const data = await getIncomeRecordsByMonth(month)
     return { success: true, data }
@@ -23,6 +26,8 @@ export async function getIncomesByMonth(month: string): Promise<ActionResult<Inc
 export async function createIncome(
   formData: FormData
 ): Promise<ActionResult<Income>> {
+  await requireAuth()
+
   const rawData = {
     month: formData.get('month') as string,
     label: formData.get('label') as string,
@@ -54,6 +59,8 @@ export async function updateIncome(
   id: string,
   formData: FormData
 ): Promise<ActionResult<Income>> {
+  await requireAuth()
+
   const rawData = {
     month: formData.get('month') as string,
     label: formData.get('label') as string,
@@ -82,6 +89,8 @@ export async function updateIncome(
 }
 
 export async function deleteIncome(id: string): Promise<ActionResult> {
+  await requireAuth()
+
   try {
     await deleteIncomeRecord(id)
     revalidatePath('/')

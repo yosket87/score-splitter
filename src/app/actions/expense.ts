@@ -9,9 +9,12 @@ import {
   updateExpense as updateExpenseRecord,
 } from '@/lib/api/records'
 import { expenseSchema } from '@/lib/validations/expense'
+import { requireAuth } from '@/lib/webauthn/session'
 import type { Expense, ActionResult } from '@/types'
 
 export async function getExpensesByMonth(month: string): Promise<ActionResult<Expense[]>> {
+  await requireAuth()
+
   try {
     const data = await getExpenseRecordsByMonth(month)
     return { success: true, data }
@@ -24,6 +27,8 @@ export async function getExpensesByMonth(month: string): Promise<ActionResult<Ex
 export async function createExpense(
   formData: FormData
 ): Promise<ActionResult<Expense>> {
+  await requireAuth()
+
   const rawData = {
     month: formData.get('month') as string,
     label: formData.get('label') as string,
@@ -58,6 +63,8 @@ export async function updateExpense(
   id: string,
   formData: FormData
 ): Promise<ActionResult<Expense>> {
+  await requireAuth()
+
   const rawData = {
     month: formData.get('month') as string,
     label: formData.get('label') as string,
@@ -92,6 +99,8 @@ export async function toggleExpenseCarryover(
   id: string,
   isCarryover: boolean
 ): Promise<ActionResult> {
+  await requireAuth()
+
   try {
     await toggleExpenseCarryoverRecord(id, isCarryover)
     revalidatePath('/')
@@ -103,6 +112,8 @@ export async function toggleExpenseCarryover(
 }
 
 export async function deleteExpense(id: string): Promise<ActionResult> {
+  await requireAuth()
+
   try {
     await deleteExpenseRecord(id)
     revalidatePath('/')

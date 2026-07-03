@@ -5,6 +5,7 @@ import {
   copyMonthData as copyMonthDataByApi,
   getCopyMonthPreview as getCopyMonthPreviewByApi,
 } from '@/lib/api/copy-month'
+import { requireAuth } from '@/lib/webauthn/session'
 import type {
   ActionResult,
   CopyMonthOptions,
@@ -20,6 +21,8 @@ export async function getCopyMonthPreview(
   sourceMonth: string,
   targetMonth: string
 ): Promise<ActionResult<CopyMonthPreview>> {
+  await requireAuth()
+
   try {
     const data = await getCopyMonthPreviewByApi(sourceMonth, targetMonth)
     return { success: true, data }
@@ -35,6 +38,8 @@ export async function getCopyMonthPreview(
 export async function copyMonthData(
   options: CopyMonthOptions
 ): Promise<CopyMonthResult> {
+  await requireAuth()
+
   try {
     const result = await copyMonthDataByApi(options)
     if (result.success) {

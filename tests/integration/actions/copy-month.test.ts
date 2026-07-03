@@ -4,7 +4,11 @@ import {
   clearApiMocks,
   mockCopyMonthApi,
 } from '../../../tests/mocks/api'
-import { mockRevalidatePath } from '../../../tests/mocks/next'
+import { mockRedirect, mockRevalidatePath } from '../../../tests/mocks/next'
+import {
+  mockAuthenticatedSession,
+  mockUnauthenticatedSession,
+} from '../../../tests/mocks/helpers'
 import type { CopyMonthOptions } from '@/types'
 import {
   copyMonthData,
@@ -16,6 +20,7 @@ describe('copy-month actions', () => {
     clearApiMocks()
     mockRevalidatePath.mockClear()
     vi.clearAllMocks()
+    mockAuthenticatedSession()
   })
 
   it('月コピープレビューをAPIから取得する', async () => {
@@ -40,6 +45,17 @@ describe('copy-month actions', () => {
 
     expect(mockCopyMonthApi.getCopyMonthPreview).toHaveBeenCalledWith('202601', '202602')
     expect(result).toEqual({ success: true, data: preview })
+  })
+
+  it('無効セッション時はログインへリダイレクトしてAPIを呼ばない', async () => {
+    mockUnauthenticatedSession()
+
+    await expect(getCopyMonthPreview('202601', '202602')).rejects.toThrow(
+      'NEXT_REDIRECT:/login'
+    )
+
+    expect(mockRedirect).toHaveBeenCalledWith('/login')
+    expect(mockCopyMonthApi.getCopyMonthPreview).not.toHaveBeenCalled()
   })
 
   it('月コピーAPIを呼び、成功時にrevalidateする', async () => {

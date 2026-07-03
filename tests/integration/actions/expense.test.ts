@@ -4,8 +4,12 @@ import {
   clearApiMocks,
   mockRecordsApi,
 } from '../../../tests/mocks/api'
-import { mockRevalidatePath } from '../../../tests/mocks/next'
-import { createFormData } from '../../../tests/mocks/helpers'
+import { mockRedirect, mockRevalidatePath } from '../../../tests/mocks/next'
+import {
+  createFormData,
+  mockAuthenticatedSession,
+  mockUnauthenticatedSession,
+} from '../../../tests/mocks/helpers'
 import {
   createExpense,
   deleteExpense,
@@ -19,6 +23,7 @@ describe('expense actions', () => {
     clearApiMocks()
     mockRevalidatePath.mockClear()
     vi.clearAllMocks()
+    mockAuthenticatedSession()
   })
 
   it('指定月の支出をAPIから取得する', async () => {
@@ -39,6 +44,17 @@ describe('expense actions', () => {
 
     expect(mockRecordsApi.getExpensesByMonth).toHaveBeenCalledWith('202601')
     expect(result).toEqual({ success: true, data: expenses })
+  })
+
+  it('無効セッション時はログインへリダイレクトしてAPIを呼ばない', async () => {
+    mockUnauthenticatedSession()
+
+    await expect(getExpensesByMonth('202601')).rejects.toThrow(
+      'NEXT_REDIRECT:/login'
+    )
+
+    expect(mockRedirect).toHaveBeenCalledWith('/login')
+    expect(mockRecordsApi.getExpensesByMonth).not.toHaveBeenCalled()
   })
 
   it('支出作成時は入力金額を負数にしてAPIへ渡す', async () => {

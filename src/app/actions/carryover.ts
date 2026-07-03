@@ -9,9 +9,12 @@ import {
   updateCarryover as updateCarryoverRecord,
 } from '@/lib/api/records'
 import { carryoverSchema } from '@/lib/validations/carryover'
+import { requireAuth } from '@/lib/webauthn/session'
 import type { Carryover, ActionResult } from '@/types'
 
 export async function getCarryoversByMonth(month: string): Promise<ActionResult<Carryover[]>> {
+  await requireAuth()
+
   try {
     const data = await getCarryoverRecordsByMonth(month)
     return { success: true, data }
@@ -24,6 +27,8 @@ export async function getCarryoversByMonth(month: string): Promise<ActionResult<
 export async function createCarryover(
   formData: FormData
 ): Promise<ActionResult<Carryover>> {
+  await requireAuth()
+
   const rawData = {
     month: formData.get('month') as string,
     label: formData.get('label') as string,
@@ -58,6 +63,8 @@ export async function updateCarryover(
   id: string,
   formData: FormData
 ): Promise<ActionResult<Carryover>> {
+  await requireAuth()
+
   const rawData = {
     month: formData.get('month') as string,
     label: formData.get('label') as string,
@@ -92,6 +99,8 @@ export async function toggleCarryoverCleared(
   id: string,
   isCleared: boolean
 ): Promise<ActionResult> {
+  await requireAuth()
+
   try {
     await toggleCarryoverClearedRecord(id, isCleared)
     revalidatePath('/')
@@ -103,6 +112,8 @@ export async function toggleCarryoverCleared(
 }
 
 export async function deleteCarryover(id: string): Promise<ActionResult> {
+  await requireAuth()
+
   try {
     await deleteCarryoverRecord(id)
     revalidatePath('/')

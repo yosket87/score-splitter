@@ -4,8 +4,12 @@ import {
   clearApiMocks,
   mockRecordsApi,
 } from '../../../tests/mocks/api'
-import { mockRevalidatePath } from '../../../tests/mocks/next'
-import { createFormData } from '../../../tests/mocks/helpers'
+import { mockRedirect, mockRevalidatePath } from '../../../tests/mocks/next'
+import {
+  createFormData,
+  mockAuthenticatedSession,
+  mockUnauthenticatedSession,
+} from '../../../tests/mocks/helpers'
 import {
   createCarryover,
   deleteCarryover,
@@ -19,6 +23,7 @@ describe('carryover actions', () => {
     clearApiMocks()
     mockRevalidatePath.mockClear()
     vi.clearAllMocks()
+    mockAuthenticatedSession()
   })
 
   it('指定月の繰越をAPIから取得する', async () => {
@@ -39,6 +44,17 @@ describe('carryover actions', () => {
 
     expect(mockRecordsApi.getCarryoversByMonth).toHaveBeenCalledWith('202601')
     expect(result).toEqual({ success: true, data: carryovers })
+  })
+
+  it('無効セッション時はログインへリダイレクトしてAPIを呼ばない', async () => {
+    mockUnauthenticatedSession()
+
+    await expect(getCarryoversByMonth('202601')).rejects.toThrow(
+      'NEXT_REDIRECT:/login'
+    )
+
+    expect(mockRedirect).toHaveBeenCalledWith('/login')
+    expect(mockRecordsApi.getCarryoversByMonth).not.toHaveBeenCalled()
   })
 
   it('繰越作成時は入力金額を負数にしてAPIへ渡す', async () => {

@@ -4,11 +4,14 @@
 // 将来マルチテナント化する際は世帯IDによるスコープ条件を追加すること。
 import { getMonthlyAmounts } from '@/lib/api/monthly-summary'
 import { aggregateMonthlySummaries } from '@/lib/utils/monthly-summary'
+import { requireAuth } from '@/lib/webauthn/session'
 import type { ActionResult, MonthlySummary } from '@/types'
 
 export async function getMonthlySummaries(): Promise<
   ActionResult<MonthlySummary[]>
 > {
+  await requireAuth()
+
   try {
     const { incomes, expenses } = await getMonthlyAmounts()
     return {

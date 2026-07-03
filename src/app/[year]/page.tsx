@@ -3,6 +3,7 @@ import { Header } from '@/components/layout/header'
 import { MonthlyListSection } from '@/features/monthly-list'
 import { getMonthlySummaries } from '@/app/actions/monthly-summary'
 import { isValidYear } from '@/lib/utils/format'
+import { requireAuth } from '@/lib/webauthn/session'
 
 interface YearPageProps {
   params: Promise<{ year: string }>
@@ -10,6 +11,7 @@ interface YearPageProps {
 
 export default async function YearPage({ params }: YearPageProps) {
   const { year } = await params
+  await requireAuth()
 
   if (!isValidYear(year)) {
     redirect('/')

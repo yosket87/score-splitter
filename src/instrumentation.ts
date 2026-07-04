@@ -9,6 +9,5 @@ export async function register() {
     server.listen({
       onUnhandledRequest: 'bypass',
     })
-    console.log('[MSW] モックサーバーが起動しました')
   }
 }

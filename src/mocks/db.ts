@@ -24,7 +24,6 @@ export function initStore(): void {
     passkey_credentials: structuredClone(seedData.passkey_credentials),
     webauthn_challenges: [],
   }
-  console.log('[MSW] モックデータベースを初期化しました')
 }
 
 /** テーブルの全行を取得 */

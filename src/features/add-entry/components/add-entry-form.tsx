@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useId, useState, useRef } from 'react'
 import { TYPE_LABELS } from '@/lib/constants'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -27,6 +27,7 @@ const createActions = {
 }
 
 export function AddEntryForm({ type, month, onSuccess, onCancel }: AddEntryFormProps) {
+  const formId = useId()
   const [error, setError] = useState<string | null>(null)
   const [person, setPerson] = useState<Person>('husband')
   const [isCarryover, setIsCarryover] = useState(false)
@@ -61,10 +62,14 @@ export function AddEntryForm({ type, month, onSuccess, onCancel }: AddEntryFormP
   return (
     <form ref={formRef} action={handleSubmit} className="flex flex-col gap-3">
       <div>
-        <label className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block">
+        <label
+          htmlFor={`${formId}-label`}
+          className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block"
+        >
           項目名
         </label>
         <Input
+          id={`${formId}-label`}
           name="label"
           placeholder="例：食費、家賃、給与"
           className="h-12 rounded-xl"
@@ -73,10 +78,14 @@ export function AddEntryForm({ type, month, onSuccess, onCancel }: AddEntryFormP
         />
       </div>
       <div>
-        <label className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block">
+        <label
+          htmlFor={`${formId}-amount`}
+          className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block"
+        >
           金額
         </label>
         <Input
+          id={`${formId}-amount`}
           name="amount"
           type="number"
           inputMode="numeric"
@@ -88,10 +97,17 @@ export function AddEntryForm({ type, month, onSuccess, onCancel }: AddEntryFormP
         />
       </div>
       <div>
-        <label className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block">
+        <label
+          id={`${formId}-person-label`}
+          className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block"
+        >
           担当者
         </label>
-        <PersonSelector value={person} onChange={setPerson} />
+        <PersonSelector
+          value={person}
+          onChange={setPerson}
+          ariaLabelledBy={`${formId}-person-label`}
+        />
       </div>
       {type === 'expense' && (
         <ToggleSwitch

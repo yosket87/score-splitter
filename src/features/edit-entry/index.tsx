@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Pencil } from 'lucide-react'
 import { TYPE_LABELS } from '@/lib/constants'
 import { useIsMobile } from '@/hooks/use-is-mobile'
@@ -52,6 +52,7 @@ export function EditModal({
   isCleared: initialIsCleared,
   onUpdate,
 }: EditModalProps) {
+  const formId = useId()
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [person, setPerson] = useState<Person>(initialPerson)
@@ -108,10 +109,14 @@ export function EditModal({
   const form = (
     <form action={handleSubmit} className="flex flex-col gap-3">
       <div>
-        <label className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block">
+        <label
+          htmlFor={`${formId}-label`}
+          className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block"
+        >
           項目名
         </label>
         <Input
+          id={`${formId}-label`}
           name="label"
           defaultValue={label}
           className="h-12 rounded-xl"
@@ -120,10 +125,14 @@ export function EditModal({
         />
       </div>
       <div>
-        <label className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block">
+        <label
+          htmlFor={`${formId}-amount`}
+          className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block"
+        >
           金額
         </label>
         <Input
+          id={`${formId}-amount`}
           name="amount"
           type="number"
           inputMode="numeric"
@@ -135,10 +144,17 @@ export function EditModal({
         />
       </div>
       <div>
-        <label className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block">
+        <label
+          id={`${formId}-person-label`}
+          className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block"
+        >
           担当者
         </label>
-        <PersonSelector value={person} onChange={setPerson} />
+        <PersonSelector
+          value={person}
+          onChange={setPerson}
+          ariaLabelledBy={`${formId}-person-label`}
+        />
       </div>
       {type === 'expense' && (
         <ToggleSwitch

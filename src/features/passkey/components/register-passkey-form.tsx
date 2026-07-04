@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import {
   startRegistration,
   type PublicKeyCredentialCreationOptionsJSON,
@@ -18,6 +18,7 @@ interface RegisterPasskeyFormProps {
 }
 
 export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) {
+  const formId = useId()
   const [person, setPerson] = useState<Person>('husband')
   const [deviceName, setDeviceName] = useState('')
   const [isRegistering, setIsRegistering] = useState(false)
@@ -67,12 +68,21 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
     <div className="space-y-4">
       {/* Person 選択 */}
       <div>
-        <label className="text-[11px] font-bold tracking-[0.14em] uppercase text-sub-text block mb-2">
+        <label
+          id={`${formId}-person-label`}
+          className="text-[11px] font-bold tracking-[0.14em] uppercase text-sub-text block mb-2"
+        >
           登録する人
         </label>
-        <div className="flex gap-2">
+        <div
+          className="flex gap-2"
+          role="radiogroup"
+          aria-labelledby={`${formId}-person-label`}
+        >
           <button
             type="button"
+            role="radio"
+            aria-checked={person === 'husband'}
             onClick={() => setPerson('husband')}
             className={`flex-1 h-10 rounded-[10px] text-[13px] font-semibold transition-colors ${
               person === 'husband'
@@ -84,6 +94,8 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
           </button>
           <button
             type="button"
+            role="radio"
+            aria-checked={person === 'wife'}
             onClick={() => setPerson('wife')}
             className={`flex-1 h-10 rounded-[10px] text-[13px] font-semibold transition-colors ${
               person === 'wife'
@@ -99,13 +111,13 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
       {/* デバイス名 */}
       <div>
         <label
-          htmlFor="device-name"
+          htmlFor={`${formId}-device-name`}
           className="text-[11px] font-bold tracking-[0.14em] uppercase text-sub-text block mb-2"
         >
           デバイス名（任意）
         </label>
         <input
-          id="device-name"
+          id={`${formId}-device-name`}
           type="text"
           value={deviceName}
           onChange={(e) => setDeviceName(e.target.value)}

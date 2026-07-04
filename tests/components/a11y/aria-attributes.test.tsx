@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { CarryoverSection } from '@/features/carryover'
+import { PersonSelector } from '@/components/ui/person-selector'
 import type { Carryover } from '@/types'
 
 vi.mock('@/app/actions/carryover', () => ({
@@ -42,5 +43,19 @@ describe('CarryoverSection a11y', () => {
     expect(
       screen.getByRole('button', { name: '前月繰越を清算する' })
     ).toBeInTheDocument()
+  })
+
+  it('担当者選択が radiogroup と radio の選択状態を持つ', () => {
+    render(<PersonSelector value="husband" onChange={() => {}} />)
+
+    expect(screen.getByRole('radiogroup', { name: '担当者' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: '夫' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
+    expect(screen.getByRole('radio', { name: '妻' })).toHaveAttribute(
+      'aria-checked',
+      'false'
+    )
   })
 })

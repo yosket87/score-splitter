@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useId, useState, useRef } from 'react'
 import {
   Drawer,
   DrawerContent,
@@ -37,6 +37,7 @@ const typeConfig = {
 } as const
 
 export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps) {
+  const formId = useId()
   const [entryType, setEntryType] = useState<EntryType>('expense')
   const [person, setPerson] = useState<Person>('husband')
   const [isCarryover, setIsCarryover] = useState(false)
@@ -101,7 +102,11 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
         </DrawerHeader>
 
         {/* タイプタブ */}
-        <div className="flex gap-1 mx-4 mb-3 bg-[#F3F4F6] rounded-[12px] h-9 p-[3px]">
+        <div
+          className="flex gap-1 mx-4 mb-3 bg-[#F3F4F6] rounded-[12px] h-9 p-[3px]"
+          role="radiogroup"
+          aria-label="項目種別"
+        >
           {(['income', 'expense', 'carryover'] as const).map((t) => {
             const active = entryType === t
             const cfg = typeConfig[t]
@@ -109,6 +114,8 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
               <button
                 key={t}
                 type="button"
+                role="radio"
+                aria-checked={active}
                 onClick={() => {
                   setEntryType(t)
                   setIsCarryover(false)
@@ -134,10 +141,14 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
           className="flex flex-col gap-3 px-4 pb-4"
         >
           <div>
-            <label className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block">
+            <label
+              htmlFor={`${formId}-label`}
+              className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block"
+            >
               項目名
             </label>
             <Input
+              id={`${formId}-label`}
               name="label"
               placeholder="例：食費、家賃、給与"
               className="h-11 rounded-lg bg-[#F3F4F6]"
@@ -146,12 +157,16 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
           </div>
 
           <div>
-            <label className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block">
+            <label
+              htmlFor={`${formId}-amount`}
+              className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block"
+            >
               金額
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#666666] text-sm">¥</span>
               <Input
+                id={`${formId}-amount`}
                 name="amount"
                 type="number"
                 inputMode="numeric"
@@ -164,10 +179,17 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
           </div>
 
           <div>
-            <label className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block">
+            <label
+              id={`${formId}-person-label`}
+              className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block"
+            >
               担当者
             </label>
-            <PersonSelector value={person} onChange={setPerson} />
+            <PersonSelector
+              value={person}
+              onChange={setPerson}
+              ariaLabelledBy={`${formId}-person-label`}
+            />
           </div>
 
           {entryType === 'expense' && (

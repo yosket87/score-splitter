@@ -30,8 +30,13 @@ export default function Error({ error, reset }: ErrorProps) {
             <div className="space-y-2">
               <h2 className="text-xl font-bold">エラーが発生しました</h2>
               <p className="text-sm text-muted-foreground">
-                {error.message || 'データの読み込みに失敗しました。再度お試しください。'}
+                データの読み込みに失敗しました。再度お試しください。
               </p>
+              {error.digest && (
+                <p className="text-xs text-muted-foreground">
+                  問い合わせコード: {error.digest}
+                </p>
+              )}
             </div>
             <Button
               onClick={reset}

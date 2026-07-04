@@ -13,6 +13,9 @@ import {
 } from '@/app/actions/passkeys'
 import type { Person } from '@/types'
 
+const UNEXPECTED_PASSKEY_REGISTRATION_ERROR =
+  'パスキーの登録中にエラーが発生しました。時間をおいて再度お試しください。'
+
 interface RegisterPasskeyFormProps {
   onRegistered: () => void
 }
@@ -56,8 +59,8 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
       if (err instanceof Error && err.name === 'NotAllowedError') {
         setError('パスキーの登録がキャンセルされました')
       } else {
-        const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
-        setError(`パスキーの登録中にエラーが発生しました (${detail})`)
+        console.error('[RegisterPasskeyForm]', err)
+        setError(UNEXPECTED_PASSKEY_REGISTRATION_ERROR)
       }
     } finally {
       setIsRegistering(false)

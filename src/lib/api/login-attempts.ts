@@ -1,18 +1,15 @@
 import { apiRequest } from './client'
+import type { ApiEnvelope } from './types'
 
 export interface LoginRateLimitStatus {
   allowed: boolean
   retryAfterSeconds?: number
 }
 
-interface ApiData<T> {
-  data: T
-}
-
 export async function checkLoginRateLimit(
   key: string
 ): Promise<LoginRateLimitStatus> {
-  const response = await apiRequest<ApiData<LoginRateLimitStatus>>(
+  const response = await apiRequest<ApiEnvelope<LoginRateLimitStatus>>(
     '/login-attempts/check',
     {
       method: 'POST',
@@ -25,7 +22,7 @@ export async function checkLoginRateLimit(
 export async function recordFailedLoginAttempt(
   key: string
 ): Promise<LoginRateLimitStatus> {
-  const response = await apiRequest<ApiData<LoginRateLimitStatus>>(
+  const response = await apiRequest<ApiEnvelope<LoginRateLimitStatus>>(
     '/login-attempts/failure',
     {
       method: 'POST',

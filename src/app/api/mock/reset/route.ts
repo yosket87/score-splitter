@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 export async function POST() {
-  if (process.env.USE_MOCKS !== 'true' || process.env.NODE_ENV === 'production') {
+  if (process.env.USE_MOCKS !== 'true') {
     return NextResponse.json(
       { error: 'エンドポイントが見つかりません' },
       { status: 404 }

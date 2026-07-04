@@ -143,7 +143,7 @@ test.describe('月詳細ページ', () => {
 
     await expect(incomeSection.getByText(/350,000/)).toBeVisible()
     await expect(incomeSection.getByText(/280,000/)).toBeVisible()
-    await expect(incomeSection.getByText(/\+50,000/)).toBeVisible()
+    await expect(incomeSection.getByText(/\+¥50,000/)).toBeVisible()
   })
 
   test('シードデータの支出が表示される', async ({ page }) => {
@@ -259,7 +259,7 @@ test.describe('収入の追加', () => {
     await dialog.getByPlaceholder('例：食費、家賃、給与').fill('妻のパート')
     await dialog.getByPlaceholder('¥ 0').fill('150000')
 
-    await dialog.getByRole('button', { name: '妻' }).click()
+    await dialog.getByRole('radio', { name: '妻' }).click()
 
     await dialog.getByRole('button', { name: /収入.*追加/ }).click()
 

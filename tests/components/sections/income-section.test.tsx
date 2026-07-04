@@ -97,6 +97,14 @@ describe('IncomeSection', () => {
     expect(screen.getByRole('button', { name: 'ボーナスを編集' })).toBeInTheDocument()
   })
 
+  it('行アクションはキーボードフォーカス時にも可視化される', () => {
+    render(<IncomeSection incomes={mockIncomes} month="202601" />)
+
+    expect(screen.getByRole('button', { name: '給料を削除' }).parentElement).toHaveClass(
+      'md:group-focus-within:opacity-100'
+    )
+  })
+
   it('削除前に確認し、失敗時はエラーtoastを表示する', async () => {
     const user = userEvent.setup()
     vi.mocked(deleteIncome).mockResolvedValueOnce({

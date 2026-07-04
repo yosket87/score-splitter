@@ -85,7 +85,7 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="rounded-t-[22px] pb-safe">
         <DrawerHeader className="flex flex-row items-center justify-between px-4 py-2">
-          <DrawerClose className="text-sm font-semibold text-sub-text">
+          <DrawerClose className="min-h-11 px-2 text-sm font-semibold text-sub-text">
             キャンセル
           </DrawerClose>
           <DrawerTitle className="text-base font-bold">
@@ -95,7 +95,7 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
             type="submit"
             form="add-entry-form"
             disabled={submitting}
-            className="text-sm font-bold text-accent disabled:opacity-50"
+            className="min-h-11 px-2 text-sm font-bold text-accent disabled:opacity-50"
           >
             保存
           </button>
@@ -103,7 +103,7 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
 
         {/* タイプタブ */}
         <div
-          className="flex gap-1 mx-4 mb-3 bg-[#F3F4F6] rounded-[12px] h-9 p-[3px]"
+          className="flex h-11 gap-1 mx-4 mb-3 bg-[#F3F4F6] rounded-[12px] p-[3px]"
           role="radiogroup"
           aria-label="項目種別"
         >

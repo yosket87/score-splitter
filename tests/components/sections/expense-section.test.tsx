@@ -152,6 +152,23 @@ describe('ExpenseSection', () => {
     expect(screen.getByText(/繰越\s+1件/)).toBeInTheDocument()
   })
 
+  it('行アクションはキーボードフォーカス時にも可視化される', () => {
+    render(<ExpenseSection expenses={mockExpenses} month="202601" />)
+
+    expect(screen.getByRole('button', { name: '食費を削除' }).parentElement).toHaveClass(
+      'md:group-focus-within:opacity-100'
+    )
+  })
+
+  it('繰越トグルに44px以上のタッチ領域がある', () => {
+    render(<ExpenseSection expenses={mockExpenses} month="202601" />)
+
+    expect(screen.getByRole('button', { name: '食費を繰越にする' })).toHaveClass(
+      'h-11',
+      'w-11'
+    )
+  })
+
   it('削除前に確認し、失敗時はエラーtoastを表示する', async () => {
     const user = userEvent.setup()
     vi.mocked(deleteExpense).mockResolvedValueOnce({

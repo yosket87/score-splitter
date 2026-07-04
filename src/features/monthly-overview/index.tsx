@@ -147,7 +147,7 @@ export function HeroSection({
               type="button"
               aria-label="前月に移動"
               onClick={() => navigateMonth(-1)}
-              className="text-white/80 hover:text-white transition-colors"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-white/80 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -156,7 +156,7 @@ export function HeroSection({
               onClick={goToCurrentMonth}
               aria-label="今月に移動"
               aria-live="polite"
-              className="text-[13px] font-semibold text-white min-w-[80px] text-center overflow-hidden"
+              className="inline-flex h-11 min-w-[88px] items-center justify-center overflow-hidden rounded-full text-center text-[13px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             >
               <AnimatePresence mode="wait" initial={false} custom={direction}>
                 <motion.span
@@ -177,7 +177,7 @@ export function HeroSection({
               type="button"
               aria-label="翌月に移動"
               onClick={() => navigateMonth(1)}
-              className="text-white/80 hover:text-white transition-colors"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-white/80 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             >
               <ChevronRight className="h-4 w-4" />
             </button>

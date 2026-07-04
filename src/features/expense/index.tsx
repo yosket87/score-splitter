@@ -65,13 +65,13 @@ export function ExpenseSection({ expenses, month }: ExpenseSectionProps) {
                 }`}>
                   {expense.isCarryover ? '' : '−'}{formatCurrency(expense.amount).replace('-', '').replace('¥', '¥')}
                 </span>
-                <div className="flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
                   <form action={async () => {
                     await toggleExpenseCarryover(expense.id, !expense.isCarryover)
                   }}>
                     <button
                       type="submit"
-                      className={`h-7 w-7 flex items-center justify-center rounded-full text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
+                      className={`-m-2 flex h-11 w-11 items-center justify-center rounded-full text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
                         expense.isCarryover
                           ? 'text-accent bg-accent/10'
                           : 'text-muted-foreground hover:text-accent hover:bg-accent/10'

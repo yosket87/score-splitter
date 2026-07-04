@@ -47,11 +47,13 @@ describe('entry form a11y', () => {
 
     expect(screen.getByLabelText('項目名')).toHaveAttribute('name', 'label')
     expect(screen.getByLabelText('金額')).toHaveAttribute('name', 'amount')
-    expect(screen.getByRole('radiogroup', { name: '項目種別' })).toBeInTheDocument()
+    expect(screen.getByRole('radiogroup', { name: '項目種別' })).toHaveClass('h-11')
     expect(screen.getByRole('radio', { name: '支出' })).toHaveAttribute(
       'aria-checked',
       'true'
     )
+    expect(screen.getByRole('button', { name: 'キャンセル' })).toHaveClass('min-h-11')
+    expect(screen.getByRole('button', { name: '保存' })).toHaveClass('min-h-11')
   })
 
   it('編集フォームの項目名・金額入力がlabelで取得できる', async () => {

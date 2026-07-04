@@ -149,6 +149,23 @@ describe('CarryoverSection', () => {
     expect(screen.getByText(/清算済み\s+1件/)).toBeInTheDocument()
   })
 
+  it('行アクションはキーボードフォーカス時にも可視化される', () => {
+    render(<CarryoverSection carryovers={mockCarryovers} month="202601" />)
+
+    expect(screen.getByRole('button', { name: '前月繰越を削除' }).parentElement).toHaveClass(
+      'md:group-focus-within:opacity-100'
+    )
+  })
+
+  it('清算トグルに44px以上のタッチ領域がある', () => {
+    render(<CarryoverSection carryovers={mockCarryovers} month="202601" />)
+
+    expect(screen.getByRole('button', { name: '前月繰越を清算する' })).toHaveClass(
+      'h-11',
+      'w-11'
+    )
+  })
+
   it('削除前に確認し、失敗時はエラーtoastを表示する', async () => {
     const user = userEvent.setup()
     vi.mocked(deleteCarryover).mockResolvedValueOnce({

@@ -30,6 +30,21 @@ vi.mock('@/components/layout/header-actions', () => ({
 }))
 
 describe('HeroSection', () => {
+  it('月移動ボタンに44px以上のタッチ領域がある', () => {
+    render(
+      <HeroSection
+        currentMonth="202604"
+        incomes={[]}
+        expenses={[]}
+        carryovers={[]}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: '前月に移動' })).toHaveClass('h-11', 'w-11')
+    expect(screen.getByRole('button', { name: '翌月に移動' })).toHaveClass('h-11', 'w-11')
+    expect(screen.getByRole('button', { name: '今月に移動' })).toHaveClass('h-11')
+  })
+
   it('負の精算額では妻から夫への方向を表示する', () => {
     const incomes: Income[] = [
       {

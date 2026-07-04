@@ -70,13 +70,13 @@ export function CarryoverSection({ carryovers, month }: CarryoverSectionProps) {
                 }`}>
                   {formatCurrency(Math.abs(carryover.amount))}
                 </span>
-                <div className="flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
                   <form action={async () => {
                     await toggleCarryoverCleared(carryover.id, !carryover.isCleared)
                   }}>
                     <button
                       type="submit"
-                      className={`h-7 w-7 flex items-center justify-center rounded-full text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
+                      className={`-m-2 flex h-11 w-11 items-center justify-center rounded-full text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
                         carryover.isCleared
                           ? 'text-neon-green bg-neon-green/10'
                           : 'text-muted-foreground hover:text-neon-green hover:bg-neon-green/10'

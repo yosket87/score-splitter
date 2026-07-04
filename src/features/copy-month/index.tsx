@@ -279,7 +279,12 @@ export function CopyMonthDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1">
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label="前月からコピー"
+          className="h-11 w-11 gap-1 p-0 sm:h-8 sm:w-auto sm:px-3"
+        >
           <Copy className="h-4 w-4" />
           <span className="hidden sm:inline">前月からコピー</span>
         </Button>

@@ -50,6 +50,7 @@ export function CopyMonthDialog({
   const [isPending, setIsPending] = useState(false)
   const [preview, setPreview] = useState<CopyMonthPreview | null>(null)
   const [mode, setMode] = useState<CopyMode>('add')
+  const [showReplaceConfirmation, setShowReplaceConfirmation] = useState(false)
   // 各項目の選択状態を管理（id -> selection）
   const [itemSelections, setItemSelections] = useState<Map<string, ItemSelection>>(
     new Map()
@@ -64,6 +65,7 @@ export function CopyMonthDialog({
       setPreview(null)
       setItemSelections(new Map())
       setIncludeCarryover(true)
+      setShowReplaceConfirmation(false)
     }
   }
 
@@ -157,6 +159,11 @@ export function CopyMonthDialog({
       return
     }
 
+    if (requiresReplaceConfirmation && !showReplaceConfirmation) {
+      setShowReplaceConfirmation(true)
+      return
+    }
+
     setIsPending(true)
 
     const result = await copyMonthData({
@@ -191,7 +198,8 @@ export function CopyMonthDialog({
 
   const hasSourceData =
     preview && (preview.items.length > 0 || preview.carryoverCount > 0)
-  const hasExistingData = preview && preview.existingCount > 0
+  const hasExistingData = Boolean(preview && preview.existingCount > 0)
+  const requiresReplaceConfirmation = mode === 'replace' && hasExistingData
 
   // 選択されている項目数を計算
   const selectedCount = Array.from(itemSelections.values()).filter(
@@ -368,7 +376,10 @@ export function CopyMonthDialog({
                     <p className="mb-2 font-medium">既存データの処理</p>
                     <Select
                       value={mode}
-                      onValueChange={(v) => setMode(v as CopyMode)}
+                      onValueChange={(v) => {
+                        setMode(v as CopyMode)
+                        setShowReplaceConfirmation(false)
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -385,6 +396,15 @@ export function CopyMonthDialog({
                         </SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                )}
+
+                {requiresReplaceConfirmation && showReplaceConfirmation && preview && (
+                  <div
+                    role="alert"
+                    className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                  >
+                    既存の{preview.existingCount}件を削除してコピーします。続行するには確認してください。
                   </div>
                 )}
               </>
@@ -404,7 +424,11 @@ export function CopyMonthDialog({
             onClick={handleCopy}
             disabled={isPending || !hasSourceData || !canCopy}
           >
-            {isPending ? 'コピー中…' : `コピーする (${totalSelected}件)`}
+            {isPending
+              ? 'コピー中…'
+              : requiresReplaceConfirmation && showReplaceConfirmation
+                ? '既存データを削除してコピー'
+                : `コピーする (${totalSelected}件)`}
           </Button>
         </div>
       </DialogContent>

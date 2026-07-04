@@ -4,9 +4,19 @@ import userEvent from '@testing-library/user-event'
 import { CopyMonthDialog } from '@/features/copy-month'
 import { copyMonthData, getCopyMonthPreview } from '@/app/actions/copy-month'
 
+const navigationMocks = vi.hoisted(() => ({
+  refresh: vi.fn(),
+}))
+
 vi.mock('@/app/actions/copy-month', () => ({
   copyMonthData: vi.fn(),
   getCopyMonthPreview: vi.fn(),
+}))
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    refresh: navigationMocks.refresh,
+  }),
 }))
 
 vi.mock('sonner', () => ({
@@ -87,5 +97,6 @@ describe('CopyMonthDialog', () => {
         })
       )
     })
+    expect(navigationMocks.refresh).toHaveBeenCalled()
   })
 })

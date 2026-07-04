@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { Copy } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -42,6 +43,7 @@ export function CopyMonthDialog({
   currentMonth,
   previousMonth,
 }: CopyMonthDialogProps) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [isPending, setIsPending] = useState(false)
   const [preview, setPreview] = useState<CopyMonthPreview | null>(null)
@@ -188,6 +190,7 @@ export function CopyMonthDialog({
         toast.success(`${total}件のデータをコピーしました`)
       }
       setOpen(false)
+      router.refresh()
     } else {
       toast.error(result.error ?? 'コピーに失敗しました')
     }

@@ -4,6 +4,7 @@ import {
   filterActualExpenses,
   filterCarryoverExpenses,
   filterClearedCarryovers,
+  getSettlementDirectionLabel,
 } from '@/lib/utils/calculation'
 import type { Income, Expense, Carryover } from '@/types'
 
@@ -232,5 +233,19 @@ describe('filterClearedCarryovers', () => {
 
   it('空配列に対して空配列を返す', () => {
     expect(filterClearedCarryovers([])).toEqual([])
+  })
+})
+
+describe('getSettlementDirectionLabel', () => {
+  it('正の精算額は夫から妻への方向を返す', () => {
+    expect(getSettlementDirectionLabel(1)).toBe('夫 → 妻')
+  })
+
+  it('負の精算額は妻から夫への方向を返す', () => {
+    expect(getSettlementDirectionLabel(-1)).toBe('妻 → 夫')
+  })
+
+  it('0の精算額は夫から妻への方向を返す', () => {
+    expect(getSettlementDirectionLabel(0)).toBe('夫 → 妻')
   })
 })

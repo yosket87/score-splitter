@@ -11,7 +11,10 @@ import { ExportCsvButton } from '@/features/export-csv'
 import { HeaderActions } from '@/components/layout/header-actions'
 import { useTheme } from 'next-themes'
 import { labelSlide, motionDuration, motionEase } from '@/components/animations/tokens'
-import { calculateSettlement } from '@/lib/utils/calculation'
+import {
+  calculateSettlement,
+  getSettlementDirectionLabel,
+} from '@/lib/utils/calculation'
 import { calculateMonthBalance } from '@/lib/utils/monthly-summary'
 import { formatCurrency, formatMonth, getPreviousMonth, parseMonth, monthToPath } from '@/lib/utils/format'
 import type { Income, Expense, Carryover } from '@/types'
@@ -244,7 +247,7 @@ export function HeroSection({
                   className="text-lg font-bold font-mono text-foreground"
                 />
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-lg bg-accent/10 text-[8px] font-semibold text-accent">
-                  夫 → 妻
+                  {getSettlementDirectionLabel(result.settlement)}
                 </span>
               </div>
             ) : (

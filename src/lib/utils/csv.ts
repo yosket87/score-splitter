@@ -1,5 +1,11 @@
 import type { Income, Expense, Carryover, Person } from '@/types'
-import { calculateSettlement, filterActualExpenses, filterCarryoverExpenses, filterClearedCarryovers } from '@/lib/utils/calculation'
+import {
+  calculateSettlement,
+  filterActualExpenses,
+  filterCarryoverExpenses,
+  filterClearedCarryovers,
+  getSettlementDirectionLabel,
+} from '@/lib/utils/calculation'
 import { formatMonth } from '@/lib/utils/format'
 
 const BOM = '\uFEFF'
@@ -69,7 +75,7 @@ export function generateMonthlyCsv(
   lines.push(`妻の支出,${Math.abs(result.wifeExpense)}`)
   lines.push(`お小遣い（1人あたり）,${result.allowance}`)
   lines.push(`精算額,${Math.abs(result.settlement)}`)
-  lines.push(`精算方向,${result.settlement >= 0 ? '夫 → 妻' : '妻 → 夫'}`)
+  lines.push(`精算方向,${getSettlementDirectionLabel(result.settlement)}`)
   lines.push('')
 
   // 収入セクション

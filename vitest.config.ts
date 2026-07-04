@@ -22,10 +22,10 @@ export default defineConfig({
       ],
       // 最終目標は80%。現状に合わせた下限から始め、テスト追加に合わせて段階的に引き上げる。
       thresholds: {
-        statements: 40,
-        branches: 30,
-        functions: 35,
-        lines: 40,
+        statements: 50,
+        branches: 45,
+        functions: 45,
+        lines: 50,
       },
     },
   },

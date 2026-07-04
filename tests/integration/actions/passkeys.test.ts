@@ -21,9 +21,11 @@ vi.mock('@simplewebauthn/server', () => simpleWebAuthnMocks)
 vi.mock('@/lib/webauthn/session', () => sessionMocks)
 
 import {
+  deletePasskey,
   generateRegistrationOptions,
   listPasskeys,
   verifyAuthentication,
+  verifyRegistration,
 } from '@/app/actions/passkeys'
 
 describe('passkey actions', () => {
@@ -119,6 +121,127 @@ describe('passkey actions', () => {
     expect(sessionMocks.createSession).toHaveBeenCalledWith('wife', 'passkey')
   })
 
+  it('登録検証時にoriginとRP IDを検証へ渡してパスキーを保存する', async () => {
+    mockPasskeysApi.getLatestChallenge.mockResolvedValueOnce({
+      id: 'challenge-1',
+      challenge: 'registration-challenge',
+      type: 'registration',
+      person: 'husband',
+      expiresAt: new Date(Date.now() + 300000).toISOString(),
+      createdAt: '2026-01-01T00:00:00Z',
+    })
+    simpleWebAuthnMocks.verifyRegistrationResponse.mockResolvedValueOnce({
+      verified: true,
+      registrationInfo: {
+        credential: {
+          id: 'credential-new',
+          publicKey: new Uint8Array([1, 2, 3]),
+          counter: 0,
+        },
+        credentialBackedUp: false,
+      },
+    })
+
+    const result = await verifyRegistration(
+      'husband',
+      {
+        id: 'credential-new',
+        rawId: 'credential-new',
+        response: {
+          attestationObject: '',
+          clientDataJSON: '',
+          transports: ['internal'],
+        },
+        type: 'public-key',
+        clientExtensionResults: {},
+      },
+      'MacBook'
+    )
+
+    expect(result).toEqual({
+      success: true,
+      data: { credentialId: 'credential-new' },
+    })
+    expect(simpleWebAuthnMocks.verifyRegistrationResponse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedChallenge: 'registration-challenge',
+        expectedOrigin: 'http://localhost:3000',
+        expectedRPID: 'localhost',
+      })
+    )
+    expect(mockPasskeysApi.createPasskey).toHaveBeenCalledWith({
+      id: 'credential-new',
+      person: 'husband',
+      publicKeyBase64: Buffer.from([1, 2, 3]).toString('base64'),
+      counter: 0,
+      deviceName: 'MacBook',
+      transports: ['internal'],
+    })
+    expect(mockPasskeysApi.deleteChallenges).toHaveBeenCalledWith({
+      type: 'registration',
+      person: 'husband',
+    })
+  })
+
+  it('登録チャレンジ期限切れ時は検証せずエラーを返す', async () => {
+    mockPasskeysApi.getLatestChallenge.mockResolvedValueOnce({
+      id: 'challenge-1',
+      challenge: 'registration-challenge',
+      type: 'registration',
+      person: 'husband',
+      expiresAt: new Date(Date.now() - 1000).toISOString(),
+      createdAt: '2026-01-01T00:00:00Z',
+    })
+
+    const result = await verifyRegistration('husband', {
+      id: 'credential-new',
+      rawId: 'credential-new',
+      response: {
+        attestationObject: '',
+        clientDataJSON: '',
+      },
+      type: 'public-key',
+      clientExtensionResults: {},
+    })
+
+    expect(result).toEqual({
+      success: false,
+      error: 'チャレンジの有効期限が切れました。もう一度お試しください',
+    })
+    expect(simpleWebAuthnMocks.verifyRegistrationResponse).not.toHaveBeenCalled()
+  })
+
+  it('登録検証でoriginまたはRP IDが不一致ならエラーを返す', async () => {
+    mockPasskeysApi.getLatestChallenge.mockResolvedValueOnce({
+      id: 'challenge-1',
+      challenge: 'registration-challenge',
+      type: 'registration',
+      person: 'wife',
+      expiresAt: new Date(Date.now() + 300000).toISOString(),
+      createdAt: '2026-01-01T00:00:00Z',
+    })
+    simpleWebAuthnMocks.verifyRegistrationResponse.mockRejectedValueOnce(
+      new Error('origin mismatch')
+    )
+
+    const result = await verifyRegistration('wife', {
+      id: 'credential-new',
+      rawId: 'credential-new',
+      response: {
+        attestationObject: '',
+        clientDataJSON: '',
+      },
+      type: 'public-key',
+      clientExtensionResults: {},
+    })
+
+    expect(result).toEqual({
+      success: false,
+      error: 'origin mismatch',
+    })
+    expect(mockPasskeysApi.createPasskey).not.toHaveBeenCalled()
+  })
+
   it('登録済みパスキー一覧をAPIから取得する', async () => {
     mockPasskeysApi.listPasskeys.mockResolvedValueOnce([
       {
@@ -145,5 +268,23 @@ describe('passkey actions', () => {
         },
       ],
     })
+  })
+
+  it('未認証ではパスキー一覧を取得しない', async () => {
+    sessionMocks.isAuthenticated.mockResolvedValueOnce(false)
+
+    const result = await listPasskeys()
+
+    expect(result).toEqual({ success: false, error: '認証が必要です' })
+    expect(mockPasskeysApi.listPasskeys).not.toHaveBeenCalled()
+  })
+
+  it('未認証ではパスキーを削除しない', async () => {
+    sessionMocks.isAuthenticated.mockResolvedValueOnce(false)
+
+    const result = await deletePasskey('credential-1')
+
+    expect(result).toEqual({ success: false, error: '認証が必要です' })
+    expect(mockPasskeysApi.deletePasskey).not.toHaveBeenCalled()
   })
 })

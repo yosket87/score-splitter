@@ -55,6 +55,33 @@ type FakeLoginAttemptRow = {
   updated_at: string
 }
 
+type FakeSessionRow = {
+  token: string
+  person: 'husband' | 'wife' | null
+  auth_method: 'password' | 'passkey'
+  expires_at: string
+  created_at: string
+}
+
+type FakePasskeyRow = {
+  id: string
+  person: 'husband' | 'wife'
+  public_key_base64: string
+  counter: number
+  device_name: string | null
+  transports: string
+  created_at: string
+}
+
+type FakeChallengeRow = {
+  id: string
+  challenge: string
+  type: 'registration' | 'authentication'
+  person: 'husband' | 'wife' | null
+  expires_at: string
+  created_at: string
+}
+
 class FakeD1Database implements D1DatabaseLike {
   readonly executed: Array<{ query: string; params: unknown[] }> = []
   readonly batched: Array<Array<{ query: string; params: unknown[] }>> = []
@@ -94,17 +121,36 @@ class FakeD1Database implements D1DatabaseLike {
     },
   ]
   private loginAttemptRows: FakeLoginAttemptRow[] = []
+  private sessionRows: FakeSessionRow[] = []
+  private passkeyRows: FakePasskeyRow[] = [
+    {
+      id: 'credential-1',
+      person: 'husband',
+      public_key_base64: 'AQID',
+      counter: 0,
+      device_name: 'iPhone',
+      transports: '["internal"]',
+      created_at: '2026-01-04T00:00:00.000Z',
+    },
+  ]
+  private challengeRows: FakeChallengeRow[] = []
 
   constructor(rows: {
     incomes?: FakeIncomeRow[]
     expenses?: FakeExpenseRow[]
     carryovers?: FakeCarryoverRow[]
     loginAttempts?: FakeLoginAttemptRow[]
+    sessions?: FakeSessionRow[]
+    passkeys?: FakePasskeyRow[]
+    challenges?: FakeChallengeRow[]
   } = {}) {
     this.incomeRows = rows.incomes ?? this.incomeRows
     this.expenseRows = rows.expenses ?? this.expenseRows
     this.carryoverRows = rows.carryovers ?? this.carryoverRows
     this.loginAttemptRows = rows.loginAttempts ?? this.loginAttemptRows
+    this.sessionRows = rows.sessions ?? this.sessionRows
+    this.passkeyRows = rows.passkeys ?? this.passkeyRows
+    this.challengeRows = rows.challenges ?? this.challengeRows
   }
 
   prepare(query: string): D1PreparedStatementLike {
@@ -136,6 +182,26 @@ class FakeD1Database implements D1DatabaseLike {
         this.loginAttemptRows.find((row) => row.attempt_key === params[0]) ?? null
       ) as T | null
     }
+    if (query.includes('FROM sessions')) {
+      return (
+        this.sessionRows.find((row) => row.token === params[0]) ?? null
+      ) as T | null
+    }
+    if (query.includes('FROM passkey_credentials')) {
+      return (
+        this.passkeyRows.find((row) => row.id === params[0]) ?? null
+      ) as T | null
+    }
+    if (query.includes('FROM webauthn_challenges')) {
+      const type = params[0] as 'registration' | 'authentication'
+      const person = query.includes('person IS NULL')
+        ? null
+        : (params[1] as 'husband' | 'wife')
+      const rows = this.challengeRows
+        .filter((row) => row.type === type && row.person === person)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      return (rows[0] ?? null) as T | null
+    }
     return null
   }
 
@@ -163,6 +229,12 @@ class FakeD1Database implements D1DatabaseLike {
       const rows = query.includes('WHERE month = ?')
         ? this.carryoverRows.filter((row) => row.month === params[0])
         : this.carryoverRows
+      return { results: rows as T[] }
+    }
+    if (query.includes('FROM passkey_credentials')) {
+      const rows = query.includes('WHERE person = ?')
+        ? this.passkeyRows.filter((row) => row.person === params[0])
+        : this.passkeyRows
       return { results: rows as T[] }
     }
     return { results: [] }
@@ -219,6 +291,64 @@ class FakeD1Database implements D1DatabaseLike {
     if (query.startsWith('DELETE FROM login_attempts')) {
       this.loginAttemptRows = this.loginAttemptRows.filter(
         (row) => row.attempt_key !== params[0]
+      )
+    }
+    if (query.startsWith('INSERT INTO sessions')) {
+      this.sessionRows.push({
+        token: params[0] as string,
+        person: params[1] as 'husband' | 'wife' | null,
+        auth_method: params[2] as 'password' | 'passkey',
+        expires_at: params[3] as string,
+        created_at: params[4] as string,
+      })
+    }
+    if (query.startsWith('DELETE FROM sessions')) {
+      this.sessionRows = this.sessionRows.filter((row) => row.token !== params[0])
+    }
+    if (query.startsWith('INSERT INTO passkey_credentials')) {
+      this.passkeyRows.push({
+        id: params[0] as string,
+        person: params[1] as 'husband' | 'wife',
+        public_key_base64: params[2] as string,
+        counter: params[3] as number,
+        device_name: params[4] as string | null,
+        transports: params[5] as string,
+        created_at: params[6] as string,
+      })
+    }
+    if (query.startsWith('UPDATE passkey_credentials SET counter')) {
+      this.passkeyRows = this.passkeyRows.map((row) =>
+        row.id === params[1] ? { ...row, counter: params[0] as number } : row
+      )
+    }
+    if (query.startsWith('DELETE FROM passkey_credentials')) {
+      this.passkeyRows = this.passkeyRows.filter((row) => row.id !== params[0])
+    }
+    if (query.startsWith('INSERT INTO webauthn_challenges')) {
+      this.challengeRows.push({
+        id: params[0] as string,
+        challenge: params[1] as string,
+        type: params[2] as 'registration' | 'authentication',
+        person: params[3] as 'husband' | 'wife' | null,
+        expires_at: params[4] as string,
+        created_at: params[5] as string,
+      })
+    }
+    if (query.startsWith('DELETE FROM webauthn_challenges WHERE type')) {
+      const type = params[0] as 'registration' | 'authentication'
+      if (query.includes('person IS NULL')) {
+        this.challengeRows = this.challengeRows.filter(
+          (row) => !(row.type === type && row.person === null)
+        )
+      } else {
+        this.challengeRows = this.challengeRows.filter(
+          (row) => !(row.type === type && row.person === params[1])
+        )
+      }
+    }
+    if (query.startsWith('DELETE FROM webauthn_challenges WHERE expires_at')) {
+      this.challengeRows = this.challengeRows.filter(
+        (row) => row.expires_at >= (params[0] as string)
       )
     }
     return { success: true, meta: { changes: 1 } }
@@ -575,6 +705,268 @@ describe('Cloudflare Worker API', () => {
         '2026-02-03T04:20:00.000Z',
         'expired-key',
       ],
+    })
+  })
+
+  it('セッションを作成・取得・削除できる', async () => {
+    const db = new FakeD1Database()
+    const token = 'a'.repeat(64)
+    const now = vi.fn(() => new Date('2026-02-03T04:05:06.000Z'))
+
+    const createResponse = await handleRequest(
+      createRequest('/sessions', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          token,
+          person: 'wife',
+          authMethod: 'passkey',
+          expiresAt: '2026-02-10T04:05:06.000Z',
+        }),
+      }),
+      createEnv(db),
+      { now }
+    )
+
+    expect(createResponse.status).toBe(201)
+    await expect(createResponse.json()).resolves.toEqual({
+      data: {
+        token,
+        person: 'wife',
+        authMethod: 'passkey',
+        expiresAt: '2026-02-10T04:05:06.000Z',
+      },
+    })
+
+    const getResponse = await handleRequest(
+      createRequest(`/sessions/${token}`, {
+        headers: { authorization: 'Bearer secret-token' },
+      }),
+      createEnv(db)
+    )
+
+    await expect(getResponse.json()).resolves.toEqual({
+      data: {
+        token,
+        person: 'wife',
+        authMethod: 'passkey',
+        expiresAt: '2026-02-10T04:05:06.000Z',
+      },
+    })
+
+    const deleteResponse = await handleRequest(
+      createRequest(`/sessions/${token}`, {
+        method: 'DELETE',
+        headers: { authorization: 'Bearer secret-token' },
+      }),
+      createEnv(db)
+    )
+
+    await expect(deleteResponse.json()).resolves.toEqual({ success: true })
+    const afterDeleteResponse = await handleRequest(
+      createRequest(`/sessions/${token}`, {
+        headers: { authorization: 'Bearer secret-token' },
+      }),
+      createEnv(db)
+    )
+    await expect(afterDeleteResponse.json()).resolves.toEqual({ data: null })
+  })
+
+  it('パスキーを作成・一覧取得・カウンター更新・削除できる', async () => {
+    const db = new FakeD1Database({ passkeys: [] })
+    const now = vi.fn(() => new Date('2026-02-03T04:05:06.000Z'))
+
+    const createResponse = await handleRequest(
+      createRequest('/passkeys', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: 'credential-new',
+          person: 'husband',
+          publicKeyBase64: 'AQID',
+          counter: 0,
+          deviceName: 'MacBook',
+          transports: ['internal', 'hybrid'],
+        }),
+      }),
+      createEnv(db),
+      { now }
+    )
+
+    expect(createResponse.status).toBe(201)
+    await expect(createResponse.json()).resolves.toEqual({
+      data: {
+        id: 'credential-new',
+        person: 'husband',
+        publicKeyBase64: 'AQID',
+        counter: 0,
+        deviceName: 'MacBook',
+        transports: ['internal', 'hybrid'],
+        createdAt: '2026-02-03T04:05:06.000Z',
+      },
+    })
+
+    const listResponse = await handleRequest(
+      createRequest('/passkeys?person=husband', {
+        headers: { authorization: 'Bearer secret-token' },
+      }),
+      createEnv(db)
+    )
+    await expect(listResponse.json()).resolves.toEqual({
+      data: [
+        {
+          id: 'credential-new',
+          person: 'husband',
+          publicKeyBase64: 'AQID',
+          counter: 0,
+          deviceName: 'MacBook',
+          transports: ['internal', 'hybrid'],
+          createdAt: '2026-02-03T04:05:06.000Z',
+        },
+      ],
+    })
+
+    const patchResponse = await handleRequest(
+      createRequest('/passkeys/credential-new', {
+        method: 'PATCH',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ counter: 3 }),
+      }),
+      createEnv(db)
+    )
+    await expect(patchResponse.json()).resolves.toEqual({ success: true })
+
+    const getResponse = await handleRequest(
+      createRequest('/passkeys/credential-new', {
+        headers: { authorization: 'Bearer secret-token' },
+      }),
+      createEnv(db)
+    )
+    await expect(getResponse.json()).resolves.toMatchObject({
+      data: { id: 'credential-new', counter: 3 },
+    })
+
+    const deleteResponse = await handleRequest(
+      createRequest('/passkeys/credential-new', {
+        method: 'DELETE',
+        headers: { authorization: 'Bearer secret-token' },
+      }),
+      createEnv(db)
+    )
+    await expect(deleteResponse.json()).resolves.toEqual({ success: true })
+  })
+
+  it('WebAuthnチャレンジを作成・最新取得・削除できる', async () => {
+    const db = new FakeD1Database()
+    const now = vi.fn(() => new Date('2026-02-03T04:05:06.000Z'))
+    const randomUUID = vi.fn(() => 'challenge-id')
+
+    const createResponse = await handleRequest(
+      createRequest('/webauthn-challenges', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          challenge: 'registration-challenge',
+          type: 'registration',
+          person: 'husband',
+          expiresAt: '2026-02-03T04:10:06.000Z',
+        }),
+      }),
+      createEnv(db),
+      { now, randomUUID }
+    )
+
+    expect(createResponse.status).toBe(201)
+    await expect(createResponse.json()).resolves.toEqual({
+      data: {
+        id: 'challenge-id',
+        challenge: 'registration-challenge',
+        type: 'registration',
+        person: 'husband',
+        expiresAt: '2026-02-03T04:10:06.000Z',
+        createdAt: '2026-02-03T04:05:06.000Z',
+      },
+    })
+
+    const latestResponse = await handleRequest(
+      createRequest('/webauthn-challenges/latest?type=registration&person=husband', {
+        headers: { authorization: 'Bearer secret-token' },
+      }),
+      createEnv(db)
+    )
+    await expect(latestResponse.json()).resolves.toEqual({
+      data: {
+        id: 'challenge-id',
+        challenge: 'registration-challenge',
+        type: 'registration',
+        person: 'husband',
+        expiresAt: '2026-02-03T04:10:06.000Z',
+        createdAt: '2026-02-03T04:05:06.000Z',
+      },
+    })
+
+    const deleteResponse = await handleRequest(
+      createRequest('/webauthn-challenges?type=registration&person=husband', {
+        method: 'DELETE',
+        headers: { authorization: 'Bearer secret-token' },
+      }),
+      createEnv(db)
+    )
+    await expect(deleteResponse.json()).resolves.toEqual({ success: true })
+  })
+
+  it('期限切れWebAuthnチャレンジを削除できる', async () => {
+    const db = new FakeD1Database({
+      challenges: [
+        {
+          id: 'expired-challenge',
+          challenge: 'expired',
+          type: 'authentication',
+          person: null,
+          expires_at: '2026-02-03T04:00:00.000Z',
+          created_at: '2026-02-03T03:55:00.000Z',
+        },
+        {
+          id: 'active-challenge',
+          challenge: 'active',
+          type: 'authentication',
+          person: null,
+          expires_at: '2026-02-03T04:10:00.000Z',
+          created_at: '2026-02-03T04:05:00.000Z',
+        },
+      ],
+    })
+
+    const deleteResponse = await handleRequest(
+      createRequest('/webauthn-challenges/expired?before=2026-02-03T04:05:00.000Z', {
+        method: 'DELETE',
+        headers: { authorization: 'Bearer secret-token' },
+      }),
+      createEnv(db)
+    )
+
+    await expect(deleteResponse.json()).resolves.toEqual({ success: true })
+
+    const latestResponse = await handleRequest(
+      createRequest('/webauthn-challenges/latest?type=authentication', {
+        headers: { authorization: 'Bearer secret-token' },
+      }),
+      createEnv(db)
+    )
+    await expect(latestResponse.json()).resolves.toMatchObject({
+      data: { id: 'active-challenge', challenge: 'active' },
     })
   })
 })

@@ -123,7 +123,7 @@ describe('ExpenseSection', () => {
 
     // 金額が支出色で表示される（U+2212 数学マイナス記号）
     const amountElement = screen.getByText('−¥50,000')
-    expect(amountElement).toHaveClass('text-[#E2483D]')
+    expect(amountElement).toHaveClass('text-destructive')
   })
 
   it('ヘッダーに繰越件数を表示する', () => {
@@ -204,7 +204,7 @@ describe('ExpenseSection', () => {
 
     await user.click(screen.getByRole('button', { name: '食費を繰越にする' }))
 
-    expect(toggleExpenseCarryover).toHaveBeenCalledWith('1', true)
+    expect(toggleExpenseCarryover).toHaveBeenCalledWith('1', true, '202601')
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('繰越フラグの更新に失敗しました')
     })
@@ -227,7 +227,7 @@ describe('ExpenseSection', () => {
 
     await user.click(screen.getByRole('button', { name: '削除する' }))
 
-    expect(deleteExpense).toHaveBeenCalledWith('1')
+    expect(deleteExpense).toHaveBeenCalledWith('1', '202601')
     expect(toast.error).toHaveBeenCalledWith('支出の削除に失敗しました')
   })
 })

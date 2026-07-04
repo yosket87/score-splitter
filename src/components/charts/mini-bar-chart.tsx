@@ -41,7 +41,7 @@ export function MiniBarChart({ summaries, currentMonth }: MiniBarChartProps) {
               className="flex-1 rounded-t"
               style={{
                 backgroundColor: isCurrent
-                  ? 'var(--neon-green)'
+                  ? 'var(--accent)'
                   : isPositive
                     ? 'var(--chart-bar-muted)'
                     : 'var(--neon-red-light)',

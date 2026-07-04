@@ -37,8 +37,10 @@ export function PersonSelector({
             onClick={() => onChange(p)}
             className={`flex-1 py-3 rounded-[14px] text-sm font-semibold text-center transition-colors border ${
               active
-                ? 'bg-[#DBEAFE] text-[#3B82F6] border-[#3B82F6]'
-                : 'bg-[var(--card)] text-[var(--sub-text)] border-[var(--border)]'
+                ? p === 'husband'
+                  ? 'bg-husband-light text-husband border-husband'
+                  : 'bg-wife-light text-wife border-wife'
+                : 'bg-card text-sub-text border-border'
             }`}
           >
             {PERSON_LABELS[p]}

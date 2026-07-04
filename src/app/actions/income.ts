@@ -1,12 +1,12 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import {
   createIncome as createIncomeRecord,
   deleteIncome as deleteIncomeRecord,
   getIncomesByMonth as getIncomeRecordsByMonth,
   updateIncome as updateIncomeRecord,
 } from '@/lib/api/records'
+import { revalidateHouseholdData } from './revalidation'
 import { incomeSchema } from '@/lib/validations/income'
 import { requireAuth } from '@/lib/webauthn/session'
 import type { Income, ActionResult } from '@/types'
@@ -47,7 +47,7 @@ export async function createIncome(
       amount: parsed.data.amount,
       person: parsed.data.person,
     })
-    revalidatePath('/')
+    revalidateHouseholdData(parsed.data.month)
     return { success: true, data }
   } catch (error) {
     console.error('収入作成エラー:', error)
@@ -80,7 +80,7 @@ export async function updateIncome(
       amount: parsed.data.amount,
       person: parsed.data.person,
     })
-    revalidatePath('/')
+    revalidateHouseholdData(parsed.data.month)
     return { success: true, data }
   } catch (error) {
     console.error('収入更新エラー:', error)
@@ -88,12 +88,12 @@ export async function updateIncome(
   }
 }
 
-export async function deleteIncome(id: string): Promise<ActionResult> {
+export async function deleteIncome(id: string, month?: string): Promise<ActionResult> {
   await requireAuth()
 
   try {
     await deleteIncomeRecord(id)
-    revalidatePath('/')
+    revalidateHouseholdData(month)
     return { success: true }
   } catch (error) {
     console.error('収入削除エラー:', error)

@@ -86,7 +86,8 @@ describe('carryover actions', () => {
       person: 'husband',
       isCleared: true,
     })
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/01')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
     expect(result).toEqual({ success: true, data: carryover })
   })
 
@@ -141,20 +142,22 @@ describe('carryover actions', () => {
   it('繰越の清算フラグを更新する', async () => {
     mockRecordsApi.toggleCarryoverCleared.mockResolvedValueOnce(undefined)
 
-    const result = await toggleCarryoverCleared('carryover-1', true)
+    const result = await toggleCarryoverCleared('carryover-1', true, '202601')
 
     expect(mockRecordsApi.toggleCarryoverCleared).toHaveBeenCalledWith('carryover-1', true)
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/01')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
     expect(result).toEqual({ success: true })
   })
 
   it('繰越を削除する', async () => {
     mockRecordsApi.deleteCarryover.mockResolvedValueOnce(undefined)
 
-    const result = await deleteCarryover('carryover-1')
+    const result = await deleteCarryover('carryover-1', '202601')
 
     expect(mockRecordsApi.deleteCarryover).toHaveBeenCalledWith('carryover-1')
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/01')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
     expect(result).toEqual({ success: true })
   })
 })

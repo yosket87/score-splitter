@@ -26,10 +26,10 @@ export function IncomeSection({ incomes, month }: IncomeSectionProps) {
       addSlot={<AddEntryModal type="income" month={month} />}
       totalSlot={
         <div className="flex items-baseline justify-between px-3.5 py-3 border-t border-border bg-[var(--surface-total)]">
-          <span className="text-[11px] text-[#999999] font-semibold tracking-[0.8px] uppercase">
+          <span className="text-[11px] text-muted-foreground font-semibold tracking-[0.8px] uppercase">
             Total
           </span>
-          <span className="font-mono text-[15px] font-bold text-[#2563EB]">
+          <span className="font-mono text-[15px] font-bold text-accent">
             {formatCurrency(total)}
           </span>
         </div>
@@ -42,7 +42,7 @@ export function IncomeSection({ incomes, month }: IncomeSectionProps) {
           label={income.label}
           person={income.person}
           amount={formatCurrency(income.amount, { signed: true })}
-          amountClassName="text-[#2563EB]"
+          amountClassName="text-accent"
           isLast={i === incomes.length - 1}
           actions={
             <>
@@ -58,7 +58,7 @@ export function IncomeSection({ incomes, month }: IncomeSectionProps) {
               <DeleteButton
                 itemName={income.label}
                 label={`${income.label}を削除`}
-                onDelete={() => deleteIncome(income.id)}
+                onDelete={() => deleteIncome(income.id, month)}
               />
             </>
           }

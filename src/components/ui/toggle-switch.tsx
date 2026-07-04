@@ -16,7 +16,7 @@ export function ToggleSwitch({
   name,
 }: ToggleSwitchProps) {
   return (
-    <div className="flex items-center justify-between py-3 px-3.5 rounded-[12px] bg-[#F3F4F6]">
+    <div className="flex items-center justify-between py-3 px-3.5 rounded-[12px] bg-muted">
       {name && <input type="hidden" name={name} value={String(checked)} />}
       <div>
         <div className="text-sm font-semibold">{label}</div>

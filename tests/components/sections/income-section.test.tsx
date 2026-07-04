@@ -122,7 +122,7 @@ describe('IncomeSection', () => {
 
     await user.click(screen.getByRole('button', { name: '削除する' }))
 
-    expect(deleteIncome).toHaveBeenCalledWith('1')
+    expect(deleteIncome).toHaveBeenCalledWith('1', '202601')
     expect(toast.error).toHaveBeenCalledWith('収入の削除に失敗しました')
   })
 })

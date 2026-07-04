@@ -26,8 +26,8 @@ function ClearedToggleButton({ carryover }: { carryover: Carryover }) {
       aria-busy={pending}
       className={`-m-2 flex h-11 w-11 items-center justify-center rounded-full text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed ${
         carryover.isCleared
-          ? 'text-neon-green bg-neon-green/10'
-          : 'text-muted-foreground hover:text-neon-green hover:bg-neon-green/10'
+          ? 'text-accent bg-accent/10'
+          : 'text-muted-foreground hover:text-accent hover:bg-accent/10'
       }`}
       aria-label={carryover.isCleared ? `${carryover.label}の清算を取消` : `${carryover.label}を清算する`}
     >
@@ -70,7 +70,7 @@ export function CarryoverSection({ carryovers, month }: CarryoverSectionProps) {
           labelClassName={carryover.isCleared ? 'line-through opacity-60' : undefined}
           labelBadge={
             carryover.isCleared ? (
-              <span className="ml-1.5 text-[8px] px-1.5 py-0.5 rounded-full bg-[#EFF6FF] text-[#2563EB] font-bold no-underline inline-block">
+              <span className="ml-1.5 text-[8px] px-1.5 py-0.5 rounded-full bg-accent/10 text-accent font-bold no-underline inline-block">
                 清算済
               </span>
             ) : undefined
@@ -80,7 +80,11 @@ export function CarryoverSection({ carryovers, month }: CarryoverSectionProps) {
           actions={
             <>
               <form action={async () => {
-                const result = await toggleCarryoverCleared(carryover.id, !carryover.isCleared)
+                const result = await toggleCarryoverCleared(
+                  carryover.id,
+                  !carryover.isCleared,
+                  month
+                )
                 if (!result.success) {
                   toast.error(result.error ?? '清算フラグの更新に失敗しました')
                 }
@@ -100,7 +104,7 @@ export function CarryoverSection({ carryovers, month }: CarryoverSectionProps) {
               <DeleteButton
                 itemName={carryover.label}
                 label={`${carryover.label}を削除`}
-                onDelete={() => deleteCarryover(carryover.id)}
+                onDelete={() => deleteCarryover(carryover.id, month)}
               />
             </>
           }

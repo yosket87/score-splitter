@@ -85,7 +85,8 @@ describe('copy-month actions', () => {
     const result = await copyMonthData(options)
 
     expect(mockCopyMonthApi.copyMonthData).toHaveBeenCalledWith(options)
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/02')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
     expect(result).toEqual({ success: true, data: copyResult })
   })
 

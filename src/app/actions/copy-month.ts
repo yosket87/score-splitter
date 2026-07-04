@@ -1,10 +1,10 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import {
   copyMonthData as copyMonthDataByApi,
   getCopyMonthPreview as getCopyMonthPreviewByApi,
 } from '@/lib/api/copy-month'
+import { revalidateHouseholdData } from './revalidation'
 import { requireAuth } from '@/lib/webauthn/session'
 import type {
   ActionResult,
@@ -49,7 +49,7 @@ export async function copyMonthData(
       }
     }
 
-    revalidatePath('/')
+    revalidateHouseholdData(options.targetMonth)
     return { success: true, data: result }
   } catch (error) {
     console.error('月データコピーエラー:', error)

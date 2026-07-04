@@ -166,7 +166,7 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
           <div className="px-4 pb-4">
             <SheetSubmitButton
               pendingChildren="追加中..."
-              className="w-full h-12 bg-accent text-accent-foreground rounded-[12px] text-[15px] font-bold text-center shadow-[0_4px_12px_#2563EB33] transition-opacity"
+              className="w-full h-12 bg-accent text-accent-foreground rounded-[12px] text-[15px] font-bold text-center shadow-fab transition-opacity"
             >
               {TYPE_LABELS[entryType]}を追加
             </SheetSubmitButton>

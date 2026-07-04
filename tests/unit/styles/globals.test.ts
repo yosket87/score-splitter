@@ -9,4 +9,10 @@ describe('globals.css', () => {
     expect(css).toContain('--muted-foreground: #767676;')
     expect(css).not.toContain('--muted-foreground: #999999;')
   })
+
+  it('色名と実体がずれたneon-greenトークンを残さない', () => {
+    const css = readFileSync(join(process.cwd(), 'src/app/globals.css'), 'utf-8')
+
+    expect(css).not.toContain('neon-green')
+  })
 })

@@ -54,10 +54,10 @@ export function ExpenseSection({ expenses, month }: ExpenseSectionProps) {
       addSlot={<AddEntryModal type="expense" month={month} />}
       totalSlot={
         <div className="flex items-baseline justify-between px-3.5 py-3 border-t border-border bg-[var(--surface-total)]">
-          <span className="text-[11px] text-[#999999] font-semibold tracking-[0.8px] uppercase">
+          <span className="text-[11px] text-muted-foreground font-semibold tracking-[0.8px] uppercase">
             Total
           </span>
-          <span className="font-mono text-[15px] font-bold text-[#E2483D]">
+          <span className="font-mono text-[15px] font-bold text-destructive">
             {formatCurrency(actualTotal)}
           </span>
         </div>
@@ -70,12 +70,12 @@ export function ExpenseSection({ expenses, month }: ExpenseSectionProps) {
           label={expense.label}
           person={expense.person}
           amount={formatCurrency(expense.amount, { absolute: expense.isCarryover })}
-          amountClassName={expense.isCarryover ? 'text-[#999999]' : 'text-[#E2483D]'}
-          labelClassName={expense.isCarryover ? 'text-[#999999]' : undefined}
+          amountClassName={expense.isCarryover ? 'text-muted-foreground' : 'text-destructive'}
+          labelClassName={expense.isCarryover ? 'text-muted-foreground' : undefined}
           personBadgeClassName={expense.isCarryover ? 'opacity-50' : undefined}
           labelBadge={
             expense.isCarryover ? (
-              <span className="ml-1.5 text-[8px] px-1.5 py-0.5 rounded-full bg-[#EFF6FF] text-[#2563EB] font-bold">
+              <span className="ml-1.5 text-[8px] px-1.5 py-0.5 rounded-full bg-accent/10 text-accent font-bold">
                 繰越
               </span>
             ) : undefined
@@ -85,7 +85,11 @@ export function ExpenseSection({ expenses, month }: ExpenseSectionProps) {
           actions={
             <>
               <form action={async () => {
-                const result = await toggleExpenseCarryover(expense.id, !expense.isCarryover)
+                const result = await toggleExpenseCarryover(
+                  expense.id,
+                  !expense.isCarryover,
+                  month
+                )
                 if (!result.success) {
                   toast.error(result.error ?? '繰越フラグの更新に失敗しました')
                 }
@@ -105,7 +109,7 @@ export function ExpenseSection({ expenses, month }: ExpenseSectionProps) {
               <DeleteButton
                 itemName={expense.label}
                 label={`${expense.label}を削除`}
-                onDelete={() => deleteExpense(expense.id)}
+                onDelete={() => deleteExpense(expense.id, month)}
               />
             </>
           }

@@ -92,7 +92,8 @@ describe('income actions', () => {
       amount: 300000,
       person: 'husband',
     })
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/01')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
     expect(result).toEqual({ success: true, data: income })
   })
 
@@ -138,17 +139,19 @@ describe('income actions', () => {
       amount: 250000,
       person: 'wife',
     })
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/01')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
     expect(result).toEqual({ success: true, data: income })
   })
 
   it('収入を削除する', async () => {
     mockRecordsApi.deleteIncome.mockResolvedValueOnce(undefined)
 
-    const result = await deleteIncome('income-1')
+    const result = await deleteIncome('income-1', '202601')
 
     expect(mockRecordsApi.deleteIncome).toHaveBeenCalledWith('income-1')
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/01')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
     expect(result).toEqual({ success: true })
   })
 })

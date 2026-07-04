@@ -44,13 +44,13 @@ export function SectionShell({
         >
           {title}
         </h3>
-        <span className="text-[11px] text-[#999999]">
+        <span className="text-[11px] text-muted-foreground">
           {meta}
         </span>
       </div>
 
       <div className="rounded-[18px] bg-card shadow-soft overflow-hidden">
-        <div className="border-b border-[#E5E7EB]" />
+        <div className="border-b border-border" />
         <AnimatePresence initial={false}>
           {children}
         </AnimatePresence>

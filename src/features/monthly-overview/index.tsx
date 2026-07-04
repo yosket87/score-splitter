@@ -117,11 +117,6 @@ export function HeroSection({
           `,
       }}
     >
-      {/* 装飾blob */}
-      <div className="absolute w-[180px] h-[180px] rounded-full bg-white opacity-[0.06] right-[-20px] top-[-40px] pointer-events-none" />
-      <div className="absolute w-[120px] h-[120px] rounded-full bg-white opacity-[0.05] left-[-30px] top-[140px] pointer-events-none" />
-      <div className="absolute w-[80px] h-[80px] rounded-full bg-[#A5B4FC] opacity-[0.08] right-[20px] bottom-[200px] pointer-events-none" />
-
       <div className="relative flex flex-col gap-3 pt-[calc(env(safe-area-inset-top)+16px)] px-5 pb-7">
         {/* Header — 月一覧と同じ */}
         <div className="flex items-center justify-between">

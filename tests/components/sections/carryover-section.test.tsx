@@ -201,7 +201,7 @@ describe('CarryoverSection', () => {
 
     await user.click(screen.getByRole('button', { name: '前月繰越を清算する' }))
 
-    expect(toggleCarryoverCleared).toHaveBeenCalledWith('1', true)
+    expect(toggleCarryoverCleared).toHaveBeenCalledWith('1', true, '202601')
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('清算フラグの更新に失敗しました')
     })
@@ -224,7 +224,7 @@ describe('CarryoverSection', () => {
 
     await user.click(screen.getByRole('button', { name: '削除する' }))
 
-    expect(deleteCarryover).toHaveBeenCalledWith('1')
+    expect(deleteCarryover).toHaveBeenCalledWith('1', '202601')
     expect(toast.error).toHaveBeenCalledWith('繰越の削除に失敗しました')
   })
 })

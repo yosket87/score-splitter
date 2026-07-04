@@ -86,7 +86,8 @@ describe('expense actions', () => {
       person: 'wife',
       isCarryover: true,
     })
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/01')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
     expect(result).toEqual({ success: true, data: expense })
   })
 
@@ -141,20 +142,22 @@ describe('expense actions', () => {
   it('支出の繰越フラグを更新する', async () => {
     mockRecordsApi.toggleExpenseCarryover.mockResolvedValueOnce(undefined)
 
-    const result = await toggleExpenseCarryover('expense-1', true)
+    const result = await toggleExpenseCarryover('expense-1', true, '202601')
 
     expect(mockRecordsApi.toggleExpenseCarryover).toHaveBeenCalledWith('expense-1', true)
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/01')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
     expect(result).toEqual({ success: true })
   })
 
   it('支出を削除する', async () => {
     mockRecordsApi.deleteExpense.mockResolvedValueOnce(undefined)
 
-    const result = await deleteExpense('expense-1')
+    const result = await deleteExpense('expense-1', '202601')
 
     expect(mockRecordsApi.deleteExpense).toHaveBeenCalledWith('expense-1')
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/01')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
     expect(result).toEqual({ success: true })
   })
 })

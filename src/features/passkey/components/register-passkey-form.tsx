@@ -89,7 +89,7 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
             onClick={() => setPerson('husband')}
             className={`flex-1 h-10 rounded-[10px] text-[13px] font-semibold transition-colors ${
               person === 'husband'
-                ? 'bg-[#2563EB] text-white'
+                ? 'bg-accent text-accent-foreground'
                 : 'bg-muted text-muted-foreground'
             }`}
           >
@@ -102,7 +102,7 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
             onClick={() => setPerson('wife')}
             className={`flex-1 h-10 rounded-[10px] text-[13px] font-semibold transition-colors ${
               person === 'wife'
-                ? 'bg-[#2563EB] text-white'
+                ? 'bg-accent text-accent-foreground'
                 : 'bg-muted text-muted-foreground'
             }`}
           >
@@ -139,7 +139,7 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
       <Button
         onClick={handleRegister}
         disabled={isRegistering}
-        className="w-full h-11 rounded-[12px] bg-[#2563EB] text-white text-[13px] font-bold tracking-[0.10em]"
+        className="w-full h-11 rounded-[12px] bg-accent text-accent-foreground text-[13px] font-bold tracking-[0.10em]"
       >
         <Plus className="h-4 w-4 mr-1.5" />
         {isRegistering ? '登録中…' : 'パスキーを登録'}

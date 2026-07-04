@@ -50,3 +50,5 @@ CLOUDFLARE_WORKER_API_URL=your_worker_api_url
 CLOUDFLARE_WORKER_API_TOKEN=your_worker_api_token
 APP_PASSWORD_HASH_BASE64=your_password_hash_base64
 ```
+
+本番ではアプリ側のログイン試行制限に加えて、Cloudflare WAF / Rate Limiting Rules の併用を推奨します。

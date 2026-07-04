@@ -15,8 +15,13 @@ export const mockCookies = {
   getAll: vi.fn(() => []),
 }
 
+export const mockHeaders = {
+  get: vi.fn(),
+}
+
 vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => mockCookies),
+  headers: vi.fn(async () => mockHeaders),
 }))
 
 // next/navigation のモック
@@ -35,5 +40,6 @@ export function resetNextMocks() {
   mockCookies.set.mockClear()
   mockCookies.delete.mockClear()
   mockCookies.getAll.mockClear()
+  mockHeaders.get.mockClear()
   mockRedirect.mockClear()
 }

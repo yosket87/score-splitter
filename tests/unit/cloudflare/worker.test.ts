@@ -48,6 +48,13 @@ type FakeCarryoverRow = FakeIncomeRow & {
   is_cleared: number
 }
 
+type FakeLoginAttemptRow = {
+  attempt_key: string
+  count: number
+  window_start: string
+  updated_at: string
+}
+
 class FakeD1Database implements D1DatabaseLike {
   readonly executed: Array<{ query: string; params: unknown[] }> = []
   readonly batched: Array<Array<{ query: string; params: unknown[] }>> = []
@@ -86,15 +93,18 @@ class FakeD1Database implements D1DatabaseLike {
       updated_at: '2026-01-03T00:00:00.000Z',
     },
   ]
+  private loginAttemptRows: FakeLoginAttemptRow[] = []
 
   constructor(rows: {
     incomes?: FakeIncomeRow[]
     expenses?: FakeExpenseRow[]
     carryovers?: FakeCarryoverRow[]
+    loginAttempts?: FakeLoginAttemptRow[]
   } = {}) {
     this.incomeRows = rows.incomes ?? this.incomeRows
     this.expenseRows = rows.expenses ?? this.expenseRows
     this.carryoverRows = rows.carryovers ?? this.carryoverRows
+    this.loginAttemptRows = rows.loginAttempts ?? this.loginAttemptRows
   }
 
   prepare(query: string): D1PreparedStatementLike {
@@ -120,6 +130,11 @@ class FakeD1Database implements D1DatabaseLike {
     this.executed.push({ query, params })
     if (query.includes('FROM incomes')) {
       return (this.incomeRows.find((row) => row.id === params[0]) ?? null) as T | null
+    }
+    if (query.includes('FROM login_attempts')) {
+      return (
+        this.loginAttemptRows.find((row) => row.attempt_key === params[0]) ?? null
+      ) as T | null
     }
     return null
   }
@@ -180,6 +195,31 @@ class FakeD1Database implements D1DatabaseLike {
     }
     if (query.startsWith('DELETE FROM incomes')) {
       this.incomeRows = this.incomeRows.filter((row) => row.month !== params[0])
+    }
+    if (query.startsWith('INSERT INTO login_attempts')) {
+      this.loginAttemptRows.push({
+        attempt_key: params[0] as string,
+        count: params[1] as number,
+        window_start: params[2] as string,
+        updated_at: params[3] as string,
+      })
+    }
+    if (query.startsWith('UPDATE login_attempts')) {
+      this.loginAttemptRows = this.loginAttemptRows.map((row) =>
+        row.attempt_key === params[3]
+          ? {
+              ...row,
+              count: params[0] as number,
+              window_start: params[1] as string,
+              updated_at: params[2] as string,
+            }
+          : row
+      )
+    }
+    if (query.startsWith('DELETE FROM login_attempts')) {
+      this.loginAttemptRows = this.loginAttemptRows.filter(
+        (row) => row.attempt_key !== params[0]
+      )
     }
     return { success: true, meta: { changes: 1 } }
   }
@@ -378,5 +418,163 @@ describe('Cloudflare Worker API', () => {
     expect(db.batched[0].map((item) => item.query)).toEqual([
       expect.stringContaining('INSERT INTO carryovers'),
     ])
+  })
+
+  it('ログイン失敗回数を記録して状態取得できる', async () => {
+    const db = new FakeD1Database()
+    const now = vi.fn(() => new Date('2026-02-03T04:05:06.000Z'))
+
+    const failureResponse = await handleRequest(
+      createRequest('/login-attempts/failure', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ key: 'login-key' }),
+      }),
+      createEnv(db),
+      { now }
+    )
+
+    await expect(failureResponse.json()).resolves.toEqual({
+      data: { allowed: true },
+    })
+
+    const checkResponse = await handleRequest(
+      createRequest('/login-attempts/check', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ key: 'login-key' }),
+      }),
+      createEnv(db),
+      { now }
+    )
+
+    await expect(checkResponse.json()).resolves.toEqual({
+      data: { allowed: true },
+    })
+    expect(
+      db.executed.some((item) => item.query.startsWith('INSERT INTO login_attempts'))
+    ).toBe(true)
+  })
+
+  it('ログイン失敗が上限に達したキーはロック状態を返す', async () => {
+    const db = new FakeD1Database({
+      loginAttempts: [
+        {
+          attempt_key: 'locked-key',
+          count: 10,
+          window_start: '2026-02-03T04:00:00.000Z',
+          updated_at: '2026-02-03T04:05:00.000Z',
+        },
+      ],
+    })
+
+    const response = await handleRequest(
+      createRequest('/login-attempts/check', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ key: 'locked-key' }),
+      }),
+      createEnv(db),
+      { now: vi.fn(() => new Date('2026-02-03T04:05:06.000Z')) }
+    )
+
+    await expect(response.json()).resolves.toEqual({
+      data: { allowed: false, retryAfterSeconds: 594 },
+    })
+  })
+
+  it('ログイン成功時に失敗回数をリセットできる', async () => {
+    const db = new FakeD1Database({
+      loginAttempts: [
+        {
+          attempt_key: 'reset-key',
+          count: 10,
+          window_start: '2026-02-03T04:00:00.000Z',
+          updated_at: '2026-02-03T04:05:00.000Z',
+        },
+      ],
+    })
+    const now = vi.fn(() => new Date('2026-02-03T04:05:06.000Z'))
+
+    const resetResponse = await handleRequest(
+      createRequest('/login-attempts/reset', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ key: 'reset-key' }),
+      }),
+      createEnv(db),
+      { now }
+    )
+
+    await expect(resetResponse.json()).resolves.toEqual({ success: true })
+
+    const checkResponse = await handleRequest(
+      createRequest('/login-attempts/check', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ key: 'reset-key' }),
+      }),
+      createEnv(db),
+      { now }
+    )
+
+    await expect(checkResponse.json()).resolves.toEqual({
+      data: { allowed: true },
+    })
+  })
+
+  it('期限切れのログイン失敗windowは新しい失敗記録でリセットされる', async () => {
+    const db = new FakeD1Database({
+      loginAttempts: [
+        {
+          attempt_key: 'expired-key',
+          count: 10,
+          window_start: '2026-02-03T04:00:00.000Z',
+          updated_at: '2026-02-03T04:05:00.000Z',
+        },
+      ],
+    })
+
+    const response = await handleRequest(
+      createRequest('/login-attempts/failure', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ key: 'expired-key' }),
+      }),
+      createEnv(db),
+      { now: vi.fn(() => new Date('2026-02-03T04:20:00.000Z')) }
+    )
+
+    await expect(response.json()).resolves.toEqual({
+      data: { allowed: true },
+    })
+    expect(db.executed).toContainEqual({
+      query:
+        'UPDATE login_attempts SET count = ?, window_start = ?, updated_at = ? WHERE attempt_key = ?',
+      params: [
+        1,
+        '2026-02-03T04:20:00.000Z',
+        '2026-02-03T04:20:00.000Z',
+        'expired-key',
+      ],
+    })
   })
 })

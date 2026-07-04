@@ -24,6 +24,11 @@ import {
   listPasskeys,
   updatePasskeyCounter,
 } from './passkeys'
+import {
+  checkLoginRateLimit,
+  recordFailedLoginAttempt,
+  resetLoginAttempts,
+} from './login-attempts'
 import { parseMonth } from './validation'
 
 const worker = {
@@ -162,6 +167,27 @@ export async function handleRequest(
     if (parts.length === 2 && parts[0] === 'webauthn-challenges' && parts[1] === 'expired') {
       if (request.method === 'DELETE') {
         await deleteExpiredChallenges(env.DB, url.searchParams.get('before') ?? runtime.now().toISOString())
+        return json({ success: true })
+      }
+    }
+
+    if (parts.length === 2 && parts[0] === 'login-attempts') {
+      if (request.method === 'POST' && parts[1] === 'check') {
+        return json({
+          data: await checkLoginRateLimit(env.DB, runtime, await readJson(request)),
+        })
+      }
+      if (request.method === 'POST' && parts[1] === 'failure') {
+        return json({
+          data: await recordFailedLoginAttempt(
+            env.DB,
+            runtime,
+            await readJson(request)
+          ),
+        })
+      }
+      if (request.method === 'POST' && parts[1] === 'reset') {
+        await resetLoginAttempts(env.DB, await readJson(request))
         return json({ success: true })
       }
     }

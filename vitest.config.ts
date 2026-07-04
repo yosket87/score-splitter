@@ -13,7 +13,20 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
       include: ['src/**/*.ts', 'src/**/*.tsx'],
-      exclude: ['src/components/ui/**', '**/*.d.ts'],
+      exclude: [
+        'src/components/ui/**',
+        '**/*.d.ts',
+        'src/mocks/**',
+        'src/app/**/loading.tsx',
+        'src/instrumentation.ts',
+      ],
+      // 最終目標は80%。現状に合わせた下限から始め、テスト追加に合わせて段階的に引き上げる。
+      thresholds: {
+        statements: 40,
+        branches: 30,
+        functions: 35,
+        lines: 40,
+      },
     },
   },
   resolve: {

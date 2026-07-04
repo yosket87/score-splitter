@@ -8,6 +8,12 @@ vi.mock('@/app/actions/copy-month', () => ({
   copyMonthData: vi.fn(),
 }))
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    refresh: vi.fn(),
+  }),
+}))
+
 describe('月次アクションボタンのアクセシビリティ', () => {
   it('前月コピーのアイコンボタンにアクセシブルネームがある', () => {
     render(

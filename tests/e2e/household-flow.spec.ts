@@ -1,6 +1,11 @@
 import { test, expect, type Page } from '@playwright/test'
+import { resetMockData } from './helpers'
 
 const MOCK_PASSWORD = 'password'
+
+test.beforeEach(async ({ request }) => {
+  await resetMockData(request)
+})
 
 async function login(page: Page) {
   await page.goto('/login')

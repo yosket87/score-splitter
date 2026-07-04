@@ -61,7 +61,7 @@ export function MonthRow({
           )}
         </div>
         <div className="text-[10px] text-[#999999]">
-          収入 {formatCurrency(summary.incomeTotal)} · 支出 {formatCurrency(Math.abs(summary.expenseTotal))}
+          収入 {formatCurrency(summary.incomeTotal)} · 支出 {formatCurrency(summary.expenseTotal, { absolute: true })}
         </div>
         {/* バランスバー */}
         <div
@@ -79,7 +79,7 @@ export function MonthRow({
             isPositive ? 'text-[#2563EB]' : 'text-[#E2483D]'
           }`}
         >
-          {isPositive ? '+' : '-'}{formatCurrency(Math.abs(summary.balance)).replace('¥', '¥')}
+          {formatCurrency(summary.balance, { signed: true })}
         </span>
         <span className="text-[10px] font-medium text-[#2563EB]">
           View &gt;

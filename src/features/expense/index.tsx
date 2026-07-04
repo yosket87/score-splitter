@@ -90,7 +90,7 @@ export function ExpenseSection({ expenses, month }: ExpenseSectionProps) {
                 <span className={`font-mono text-[13px] font-semibold ${
                   expense.isCarryover ? 'text-[#999999]' : 'text-[#E2483D]'
                 }`}>
-                  {expense.isCarryover ? '' : '−'}{formatCurrency(expense.amount).replace('-', '').replace('¥', '¥')}
+                  {formatCurrency(expense.amount, { absolute: expense.isCarryover })}
                 </span>
                 <div className="flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
                   <form action={async () => {
@@ -142,7 +142,7 @@ export function ExpenseSection({ expenses, month }: ExpenseSectionProps) {
             Total
           </span>
           <span className="font-mono text-[15px] font-bold text-[#E2483D]">
-            −{formatCurrency(actualTotal).replace('-', '')}
+            {formatCurrency(actualTotal)}
           </span>
         </div>
       </div>

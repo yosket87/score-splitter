@@ -21,7 +21,7 @@ describe('AnimatedYen', () => {
   it('reduced-motion時に負の値をマイナス付きで表示する', async () => {
     const { container } = render(<AnimatedYen value={-500} />)
     await waitFor(() => {
-      expect(container.textContent).toBe('-¥500')
+      expect(container.textContent).toBe('−¥500')
     })
   })
 

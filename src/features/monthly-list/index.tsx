@@ -110,8 +110,7 @@ export function MonthlyListSection({ summaries, year }: MonthlyListSectionProps)
                 isBalancePositive ? 'text-[#2563EB]' : 'text-[#E2483D]'
               }`}
             >
-              {isBalancePositive ? '+' : ''}
-              {balanceYTD.toLocaleString('ja-JP')}
+              {formatCurrency(balanceYTD, { signed: true })}
             </span>
           </div>
           <div className="flex items-center gap-3 mt-1">

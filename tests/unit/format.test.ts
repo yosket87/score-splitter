@@ -7,7 +7,7 @@ describe('formatCurrency', () => {
   })
 
   it('負の値をカンマ区切りで表示する', () => {
-    expect(formatCurrency(-833778)).toBe('-¥833,778')
+    expect(formatCurrency(-833778)).toBe('−¥833,778')
   })
 
   it('0を正しく表示する', () => {
@@ -16,6 +16,22 @@ describe('formatCurrency', () => {
 
   it('小数点以下は切り捨てる', () => {
     expect(formatCurrency(101630.5)).toBe('¥101,630')
+  })
+
+  it('signed指定時は正の値にプラス記号を付ける', () => {
+    expect(formatCurrency(1234, { signed: true })).toBe('+¥1,234')
+  })
+
+  it('signed指定時も負の値は数学マイナス記号で表示する', () => {
+    expect(formatCurrency(-1234, { signed: true })).toBe('−¥1,234')
+  })
+
+  it('signed指定時でも0には符号を付けない', () => {
+    expect(formatCurrency(0, { signed: true })).toBe('¥0')
+  })
+
+  it('absolute指定時は負の値も符号なしで表示する', () => {
+    expect(formatCurrency(-833778, { absolute: true })).toBe('¥833,778')
   })
 })
 

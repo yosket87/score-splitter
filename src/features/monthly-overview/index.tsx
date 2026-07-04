@@ -214,7 +214,7 @@ export function HeroSection({
             className="text-4xl font-bold font-mono text-white tracking-tight"
           />
           <span className="text-[11px] text-white/70">
-            収入 {formatCurrency(result.totalIncome)} − 支出 {formatCurrency(Math.abs(allExpenseTotal))}
+            収入 {formatCurrency(result.totalIncome)} − 支出 {formatCurrency(allExpenseTotal, { absolute: true })}
           </span>
           <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/10 text-[10px] text-white/80">
             {m}月1日 — {days}日間 / {totalItems}件の取引

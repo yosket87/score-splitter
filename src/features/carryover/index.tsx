@@ -95,7 +95,7 @@ export function CarryoverSection({ carryovers, month }: CarryoverSectionProps) {
                 <span className={`font-mono text-[13px] font-semibold ${
                   carryover.isCleared ? 'text-foreground line-through' : 'text-foreground'
                 }`}>
-                  {formatCurrency(Math.abs(carryover.amount))}
+                  {formatCurrency(carryover.amount, { absolute: true })}
                 </span>
                 <div className="flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
                   <form action={async () => {

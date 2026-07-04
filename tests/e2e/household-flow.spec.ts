@@ -329,7 +329,7 @@ test.describe('項目の編集', () => {
       hasText: '副業',
     })
     await row.hover()
-    await row.locator('button').filter({ has: page.locator('svg.lucide-pencil') }).click()
+    await row.getByRole('button', { name: /副業.*を編集/ }).click()
 
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
@@ -349,7 +349,7 @@ test.describe('項目の編集', () => {
       hasText: '副業',
     })
     await row.hover()
-    await row.locator('button').filter({ has: page.locator('svg.lucide-pencil') }).click()
+    await row.getByRole('button', { name: /副業.*を編集/ }).click()
 
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
@@ -378,7 +378,7 @@ test.describe('項目の削除', () => {
       hasText: '副業',
     })
     await row.hover()
-    await row.locator('button').filter({ has: page.locator('svg.lucide-trash-2') }).click()
+    await row.getByRole('button', { name: /副業.*を削除/ }).click()
 
     await expect(section.getByText('副業')).not.toBeVisible({ timeout: 5000 })
   })
@@ -445,6 +445,28 @@ test.describe('前月からコピー', () => {
 
     await dialog.getByRole('button', { name: 'キャンセル' }).click()
     await expect(dialog).not.toBeVisible()
+  })
+
+  test('前月データをコピーして対象月に反映できる', async ({ page }) => {
+    await page.goto('/2026/03')
+
+    await expect(getIncomeSection(page).getByText('収入がありません')).toBeVisible()
+    await expect(getExpenseSection(page).getByText('支出がありません')).toBeVisible()
+
+    await page.getByRole('button', { name: /前月からコピー/ }).click()
+
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByText('前月からデータをコピー')).toBeVisible()
+    await expect(dialog.getByText(/2026年2月/)).toBeVisible()
+    await expect(dialog.getByText(/2026年3月/)).toBeVisible()
+    await expect(dialog.getByText('給料').first()).toBeVisible()
+
+    await dialog.getByRole('button', { name: /コピーする/ }).click()
+
+    await expect(dialog).not.toBeVisible()
+    await expect(getIncomeSection(page).getByText('給料').first()).toBeVisible()
+    await expect(getExpenseSection(page).getByText('家賃')).toBeVisible()
+    await expect(getCarryoverSection(page).getByText('前月繰越')).toBeVisible()
   })
 })
 

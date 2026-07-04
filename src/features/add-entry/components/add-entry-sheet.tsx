@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, type ReactNode } from 'react'
+import { useFormStatus } from 'react-dom'
 import {
   Drawer,
   DrawerContent,
@@ -8,15 +9,13 @@ import {
   DrawerTitle,
   DrawerClose,
 } from '@/components/ui/drawer'
-import { Input } from '@/components/ui/input'
-import { PersonSelector } from '@/components/ui/person-selector'
-import { ToggleSwitch } from '@/components/ui/toggle-switch'
+import { EntryFields } from '@/components/forms/entry-fields'
+import { TYPE_LABELS } from '@/lib/constants'
+import { cn } from '@/lib/utils'
 import { createIncome } from '@/app/actions/income'
 import { createExpense } from '@/app/actions/expense'
 import { createCarryover } from '@/app/actions/carryover'
-
-type EntryType = 'income' | 'expense' | 'carryover'
-type Person = 'husband' | 'wife'
+import type { EntryType, Person } from '@/types'
 
 interface AddEntrySheetProps {
   open: boolean
@@ -24,17 +23,35 @@ interface AddEntrySheetProps {
   month: string
 }
 
-const typeConfig = {
-  income: {
-    label: '収入',
-  },
-  expense: {
-    label: '支出',
-  },
-  carryover: {
-    label: '繰越',
-  },
-} as const
+const createActions = {
+  income: createIncome,
+  expense: createExpense,
+  carryover: createCarryover,
+}
+
+interface SheetSubmitButtonProps {
+  children: ReactNode
+  pendingChildren?: ReactNode
+  className?: string
+}
+
+function SheetSubmitButton({
+  children,
+  pendingChildren,
+  className,
+}: SheetSubmitButtonProps) {
+  const { pending } = useFormStatus()
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className={cn('disabled:opacity-50', className)}
+    >
+      {pending ? pendingChildren ?? children : children}
+    </button>
+  )
+}
 
 export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps) {
   const [entryType, setEntryType] = useState<EntryType>('expense')
@@ -42,167 +59,119 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
   const [isCarryover, setIsCarryover] = useState(false)
   const [isCleared, setIsCleared] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
+
+  function resetFormState() {
+    formRef.current?.reset()
+    setEntryType('expense')
+    setPerson('husband')
+    setIsCarryover(false)
+    setIsCleared(false)
+  }
 
   async function handleSubmit(formData: FormData) {
     setError(null)
-    setSubmitting(true)
 
     formData.set('month', month)
     formData.set('person', person)
 
     try {
-      let result
-      if (entryType === 'income') {
-        result = await createIncome(formData)
-      } else if (entryType === 'expense') {
+      if (entryType === 'expense') {
         formData.set('is_carryover', String(isCarryover))
-        result = await createExpense(formData)
-      } else {
-        formData.set('is_cleared', String(isCleared))
-        result = await createCarryover(formData)
       }
+      if (entryType === 'carryover') {
+        formData.set('is_cleared', String(isCleared))
+      }
+
+      const result = await createActions[entryType](formData)
 
       if (result && !result.success) {
         setError(result.error ?? '追加に失敗しました')
         return
       }
 
-      formRef.current?.reset()
-      setIsCarryover(false)
-      setIsCleared(false)
+      resetFormState()
       onOpenChange(false)
     } catch {
       setError('追加に失敗しました')
-    } finally {
-      setSubmitting(false)
     }
   }
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="rounded-t-[22px] pb-safe">
-        <DrawerHeader className="flex flex-row items-center justify-between px-4 py-2">
-          <DrawerClose className="text-sm font-semibold text-sub-text">
-            キャンセル
-          </DrawerClose>
-          <DrawerTitle className="text-base font-bold">
-            項目を追加
-          </DrawerTitle>
-          <button
-            type="submit"
-            form="add-entry-form"
-            disabled={submitting}
-            className="text-sm font-bold text-accent disabled:opacity-50"
-          >
-            保存
-          </button>
-        </DrawerHeader>
-
-        {/* タイプタブ */}
-        <div className="flex gap-1 mx-4 mb-3 bg-[#F3F4F6] rounded-[12px] h-9 p-[3px]">
-          {(['income', 'expense', 'carryover'] as const).map((t) => {
-            const active = entryType === t
-            const cfg = typeConfig[t]
-            return (
-              <button
-                key={t}
-                type="button"
-                onClick={() => {
-                  setEntryType(t)
-                  setIsCarryover(false)
-                  setIsCleared(false)
-                }}
-                className={`flex-1 rounded-lg text-[13px] text-center transition-colors ${
-                  active
-                    ? 'bg-[#2563EB] text-white font-semibold'
-                    : 'text-[#666666]'
-                }`}
-              >
-                {cfg.label}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* フォーム */}
         <form
           id="add-entry-form"
           ref={formRef}
           action={handleSubmit}
-          className="flex flex-col gap-3 px-4 pb-4"
+          className="flex flex-col"
         >
-          <div>
-            <label className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block">
-              項目名
-            </label>
-            <Input
-              name="label"
-              placeholder="例：食費、家賃、給与"
-              className="h-11 rounded-lg bg-[#F3F4F6]"
-              required
-            />
-          </div>
+          <DrawerHeader className="flex flex-row items-center justify-between px-4 py-2">
+            <DrawerClose className="min-h-11 px-2 text-sm font-semibold text-sub-text">
+              キャンセル
+            </DrawerClose>
+            <DrawerTitle className="text-base font-bold">
+              項目を追加
+            </DrawerTitle>
+            <SheetSubmitButton className="min-h-11 px-2 text-sm font-bold text-accent">
+              保存
+            </SheetSubmitButton>
+          </DrawerHeader>
 
-          <div>
-            <label className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block">
-              金額
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#666666] text-sm">¥</span>
-              <Input
-                name="amount"
-                type="number"
-                inputMode="numeric"
-                placeholder="0"
-                className="h-11 rounded-lg border border-[#E5E7EB] pl-7 text-[28px] font-bold text-right font-tabular tracking-[-0.02em]"
-                min={1}
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block">
-              担当者
-            </label>
-            <PersonSelector value={person} onChange={setPerson} />
-          </div>
-
-          {entryType === 'expense' && (
-            <ToggleSwitch
-              checked={isCarryover}
-              onChange={setIsCarryover}
-              label="繰越扱いにする"
-              description="精算には含めず翌月へ"
-            />
-          )}
-
-          {entryType === 'carryover' && (
-            <ToggleSwitch
-              checked={isCleared}
-              onChange={setIsCleared}
-              label="今月で清算する"
-              description="精算に含める"
-            />
-          )}
-
-          {error && (
-            <p className="text-sm text-neon-red">{error}</p>
-          )}
-        </form>
-
-        <div className="px-4 pb-4">
-          <button
-            type="submit"
-            form="add-entry-form"
-            disabled={submitting}
-            className="w-full h-12 bg-[#2563EB] text-white rounded-[12px] text-[15px] font-bold text-center shadow-[0_4px_12px_#2563EB33] disabled:opacity-50 transition-opacity"
+          <div
+            className="flex h-11 gap-1 mx-4 mb-3 bg-muted rounded-[12px] p-[3px]"
+            role="radiogroup"
+            aria-label="項目種別"
           >
-            {submitting ? '追加中...' : `${typeConfig[entryType].label}を追加`}
-          </button>
-        </div>
+            {(['income', 'expense', 'carryover'] as const).map((t) => {
+              const active = entryType === t
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => {
+                    setEntryType(t)
+                    setIsCarryover(false)
+                    setIsCleared(false)
+                  }}
+                  className={cn(
+                    'flex-1 rounded-lg text-[13px] text-center transition-colors',
+                    active
+                      ? 'bg-accent text-accent-foreground font-semibold'
+                      : 'text-muted-foreground'
+                  )}
+                >
+                  {TYPE_LABELS[t]}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="flex flex-col gap-3 px-4 pb-4">
+            <EntryFields
+              type={entryType}
+              person={person}
+              onPersonChange={setPerson}
+              isCarryover={isCarryover}
+              onCarryoverChange={setIsCarryover}
+              isCleared={isCleared}
+              onClearedChange={setIsCleared}
+              error={error}
+              variant="compact"
+            />
+          </div>
+
+          <div className="px-4 pb-4">
+            <SheetSubmitButton
+              pendingChildren="追加中..."
+              className="w-full h-12 bg-accent text-accent-foreground rounded-[12px] text-[15px] font-bold text-center shadow-fab transition-opacity"
+            >
+              {TYPE_LABELS[entryType]}を追加
+            </SheetSubmitButton>
+          </div>
+        </form>
       </DrawerContent>
     </Drawer>
   )

@@ -2,8 +2,11 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { PasskeySettings } from '@/features/passkey'
 import { HeaderActions } from '@/components/layout/header-actions'
+import { requireAuth } from '@/lib/webauthn/session'
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  await requireAuth()
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="flex items-center justify-between px-5 py-3.5 border-b border-border">

@@ -3,10 +3,26 @@
  * @param amount 金額（円）
  * @returns フォーマットされた文字列（例: ¥1,037,038）
  */
-export function formatCurrency(amount: number): string {
-  const intAmount = Math.floor(Math.abs(amount))
+interface FormatCurrencyOptions {
+  signed?: boolean
+  absolute?: boolean
+}
+
+export function formatCurrency(
+  amount: number,
+  options: FormatCurrencyOptions = {}
+): string {
+  const value = options.absolute ? Math.abs(amount) : amount
+  const intAmount = Math.floor(Math.abs(value))
   const formatted = intAmount.toLocaleString('ja-JP')
-  return amount < 0 ? `-¥${formatted}` : `¥${formatted}`
+
+  if (value < 0) {
+    return `−¥${formatted}`
+  }
+  if (options.signed && value > 0) {
+    return `+¥${formatted}`
+  }
+  return `¥${formatted}`
 }
 
 /**

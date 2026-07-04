@@ -1,6 +1,11 @@
 import { test, expect, type Page } from '@playwright/test'
+import { resetMockData } from './helpers'
 
 const MOCK_PASSWORD = 'password'
+
+test.beforeEach(async ({ request }) => {
+  await resetMockData(request)
+})
 
 async function login(page: Page) {
   await page.goto('/login')
@@ -30,7 +35,7 @@ test.describe('ログインページ', () => {
   })
 
   test('ログインフォームが表示される', async ({ page }) => {
-    await expect(page.getByText('家計計算アプリ')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Score Splitter' })).toBeVisible()
     await expect(page.getByPlaceholder('パスワード')).toBeVisible()
     await expect(page.getByRole('button', { name: 'ログイン →' })).toBeVisible()
   })
@@ -138,7 +143,7 @@ test.describe('月詳細ページ', () => {
 
     await expect(incomeSection.getByText(/350,000/)).toBeVisible()
     await expect(incomeSection.getByText(/280,000/)).toBeVisible()
-    await expect(incomeSection.getByText(/\+50,000/)).toBeVisible()
+    await expect(incomeSection.getByText(/\+¥50,000/)).toBeVisible()
   })
 
   test('シードデータの支出が表示される', async ({ page }) => {
@@ -254,7 +259,7 @@ test.describe('収入の追加', () => {
     await dialog.getByPlaceholder('例：食費、家賃、給与').fill('妻のパート')
     await dialog.getByPlaceholder('¥ 0').fill('150000')
 
-    await dialog.getByRole('button', { name: '妻' }).click()
+    await dialog.getByRole('radio', { name: '妻' }).click()
 
     await dialog.getByRole('button', { name: /収入.*追加/ }).click()
 
@@ -329,7 +334,7 @@ test.describe('項目の編集', () => {
       hasText: '副業',
     })
     await row.hover()
-    await row.locator('button').filter({ has: page.locator('svg.lucide-pencil') }).click()
+    await row.getByRole('button', { name: /副業.*を編集/ }).click()
 
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
@@ -349,7 +354,7 @@ test.describe('項目の編集', () => {
       hasText: '副業',
     })
     await row.hover()
-    await row.locator('button').filter({ has: page.locator('svg.lucide-pencil') }).click()
+    await row.getByRole('button', { name: /副業.*を編集/ }).click()
 
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
@@ -378,7 +383,11 @@ test.describe('項目の削除', () => {
       hasText: '副業',
     })
     await row.hover()
-    await row.locator('button').filter({ has: page.locator('svg.lucide-trash-2') }).click()
+    await row.getByRole('button', { name: /副業.*を削除/ }).click()
+
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByText(/副業.*を削除しますか/)).toBeVisible()
+    await dialog.getByRole('button', { name: '削除する' }).click()
 
     await expect(section.getByText('副業')).not.toBeVisible({ timeout: 5000 })
   })
@@ -445,6 +454,28 @@ test.describe('前月からコピー', () => {
 
     await dialog.getByRole('button', { name: 'キャンセル' }).click()
     await expect(dialog).not.toBeVisible()
+  })
+
+  test('前月データをコピーして対象月に反映できる', async ({ page }) => {
+    await page.goto('/2026/03')
+
+    await expect(getIncomeSection(page).getByText('収入がありません')).toBeVisible()
+    await expect(getExpenseSection(page).getByText('支出がありません')).toBeVisible()
+
+    await page.getByRole('button', { name: /前月からコピー/ }).click()
+
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByText('前月からデータをコピー')).toBeVisible()
+    await expect(dialog.getByText(/2026年2月/)).toBeVisible()
+    await expect(dialog.getByText(/2026年3月/)).toBeVisible()
+    await expect(dialog.getByText('給料').first()).toBeVisible()
+
+    await dialog.getByRole('button', { name: /コピーする/ }).click()
+
+    await expect(dialog).not.toBeVisible()
+    await expect(getIncomeSection(page).getByText('給料').first()).toBeVisible()
+    await expect(getExpenseSection(page).getByText('家賃')).toBeVisible()
+    await expect(getCarryoverSection(page).getByText('前月繰越')).toBeVisible()
   })
 })
 

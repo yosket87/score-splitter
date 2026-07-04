@@ -1,6 +1,5 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import {
   createCarryover as createCarryoverRecord,
   deleteCarryover as deleteCarryoverRecord,
@@ -8,10 +7,14 @@ import {
   toggleCarryoverCleared as toggleCarryoverClearedRecord,
   updateCarryover as updateCarryoverRecord,
 } from '@/lib/api/records'
+import { revalidateHouseholdData } from './revalidation'
 import { carryoverSchema } from '@/lib/validations/carryover'
+import { requireAuth } from '@/lib/webauthn/session'
 import type { Carryover, ActionResult } from '@/types'
 
 export async function getCarryoversByMonth(month: string): Promise<ActionResult<Carryover[]>> {
+  await requireAuth()
+
   try {
     const data = await getCarryoverRecordsByMonth(month)
     return { success: true, data }
@@ -24,6 +27,8 @@ export async function getCarryoversByMonth(month: string): Promise<ActionResult<
 export async function createCarryover(
   formData: FormData
 ): Promise<ActionResult<Carryover>> {
+  await requireAuth()
+
   const rawData = {
     month: formData.get('month') as string,
     label: formData.get('label') as string,
@@ -46,7 +51,7 @@ export async function createCarryover(
       person: parsed.data.person,
       isCleared: parsed.data.is_cleared,
     })
-    revalidatePath('/')
+    revalidateHouseholdData(parsed.data.month)
     return { success: true, data }
   } catch (error) {
     console.error('繰越作成エラー:', error)
@@ -58,6 +63,8 @@ export async function updateCarryover(
   id: string,
   formData: FormData
 ): Promise<ActionResult<Carryover>> {
+  await requireAuth()
+
   const rawData = {
     month: formData.get('month') as string,
     label: formData.get('label') as string,
@@ -80,7 +87,7 @@ export async function updateCarryover(
       person: parsed.data.person,
       isCleared: parsed.data.is_cleared,
     })
-    revalidatePath('/')
+    revalidateHouseholdData(parsed.data.month)
     return { success: true, data }
   } catch (error) {
     console.error('繰越更新エラー:', error)
@@ -90,11 +97,14 @@ export async function updateCarryover(
 
 export async function toggleCarryoverCleared(
   id: string,
-  isCleared: boolean
+  isCleared: boolean,
+  month?: string
 ): Promise<ActionResult> {
+  await requireAuth()
+
   try {
     await toggleCarryoverClearedRecord(id, isCleared)
-    revalidatePath('/')
+    revalidateHouseholdData(month)
     return { success: true }
   } catch (error) {
     console.error('繰越清算フラグ更新エラー:', error)
@@ -102,10 +112,12 @@ export async function toggleCarryoverCleared(
   }
 }
 
-export async function deleteCarryover(id: string): Promise<ActionResult> {
+export async function deleteCarryover(id: string, month?: string): Promise<ActionResult> {
+  await requireAuth()
+
   try {
     await deleteCarryoverRecord(id)
-    revalidatePath('/')
+    revalidateHouseholdData(month)
     return { success: true }
   } catch (error) {
     console.error('繰越削除エラー:', error)

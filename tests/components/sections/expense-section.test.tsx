@@ -1,6 +1,9 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import { ExpenseSection } from '@/features/expense'
+import { deleteExpense, toggleExpenseCarryover } from '@/app/actions/expense'
 import type { Expense } from '@/types'
 
 // Server Actionsのモック
@@ -9,6 +12,12 @@ vi.mock('@/app/actions/expense', () => ({
   updateExpense: vi.fn(),
   deleteExpense: vi.fn(),
   toggleExpenseCarryover: vi.fn(),
+}))
+
+vi.mock('sonner', () => ({
+  toast: {
+    error: vi.fn(),
+  },
 }))
 
 describe('ExpenseSection', () => {
@@ -30,6 +39,10 @@ describe('ExpenseSection', () => {
       isCarryover: false,
     },
   ]
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
   it('支出一覧を表示する', () => {
     render(<ExpenseSection expenses={mockExpenses} month="202601" />)
@@ -110,7 +123,7 @@ describe('ExpenseSection', () => {
 
     // 金額が支出色で表示される（U+2212 数学マイナス記号）
     const amountElement = screen.getByText('−¥50,000')
-    expect(amountElement).toHaveClass('text-[#E2483D]')
+    expect(amountElement).toHaveClass('text-destructive')
   })
 
   it('ヘッダーに繰越件数を表示する', () => {
@@ -141,5 +154,80 @@ describe('ExpenseSection', () => {
 
     // ヘッダーに繰越件数が表示される（「2件 — 繰越 1件」）
     expect(screen.getByText(/繰越\s+1件/)).toBeInTheDocument()
+  })
+
+  it('行アクションはキーボードフォーカス時にも可視化される', () => {
+    render(<ExpenseSection expenses={mockExpenses} month="202601" />)
+
+    expect(screen.getByRole('button', { name: '食費を削除' }).parentElement).toHaveClass(
+      'md:group-focus-within:opacity-100'
+    )
+  })
+
+  it('繰越トグルに44px以上のタッチ領域がある', () => {
+    render(<ExpenseSection expenses={mockExpenses} month="202601" />)
+
+    expect(screen.getByRole('button', { name: '食費を繰越にする' })).toHaveClass(
+      'h-11',
+      'w-11'
+    )
+  })
+
+  it('繰越トグルは送信中に無効化される', async () => {
+    const user = userEvent.setup()
+    let resolveAction!: (value: { success: true }) => void
+    vi.mocked(toggleExpenseCarryover).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveAction = resolve
+      })
+    )
+
+    render(<ExpenseSection expenses={mockExpenses} month="202601" />)
+
+    const button = screen.getByRole('button', { name: '食費を繰越にする' })
+    await user.click(button)
+
+    await waitFor(() => expect(button).toBeDisabled())
+
+    resolveAction({ success: true })
+    await waitFor(() => expect(button).not.toBeDisabled())
+  })
+
+  it('繰越トグル失敗時はエラーtoastを表示する', async () => {
+    const user = userEvent.setup()
+    vi.mocked(toggleExpenseCarryover).mockResolvedValueOnce({
+      success: false,
+      error: '繰越フラグの更新に失敗しました',
+    })
+
+    render(<ExpenseSection expenses={mockExpenses} month="202601" />)
+
+    await user.click(screen.getByRole('button', { name: '食費を繰越にする' }))
+
+    expect(toggleExpenseCarryover).toHaveBeenCalledWith('1', true, '202601')
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('繰越フラグの更新に失敗しました')
+    })
+  })
+
+  it('削除前に確認し、失敗時はエラーtoastを表示する', async () => {
+    const user = userEvent.setup()
+    vi.mocked(deleteExpense).mockResolvedValueOnce({
+      success: false,
+      error: '支出の削除に失敗しました',
+    })
+
+    render(<ExpenseSection expenses={mockExpenses} month="202601" />)
+
+    await user.click(screen.getByRole('button', { name: '食費を削除' }))
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('「食費」を削除しますか？')).toBeInTheDocument()
+    expect(deleteExpense).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: '削除する' }))
+
+    expect(deleteExpense).toHaveBeenCalledWith('1', '202601')
+    expect(toast.error).toHaveBeenCalledWith('支出の削除に失敗しました')
   })
 })

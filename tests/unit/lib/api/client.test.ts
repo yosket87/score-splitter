@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import { ApiError, apiRequest } from '@/lib/api/client'
 
 describe('apiRequest', () => {
@@ -53,6 +54,30 @@ describe('apiRequest', () => {
 
     await expect(apiRequest('/incomes?month=202601')).rejects.toEqual(
       new ApiError('認証に失敗しました', 401)
+    )
+  })
+
+  it.each([
+    ['204', () => new Response(null, { status: 204 })],
+    ['空ボディ', () => new Response('', { status: 200 })],
+  ])('%sのレスポンスはJSONパースせずundefinedを返す', async (_label, createResponse) => {
+    vi.stubGlobal('fetch', vi.fn(async () => createResponse()))
+
+    await expect(apiRequest('/incomes/income-1', { method: 'DELETE' })).resolves.toBeUndefined()
+  })
+
+  it('responseSchema指定時に不正なレスポンスはApiErrorとして送出する', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ data: { id: 123 } }))
+    )
+
+    await expect(
+      apiRequest('/incomes/income-1', {
+        responseSchema: z.object({ data: z.object({ id: z.string() }) }),
+      })
+    ).rejects.toEqual(
+      new ApiError('Worker APIレスポンスの形式が不正です', 502)
     )
   })
 })

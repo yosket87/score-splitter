@@ -94,3 +94,10 @@ export function filterCarryoverExpenses(expenses: Expense[]): Expense[] {
 export function filterClearedCarryovers(carryovers: Carryover[]): Carryover[] {
   return carryovers.filter((c) => c.isCleared)
 }
+
+/** 精算方向の表示ラベル。正（0含む）は夫から妻、負は妻から夫。 */
+export function getSettlementDirectionLabel(
+  settlement: number
+): '夫 → 妻' | '妻 → 夫' {
+  return settlement >= 0 ? '夫 → 妻' : '妻 → 夫'
+}

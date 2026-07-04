@@ -1,6 +1,5 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import {
   createExpense as createExpenseRecord,
   deleteExpense as deleteExpenseRecord,
@@ -8,10 +7,14 @@ import {
   toggleExpenseCarryover as toggleExpenseCarryoverRecord,
   updateExpense as updateExpenseRecord,
 } from '@/lib/api/records'
+import { revalidateHouseholdData } from './revalidation'
 import { expenseSchema } from '@/lib/validations/expense'
+import { requireAuth } from '@/lib/webauthn/session'
 import type { Expense, ActionResult } from '@/types'
 
 export async function getExpensesByMonth(month: string): Promise<ActionResult<Expense[]>> {
+  await requireAuth()
+
   try {
     const data = await getExpenseRecordsByMonth(month)
     return { success: true, data }
@@ -24,6 +27,8 @@ export async function getExpensesByMonth(month: string): Promise<ActionResult<Ex
 export async function createExpense(
   formData: FormData
 ): Promise<ActionResult<Expense>> {
+  await requireAuth()
+
   const rawData = {
     month: formData.get('month') as string,
     label: formData.get('label') as string,
@@ -46,7 +51,7 @@ export async function createExpense(
       person: parsed.data.person,
       isCarryover: parsed.data.is_carryover,
     })
-    revalidatePath('/')
+    revalidateHouseholdData(parsed.data.month)
     return { success: true, data }
   } catch (error) {
     console.error('支出作成エラー:', error)
@@ -58,6 +63,8 @@ export async function updateExpense(
   id: string,
   formData: FormData
 ): Promise<ActionResult<Expense>> {
+  await requireAuth()
+
   const rawData = {
     month: formData.get('month') as string,
     label: formData.get('label') as string,
@@ -80,7 +87,7 @@ export async function updateExpense(
       person: parsed.data.person,
       isCarryover: parsed.data.is_carryover,
     })
-    revalidatePath('/')
+    revalidateHouseholdData(parsed.data.month)
     return { success: true, data }
   } catch (error) {
     console.error('支出更新エラー:', error)
@@ -90,11 +97,14 @@ export async function updateExpense(
 
 export async function toggleExpenseCarryover(
   id: string,
-  isCarryover: boolean
+  isCarryover: boolean,
+  month?: string
 ): Promise<ActionResult> {
+  await requireAuth()
+
   try {
     await toggleExpenseCarryoverRecord(id, isCarryover)
-    revalidatePath('/')
+    revalidateHouseholdData(month)
     return { success: true }
   } catch (error) {
     console.error('支出繰越フラグ更新エラー:', error)
@@ -102,10 +112,12 @@ export async function toggleExpenseCarryover(
   }
 }
 
-export async function deleteExpense(id: string): Promise<ActionResult> {
+export async function deleteExpense(id: string, month?: string): Promise<ActionResult> {
+  await requireAuth()
+
   try {
     await deleteExpenseRecord(id)
-    revalidatePath('/')
+    revalidateHouseholdData(month)
     return { success: true }
   } catch (error) {
     console.error('支出削除エラー:', error)

@@ -3,34 +3,19 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { TYPE_LABELS } from '@/lib/constants'
-import { useIsMobile } from '@/hooks/use-is-mobile'
 import { Button } from '@/components/ui/button'
+import { ResponsiveModal } from '@/components/ui/responsive-modal'
 import { AddEntryForm } from './add-entry-form'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from '@/components/ui/drawer'
+import type { EntryType } from '@/types'
 
 interface AddEntryModalProps {
-  type: 'income' | 'expense' | 'carryover'
+  type: EntryType
   month: string
 }
 
 
 export function AddEntryModal({ type, month }: AddEntryModalProps) {
   const [open, setOpen] = useState(false)
-  const isMobile = useIsMobile()
-
   const title = `${TYPE_LABELS[type]}を追加`
 
   const trigger = (
@@ -49,31 +34,14 @@ export function AddEntryModal({ type, month }: AddEntryModalProps) {
     />
   )
 
-  if (isMobile) {
-    return (
-      <Drawer open={open} onOpenChange={setOpen}>
-        <DrawerTrigger asChild>{trigger}</DrawerTrigger>
-        <DrawerContent className="px-4 pb-safe">
-          <DrawerHeader>
-            <DrawerTitle>{title}</DrawerTitle>
-          </DrawerHeader>
-          <div className="pb-4">
-            {form}
-          </div>
-        </DrawerContent>
-      </Drawer>
-    )
-  }
-
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        {form}
-      </DialogContent>
-    </Dialog>
+    <ResponsiveModal
+      open={open}
+      onOpenChange={setOpen}
+      trigger={trigger}
+      title={title}
+    >
+      {form}
+    </ResponsiveModal>
   )
 }

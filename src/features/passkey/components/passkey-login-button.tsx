@@ -11,6 +11,9 @@ import {
   verifyAuthentication,
 } from '@/app/actions/passkeys'
 
+const UNEXPECTED_PASSKEY_AUTH_ERROR =
+  'パスキー認証中にエラーが発生しました。時間をおいて再度お試しください。'
+
 export function PasskeyLoginButton() {
   const [isAuthenticating, setIsAuthenticating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -41,8 +44,8 @@ export function PasskeyLoginButton() {
       if (err instanceof Error && err.name === 'NotAllowedError') {
         setError('パスキー認証がキャンセルされました')
       } else {
-        const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
-        setError(`パスキー認証中にエラーが発生しました (${detail})`)
+        console.error('[PasskeyLoginButton]', err)
+        setError(UNEXPECTED_PASSKEY_AUTH_ERROR)
       }
     } finally {
       setIsAuthenticating(false)

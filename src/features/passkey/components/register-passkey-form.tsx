@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import {
   startRegistration,
   type PublicKeyCredentialCreationOptionsJSON,
@@ -13,11 +13,15 @@ import {
 } from '@/app/actions/passkeys'
 import type { Person } from '@/types'
 
+const UNEXPECTED_PASSKEY_REGISTRATION_ERROR =
+  'パスキーの登録中にエラーが発生しました。時間をおいて再度お試しください。'
+
 interface RegisterPasskeyFormProps {
   onRegistered: () => void
 }
 
 export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) {
+  const formId = useId()
   const [person, setPerson] = useState<Person>('husband')
   const [deviceName, setDeviceName] = useState('')
   const [isRegistering, setIsRegistering] = useState(false)
@@ -55,8 +59,8 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
       if (err instanceof Error && err.name === 'NotAllowedError') {
         setError('パスキーの登録がキャンセルされました')
       } else {
-        const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
-        setError(`パスキーの登録中にエラーが発生しました (${detail})`)
+        console.error('[RegisterPasskeyForm]', err)
+        setError(UNEXPECTED_PASSKEY_REGISTRATION_ERROR)
       }
     } finally {
       setIsRegistering(false)
@@ -67,16 +71,25 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
     <div className="space-y-4">
       {/* Person 選択 */}
       <div>
-        <label className="text-[11px] font-bold tracking-[0.14em] uppercase text-sub-text block mb-2">
+        <label
+          id={`${formId}-person-label`}
+          className="text-[11px] font-bold tracking-[0.14em] uppercase text-sub-text block mb-2"
+        >
           登録する人
         </label>
-        <div className="flex gap-2">
+        <div
+          className="flex gap-2"
+          role="radiogroup"
+          aria-labelledby={`${formId}-person-label`}
+        >
           <button
             type="button"
+            role="radio"
+            aria-checked={person === 'husband'}
             onClick={() => setPerson('husband')}
             className={`flex-1 h-10 rounded-[10px] text-[13px] font-semibold transition-colors ${
               person === 'husband'
-                ? 'bg-[#2563EB] text-white'
+                ? 'bg-accent text-accent-foreground'
                 : 'bg-muted text-muted-foreground'
             }`}
           >
@@ -84,10 +97,12 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
           </button>
           <button
             type="button"
+            role="radio"
+            aria-checked={person === 'wife'}
             onClick={() => setPerson('wife')}
             className={`flex-1 h-10 rounded-[10px] text-[13px] font-semibold transition-colors ${
               person === 'wife'
-                ? 'bg-[#2563EB] text-white'
+                ? 'bg-accent text-accent-foreground'
                 : 'bg-muted text-muted-foreground'
             }`}
           >
@@ -99,13 +114,13 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
       {/* デバイス名 */}
       <div>
         <label
-          htmlFor="device-name"
+          htmlFor={`${formId}-device-name`}
           className="text-[11px] font-bold tracking-[0.14em] uppercase text-sub-text block mb-2"
         >
           デバイス名（任意）
         </label>
         <input
-          id="device-name"
+          id={`${formId}-device-name`}
           type="text"
           value={deviceName}
           onChange={(e) => setDeviceName(e.target.value)}
@@ -124,7 +139,7 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
       <Button
         onClick={handleRegister}
         disabled={isRegistering}
-        className="w-full h-11 rounded-[12px] bg-[#2563EB] text-white text-[13px] font-bold tracking-[0.10em]"
+        className="w-full h-11 rounded-[12px] bg-accent text-accent-foreground text-[13px] font-bold tracking-[0.10em]"
       >
         <Plus className="h-4 w-4 mr-1.5" />
         {isRegistering ? '登録中…' : 'パスキーを登録'}

@@ -1,4 +1,5 @@
 import { apiRequest } from './client'
+import type { ApiEnvelope } from './types'
 import type { Person } from '@/types'
 
 export interface ApiSession {
@@ -8,17 +9,13 @@ export interface ApiSession {
   expiresAt: string
 }
 
-interface ApiData<T> {
-  data: T
-}
-
 export async function createSession(input: {
   token: string
   person: Person | null
   authMethod: 'password' | 'passkey'
   expiresAt: string
 }): Promise<ApiSession> {
-  const response = await apiRequest<ApiData<ApiSession>>('/sessions', {
+  const response = await apiRequest<ApiEnvelope<ApiSession>>('/sessions', {
     method: 'POST',
     body: input,
   })
@@ -26,7 +23,7 @@ export async function createSession(input: {
 }
 
 export async function getSession(token: string): Promise<ApiSession | null> {
-  const response = await apiRequest<ApiData<ApiSession | null>>(
+  const response = await apiRequest<ApiEnvelope<ApiSession | null>>(
     `/sessions/${encodeURIComponent(token)}`
   )
   return response.data

@@ -22,14 +22,24 @@ export function YearlyBarChart({ summaries, year }: YearlyBarChartProps) {
   })
 
   return (
-    <div className="flex flex-col gap-2">
+    <div
+      className="flex flex-col gap-2"
+      role="img"
+      aria-label={`${year}年の月次収支推移グラフ`}
+    >
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-medium text-muted-foreground">
           月次推移 / 1月〜12月
         </span>
-        <div className="flex items-center gap-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-accent" />
-          <div className="w-1.5 h-1.5 rounded-full bg-destructive" />
+        <div className="flex items-center gap-2 text-[9px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+            プラス
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-destructive" />
+            マイナス
+          </span>
         </div>
       </div>
 

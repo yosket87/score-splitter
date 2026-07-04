@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { Copy } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -20,6 +21,7 @@ import {
 } from '@/components/ui/select'
 import { LottiePlayer } from '@/components/animations/lottie-player'
 import { getCopyMonthPreview, copyMonthData } from '@/app/actions/copy-month'
+import { PERSON_LABELS } from '@/lib/constants'
 import { formatMonth, formatCurrency } from '@/lib/utils/format'
 import type {
   CopyMonthPreview,
@@ -34,11 +36,6 @@ interface CopyMonthDialogProps {
   previousMonth: string
 }
 
-const personLabels = {
-  husband: '夫',
-  wife: '妻',
-}
-
 // 項目の選択状態（未選択 | 金額込み | 項目名のみ）
 type ItemSelection = 'none' | 'withAmount' | 'labelOnly'
 
@@ -46,10 +43,12 @@ export function CopyMonthDialog({
   currentMonth,
   previousMonth,
 }: CopyMonthDialogProps) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [isPending, setIsPending] = useState(false)
   const [preview, setPreview] = useState<CopyMonthPreview | null>(null)
   const [mode, setMode] = useState<CopyMode>('add')
+  const [showReplaceConfirmation, setShowReplaceConfirmation] = useState(false)
   // 各項目の選択状態を管理（id -> selection）
   const [itemSelections, setItemSelections] = useState<Map<string, ItemSelection>>(
     new Map()
@@ -64,6 +63,7 @@ export function CopyMonthDialog({
       setPreview(null)
       setItemSelections(new Map())
       setIncludeCarryover(true)
+      setShowReplaceConfirmation(false)
     }
   }
 
@@ -157,6 +157,11 @@ export function CopyMonthDialog({
       return
     }
 
+    if (requiresReplaceConfirmation && !showReplaceConfirmation) {
+      setShowReplaceConfirmation(true)
+      return
+    }
+
     setIsPending(true)
 
     const result = await copyMonthData({
@@ -169,21 +174,23 @@ export function CopyMonthDialog({
 
     setIsPending(false)
 
-    if (result.success) {
+    if (result.success && result.data) {
+      const copyResult = result.data
       const total =
-        result.copied.incomes +
-        result.copied.expenses +
-        result.copied.carryovers
+        copyResult.copied.incomes +
+        copyResult.copied.expenses +
+        copyResult.copied.carryovers
       const skippedTotal =
-        result.skipped.incomes +
-        result.skipped.expenses +
-        result.skipped.carryovers
+        copyResult.skipped.incomes +
+        copyResult.skipped.expenses +
+        copyResult.skipped.carryovers
       if (skippedTotal > 0) {
         toast.success(`${total}件コピー、${skippedTotal}件スキップしました`)
       } else {
         toast.success(`${total}件のデータをコピーしました`)
       }
       setOpen(false)
+      router.refresh()
     } else {
       toast.error(result.error ?? 'コピーに失敗しました')
     }
@@ -191,7 +198,8 @@ export function CopyMonthDialog({
 
   const hasSourceData =
     preview && (preview.items.length > 0 || preview.carryoverCount > 0)
-  const hasExistingData = preview && preview.existingCount > 0
+  const hasExistingData = Boolean(preview && preview.existingCount > 0)
+  const requiresReplaceConfirmation = mode === 'replace' && hasExistingData
 
   // 選択されている項目数を計算
   const selectedCount = Array.from(itemSelections.values()).filter(
@@ -250,7 +258,7 @@ export function CopyMonthDialog({
                 />
                 <span className="flex-1 text-sm">{item.label}</span>
                 <span className="text-xs text-muted-foreground">
-                  {personLabels[item.person]}
+                  {PERSON_LABELS[item.person]}
                 </span>
                 <span className="text-sm font-tabular w-20 text-right">
                   {formatCurrency(item.amount)}
@@ -279,7 +287,12 @@ export function CopyMonthDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1">
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label="前月からコピー"
+          className="h-11 w-11 gap-1 p-0 sm:h-8 sm:w-auto sm:px-3"
+        >
           <Copy className="h-4 w-4" />
           <span className="hidden sm:inline">前月からコピー</span>
         </Button>
@@ -363,7 +376,10 @@ export function CopyMonthDialog({
                     <p className="mb-2 font-medium">既存データの処理</p>
                     <Select
                       value={mode}
-                      onValueChange={(v) => setMode(v as CopyMode)}
+                      onValueChange={(v) => {
+                        setMode(v as CopyMode)
+                        setShowReplaceConfirmation(false)
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -380,6 +396,15 @@ export function CopyMonthDialog({
                         </SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                )}
+
+                {requiresReplaceConfirmation && showReplaceConfirmation && preview && (
+                  <div
+                    role="alert"
+                    className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                  >
+                    既存の{preview.existingCount}件を削除してコピーします。続行するには確認してください。
                   </div>
                 )}
               </>
@@ -399,7 +424,11 @@ export function CopyMonthDialog({
             onClick={handleCopy}
             disabled={isPending || !hasSourceData || !canCopy}
           >
-            {isPending ? 'コピー中…' : `コピーする (${totalSelected}件)`}
+            {isPending
+              ? 'コピー中…'
+              : requiresReplaceConfirmation && showReplaceConfirmation
+                ? '既存データを削除してコピー'
+                : `コピーする (${totalSelected}件)`}
           </Button>
         </div>
       </DialogContent>

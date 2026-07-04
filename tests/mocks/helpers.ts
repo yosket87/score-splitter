@@ -1,4 +1,6 @@
 import type { Income, Expense, Carryover } from '@/types'
+import { mockSessionsApi } from './api'
+import { mockCookies } from './next'
 
 // FormDataを生成するヘルパー
 export function createFormData(
@@ -9,6 +11,21 @@ export function createFormData(
     formData.set(key, String(value))
   })
   return formData
+}
+
+export function mockAuthenticatedSession(): void {
+  mockCookies.get.mockReturnValue({ value: 'valid-session-token' })
+  mockSessionsApi.getSession.mockResolvedValue({
+    token: 'valid-session-token',
+    person: null,
+    authMethod: 'password',
+    expiresAt: new Date(Date.now() + 86400000).toISOString(),
+  })
+}
+
+export function mockUnauthenticatedSession(): void {
+  mockCookies.get.mockReturnValue(undefined)
+  mockSessionsApi.getSession.mockResolvedValue(null)
 }
 
 // テスト用の収入データを生成

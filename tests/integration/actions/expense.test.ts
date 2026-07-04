@@ -4,8 +4,12 @@ import {
   clearApiMocks,
   mockRecordsApi,
 } from '../../../tests/mocks/api'
-import { mockRevalidatePath } from '../../../tests/mocks/next'
-import { createFormData } from '../../../tests/mocks/helpers'
+import { mockRedirect, mockRevalidatePath } from '../../../tests/mocks/next'
+import {
+  createFormData,
+  mockAuthenticatedSession,
+  mockUnauthenticatedSession,
+} from '../../../tests/mocks/helpers'
 import {
   createExpense,
   deleteExpense,
@@ -19,6 +23,7 @@ describe('expense actions', () => {
     clearApiMocks()
     mockRevalidatePath.mockClear()
     vi.clearAllMocks()
+    mockAuthenticatedSession()
   })
 
   it('指定月の支出をAPIから取得する', async () => {
@@ -39,6 +44,17 @@ describe('expense actions', () => {
 
     expect(mockRecordsApi.getExpensesByMonth).toHaveBeenCalledWith('202601')
     expect(result).toEqual({ success: true, data: expenses })
+  })
+
+  it('無効セッション時はログインへリダイレクトしてAPIを呼ばない', async () => {
+    mockUnauthenticatedSession()
+
+    await expect(getExpensesByMonth('202601')).rejects.toThrow(
+      'NEXT_REDIRECT:/login'
+    )
+
+    expect(mockRedirect).toHaveBeenCalledWith('/login')
+    expect(mockRecordsApi.getExpensesByMonth).not.toHaveBeenCalled()
   })
 
   it('支出作成時は入力金額を負数にしてAPIへ渡す', async () => {
@@ -70,7 +86,8 @@ describe('expense actions', () => {
       person: 'wife',
       isCarryover: true,
     })
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/01')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
     expect(result).toEqual({ success: true, data: expense })
   })
 
@@ -125,20 +142,22 @@ describe('expense actions', () => {
   it('支出の繰越フラグを更新する', async () => {
     mockRecordsApi.toggleExpenseCarryover.mockResolvedValueOnce(undefined)
 
-    const result = await toggleExpenseCarryover('expense-1', true)
+    const result = await toggleExpenseCarryover('expense-1', true, '202601')
 
     expect(mockRecordsApi.toggleExpenseCarryover).toHaveBeenCalledWith('expense-1', true)
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/01')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
     expect(result).toEqual({ success: true })
   })
 
   it('支出を削除する', async () => {
     mockRecordsApi.deleteExpense.mockResolvedValueOnce(undefined)
 
-    const result = await deleteExpense('expense-1')
+    const result = await deleteExpense('expense-1', '202601')
 
     expect(mockRecordsApi.deleteExpense).toHaveBeenCalledWith('expense-1')
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/01')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
     expect(result).toEqual({ success: true })
   })
 })

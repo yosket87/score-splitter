@@ -46,14 +46,12 @@
   --radius-4xl: calc(var(--radius) + 16px);
 
   /* ドメインカラー — Tailwindユーティリティ自動生成 */
-  --color-neon-green: var(--neon-green);
   --color-neon-red: var(--neon-red);
   --color-neon-cyan: var(--neon-cyan);
   --color-husband: var(--husband);
   --color-husband-light: var(--husband-light);
   --color-wife: var(--wife);
   --color-wife-light: var(--wife-light);
-  --color-neon-green-light: var(--neon-green-light);
   --color-neon-red-light: var(--neon-red-light);
   --color-neon-cyan-light: var(--neon-cyan-light);
   --color-chart-bar-muted: var(--chart-bar-muted);
@@ -86,7 +84,7 @@
 
   /* ミュート */
   --muted: #F3F4F6;
-  --muted-foreground: #999999;
+  --muted-foreground: #767676;
 
   /* アクセント — ブルー */
   --accent: #2563EB;
@@ -101,7 +99,6 @@
   --ring: #2563EB;
 
   /* ドメインカラー */
-  --neon-green: #2563EB;
   --neon-red: #E2483D;
   --neon-cyan: #2563EB;
 
@@ -131,7 +128,6 @@
   --surface-total: #FAFBFC;
 
   /* ドメインカラー（ライト版） */
-  --neon-green-light: #EFF6FF;
   --neon-red-light: #FFE8E6;
   --neon-cyan-light: #EFF6FF;
 
@@ -201,7 +197,6 @@
   --sub-text: #9CA3AF;
 
   /* ドメインカラー */
-  --neon-green: #60A5FA;
   --neon-red: #F87171;
   --neon-cyan: #60A5FA;
 
@@ -231,7 +226,6 @@
   --surface-total: #1A1D27;
 
   /* ドメインカラー（ダーク版） */
-  --neon-green-light: #60A5FA26;
   --neon-red-light: #F8717126;
   --neon-cyan-light: #60A5FA26;
 

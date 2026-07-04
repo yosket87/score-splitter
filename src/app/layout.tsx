@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: '家計計算アプリ',
+  title: 'Score Splitter',
   description: '夫婦間で家計を公平に管理・精算するためのウェブアプリケーション',
 }
 

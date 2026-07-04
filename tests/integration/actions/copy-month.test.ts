@@ -4,7 +4,11 @@ import {
   clearApiMocks,
   mockCopyMonthApi,
 } from '../../../tests/mocks/api'
-import { mockRevalidatePath } from '../../../tests/mocks/next'
+import { mockRedirect, mockRevalidatePath } from '../../../tests/mocks/next'
+import {
+  mockAuthenticatedSession,
+  mockUnauthenticatedSession,
+} from '../../../tests/mocks/helpers'
 import type { CopyMonthOptions } from '@/types'
 import {
   copyMonthData,
@@ -16,6 +20,7 @@ describe('copy-month actions', () => {
     clearApiMocks()
     mockRevalidatePath.mockClear()
     vi.clearAllMocks()
+    mockAuthenticatedSession()
   })
 
   it('月コピープレビューをAPIから取得する', async () => {
@@ -40,6 +45,17 @@ describe('copy-month actions', () => {
 
     expect(mockCopyMonthApi.getCopyMonthPreview).toHaveBeenCalledWith('202601', '202602')
     expect(result).toEqual({ success: true, data: preview })
+  })
+
+  it('無効セッション時はログインへリダイレクトしてAPIを呼ばない', async () => {
+    mockUnauthenticatedSession()
+
+    await expect(getCopyMonthPreview('202601', '202602')).rejects.toThrow(
+      'NEXT_REDIRECT:/login'
+    )
+
+    expect(mockRedirect).toHaveBeenCalledWith('/login')
+    expect(mockCopyMonthApi.getCopyMonthPreview).not.toHaveBeenCalled()
   })
 
   it('月コピーAPIを呼び、成功時にrevalidateする', async () => {
@@ -69,8 +85,9 @@ describe('copy-month actions', () => {
     const result = await copyMonthData(options)
 
     expect(mockCopyMonthApi.copyMonthData).toHaveBeenCalledWith(options)
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/')
-    expect(result).toEqual(copyResult)
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/02')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
+    expect(result).toEqual({ success: true, data: copyResult })
   })
 
   it('APIエラー時は失敗結果を返す', async () => {
@@ -87,8 +104,6 @@ describe('copy-month actions', () => {
 
     expect(result).toEqual({
       success: false,
-      copied: { incomes: 0, expenses: 0, carryovers: 0 },
-      skipped: { incomes: 0, expenses: 0, carryovers: 0 },
       error: 'API error',
     })
   })

@@ -19,6 +19,21 @@ const WORKER_API_TOKEN = process.env.CLOUDFLARE_WORKER_API_TOKEN || 'mock-worker
 type Row = Record<string, unknown>
 
 export const handlers = [
+  http.post(`${WORKER_API_URL}/login-attempts/check`, ({ request }) => {
+    if (!isAuthorized(request)) return unauthorized()
+    return HttpResponse.json({ data: { allowed: true } })
+  }),
+
+  http.post(`${WORKER_API_URL}/login-attempts/failure`, ({ request }) => {
+    if (!isAuthorized(request)) return unauthorized()
+    return HttpResponse.json({ data: { allowed: true } })
+  }),
+
+  http.post(`${WORKER_API_URL}/login-attempts/reset`, ({ request }) => {
+    if (!isAuthorized(request)) return unauthorized()
+    return HttpResponse.json({ success: true })
+  }),
+
   http.get(`${WORKER_API_URL}/copy-month/preview`, ({ request }) => {
     if (!isAuthorized(request)) return unauthorized()
     const url = new URL(request.url)
@@ -196,19 +211,140 @@ function toApiSession(row: Row) {
 }
 
 function copyMonth(body: Row) {
-  return {
+  const sourceMonth = String(body.sourceMonth ?? '')
+  const targetMonth = String(body.targetMonth ?? '')
+  const mode = body.mode === 'skip' || body.mode === 'replace' ? body.mode : 'add'
+  const selectedItems = Array.isArray(body.selectedItems) ? body.selectedItems : []
+  const includeCarryover = body.includeCarryover === true
+  const result = {
     success: true,
     copied: {
-      incomes: Array.isArray(body.selectedItems)
-        ? body.selectedItems.filter((item: { type: string }) => item.type === 'income').length
-        : 0,
-      expenses: Array.isArray(body.selectedItems)
-        ? body.selectedItems.filter((item: { type: string }) => item.type === 'expense').length
-        : 0,
-      carryovers: body.includeCarryover ? getTable('carryovers').length : 0,
+      incomes: 0,
+      expenses: 0,
+      carryovers: 0,
     },
     skipped: { incomes: 0, expenses: 0, carryovers: 0 },
   }
+
+  if (mode === 'replace') {
+    if (selectedItems.some((item) => isSelectedCopyItem(item) && item.type === 'income')) {
+      deleteRows('incomes', { month: `eq.${targetMonth}` })
+    }
+    if (selectedItems.some((item) => isSelectedCopyItem(item) && item.type === 'expense')) {
+      deleteRows('expenses', { month: `eq.${targetMonth}` })
+    }
+    if (includeCarryover) {
+      deleteRows('carryovers', { month: `eq.${targetMonth}` })
+    }
+  }
+
+  const existingRecordKeys =
+    mode === 'skip'
+      ? {
+          income: new Set(
+            applyFilters([...getTable('incomes')], { month: `eq.${targetMonth}` }).map(
+              getRecordCopyKey
+            )
+          ),
+          expense: new Set(
+            applyFilters([...getTable('expenses')], { month: `eq.${targetMonth}` }).map(
+              getRecordCopyKey
+            )
+          ),
+        }
+      : null
+
+  for (const item of selectedItems) {
+    if (!isSelectedCopyItem(item)) continue
+
+    const key = getRecordCopyKey(item)
+    if (existingRecordKeys?.[item.type].has(key)) {
+      if (item.type === 'income') result.skipped.incomes++
+      else result.skipped.expenses++
+      continue
+    }
+
+    const amount =
+      item.itemCopyMode === 'labelOnly' ? (item.type === 'income' ? 1 : -1) : item.amount
+    insertRows(item.type === 'income' ? 'incomes' : 'expenses', [
+      {
+        month: targetMonth,
+        label: item.label,
+        amount,
+        person: item.person,
+        ...(item.type === 'expense' ? { is_carryover: false } : {}),
+      },
+    ])
+    if (item.type === 'income') result.copied.incomes++
+    else result.copied.expenses++
+  }
+
+  if (includeCarryover) {
+    const sourceCarryovers = applyFilters([...getTable('carryovers')], {
+      month: `eq.${sourceMonth}`,
+    }).filter((item) => item.is_cleared !== true)
+    const carryoverExpenses = applyFilters([...getTable('expenses')], {
+      month: `eq.${sourceMonth}`,
+    }).filter((item) => item.is_carryover === true)
+    const existingCarryoverKeys =
+      mode === 'skip'
+        ? new Set(
+            applyFilters([...getTable('carryovers')], { month: `eq.${targetMonth}` }).map(
+              getCarryoverCopyKey
+            )
+          )
+        : new Set<string>()
+    const insertingKeys = new Set<string>()
+
+    for (const item of [...sourceCarryovers, ...carryoverExpenses]) {
+      const key = getCarryoverCopyKey(item)
+      if (existingCarryoverKeys.has(key) || insertingKeys.has(key)) {
+        result.skipped.carryovers++
+        continue
+      }
+      insertingKeys.add(key)
+      insertRows('carryovers', [
+        {
+          month: targetMonth,
+          label: item.label,
+          amount: item.amount,
+          person: item.person,
+          is_cleared: false,
+        },
+      ])
+      result.copied.carryovers++
+    }
+  }
+
+  return result
+}
+
+function isSelectedCopyItem(item: unknown): item is {
+  label: string
+  amount: number
+  person: 'husband' | 'wife'
+  type: 'income' | 'expense'
+  itemCopyMode: 'withAmount' | 'labelOnly'
+} {
+  if (!item || typeof item !== 'object') return false
+  const row = item as Row
+  return (
+    typeof row.label === 'string' &&
+    typeof row.amount === 'number' &&
+    (row.person === 'husband' || row.person === 'wife') &&
+    (row.type === 'income' || row.type === 'expense') &&
+    (row.itemCopyMode === 'withAmount' || row.itemCopyMode === 'labelOnly')
+  )
+}
+
+function getRecordCopyKey(item: unknown): string {
+  const row = item as { label?: unknown; person?: unknown }
+  return `${String(row.label ?? '')}|${String(row.person ?? '')}`
+}
+
+function getCarryoverCopyKey(item: unknown): string {
+  const row = item as { amount?: unknown; label?: unknown; person?: unknown }
+  return `${String(row.label ?? '')}|${String(row.amount ?? '')}|${String(row.person ?? '')}`
 }
 
 function buildCopyMonthPreview(sourceMonth: string, targetMonth: string) {

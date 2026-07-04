@@ -10,6 +10,7 @@ import { getCarryoversByMonth } from '@/app/actions/carryover'
 import { getMonthlySummaries } from '@/app/actions/monthly-summary'
 import { AddEntryFab } from '@/features/add-entry'
 import { isValidYear, isValidMonthParam, pathToMonth } from '@/lib/utils/format'
+import { requireAuth } from '@/lib/webauthn/session'
 
 interface MonthPageProps {
   params: Promise<{ year: string; month: string }>
@@ -17,6 +18,7 @@ interface MonthPageProps {
 
 export default async function MonthPage({ params }: MonthPageProps) {
   const { year, month: monthParam } = await params
+  await requireAuth()
 
   if (!isValidYear(year) || !isValidMonthParam(monthParam)) {
     redirect('/')

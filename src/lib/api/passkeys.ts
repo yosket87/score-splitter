@@ -1,4 +1,5 @@
 import { apiRequest } from './client'
+import type { ApiEnvelope } from './types'
 import type { Person } from '@/types'
 
 export interface ApiPasskey {
@@ -20,18 +21,14 @@ export interface ApiChallenge {
   createdAt: string
 }
 
-interface ApiData<T> {
-  data: T
-}
-
 export async function listPasskeys(person?: Person): Promise<ApiPasskey[]> {
   const path = person ? `/passkeys?person=${encodeURIComponent(person)}` : '/passkeys'
-  const response = await apiRequest<ApiData<ApiPasskey[]>>(path)
+  const response = await apiRequest<ApiEnvelope<ApiPasskey[]>>(path)
   return response.data
 }
 
 export async function getPasskey(id: string): Promise<ApiPasskey | null> {
-  const response = await apiRequest<ApiData<ApiPasskey | null>>(
+  const response = await apiRequest<ApiEnvelope<ApiPasskey | null>>(
     `/passkeys/${encodeURIComponent(id)}`
   )
   return response.data
@@ -45,7 +42,7 @@ export async function createPasskey(input: {
   deviceName: string | null
   transports: string[]
 }): Promise<ApiPasskey> {
-  const response = await apiRequest<ApiData<ApiPasskey>>('/passkeys', {
+  const response = await apiRequest<ApiEnvelope<ApiPasskey>>('/passkeys', {
     method: 'POST',
     body: input,
   })
@@ -69,7 +66,7 @@ export async function createChallenge(input: {
   person: Person | null
   expiresAt: string
 }): Promise<ApiChallenge> {
-  const response = await apiRequest<ApiData<ApiChallenge>>('/webauthn-challenges', {
+  const response = await apiRequest<ApiEnvelope<ApiChallenge>>('/webauthn-challenges', {
     method: 'POST',
     body: input,
   })
@@ -84,7 +81,7 @@ export async function getLatestChallenge(input: {
   if (input.person) {
     params.set('person', input.person)
   }
-  const response = await apiRequest<ApiData<ApiChallenge | null>>(
+  const response = await apiRequest<ApiEnvelope<ApiChallenge | null>>(
     `/webauthn-challenges/latest?${params}`
   )
   return response.data

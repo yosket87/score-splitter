@@ -11,7 +11,10 @@ import { ExportCsvButton } from '@/features/export-csv'
 import { HeaderActions } from '@/components/layout/header-actions'
 import { useTheme } from 'next-themes'
 import { labelSlide, motionDuration, motionEase } from '@/components/animations/tokens'
-import { calculateSettlement } from '@/lib/utils/calculation'
+import {
+  calculateSettlement,
+  getSettlementDirectionLabel,
+} from '@/lib/utils/calculation'
 import { calculateMonthBalance } from '@/lib/utils/monthly-summary'
 import { formatCurrency, formatMonth, getPreviousMonth, parseMonth, monthToPath } from '@/lib/utils/format'
 import type { Income, Expense, Carryover } from '@/types'
@@ -114,11 +117,6 @@ export function HeroSection({
           `,
       }}
     >
-      {/* 装飾blob */}
-      <div className="absolute w-[180px] h-[180px] rounded-full bg-white opacity-[0.06] right-[-20px] top-[-40px] pointer-events-none" />
-      <div className="absolute w-[120px] h-[120px] rounded-full bg-white opacity-[0.05] left-[-30px] top-[140px] pointer-events-none" />
-      <div className="absolute w-[80px] h-[80px] rounded-full bg-[#A5B4FC] opacity-[0.08] right-[20px] bottom-[200px] pointer-events-none" />
-
       <div className="relative flex flex-col gap-3 pt-[calc(env(safe-area-inset-top)+16px)] px-5 pb-7">
         {/* Header — 月一覧と同じ */}
         <div className="flex items-center justify-between">
@@ -144,7 +142,7 @@ export function HeroSection({
               type="button"
               aria-label="前月に移動"
               onClick={() => navigateMonth(-1)}
-              className="text-white/80 hover:text-white transition-colors"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-white/80 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -153,7 +151,7 @@ export function HeroSection({
               onClick={goToCurrentMonth}
               aria-label="今月に移動"
               aria-live="polite"
-              className="text-[13px] font-semibold text-white min-w-[80px] text-center overflow-hidden"
+              className="inline-flex h-11 min-w-[88px] items-center justify-center overflow-hidden rounded-full text-center text-[13px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             >
               <AnimatePresence mode="wait" initial={false} custom={direction}>
                 <motion.span
@@ -174,7 +172,7 @@ export function HeroSection({
               type="button"
               aria-label="翌月に移動"
               onClick={() => navigateMonth(1)}
-              className="text-white/80 hover:text-white transition-colors"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-white/80 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -211,7 +209,7 @@ export function HeroSection({
             className="text-4xl font-bold font-mono text-white tracking-tight"
           />
           <span className="text-[11px] text-white/70">
-            収入 {formatCurrency(result.totalIncome)} − 支出 {formatCurrency(Math.abs(allExpenseTotal))}
+            収入 {formatCurrency(result.totalIncome)} − 支出 {formatCurrency(allExpenseTotal, { absolute: true })}
           </span>
           <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/10 text-[10px] text-white/80">
             {m}月1日 — {days}日間 / {totalItems}件の取引
@@ -244,7 +242,7 @@ export function HeroSection({
                   className="text-lg font-bold font-mono text-foreground"
                 />
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-lg bg-accent/10 text-[8px] font-semibold text-accent">
-                  夫 → 妻
+                  {getSettlementDirectionLabel(result.settlement)}
                 </span>
               </div>
             ) : (

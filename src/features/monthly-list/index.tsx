@@ -69,7 +69,7 @@ export function MonthlyListSection({ summaries, year }: MonthlyListSectionProps)
     <section aria-label="月の一覧">
       {/* セクションヘッド */}
       <div className="pb-4">
-        <div className="text-[11px] font-medium tracking-[0.5px] text-[#999999] uppercase">
+        <div className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
           Months / 月一覧
         </div>
         <div className="flex items-center gap-3 mt-1.5">
@@ -81,7 +81,7 @@ export function MonthlyListSection({ summaries, year }: MonthlyListSectionProps)
             value={year}
             onChange={(e) => startTransition(() => router.push(`/${e.target.value}`))}
             disabled={isPending}
-            className={`rounded-lg border border-[#E5E7EB] px-3 py-1.5 text-sm font-medium bg-transparent appearance-none cursor-pointer transition-opacity ${isPending ? 'opacity-50' : ''}`}
+            className={`rounded-lg border border-border px-3 py-1.5 text-sm font-medium bg-transparent appearance-none cursor-pointer transition-opacity ${isPending ? 'opacity-50' : ''}`}
             aria-label="年を選択"
             style={{ backgroundImage: 'none' }}
           >
@@ -89,9 +89,9 @@ export function MonthlyListSection({ summaries, year }: MonthlyListSectionProps)
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
-          <span className="text-sm text-[#999999]">▾</span>
+          <span className="text-sm text-muted-foreground">▾</span>
         </div>
-        <p className="text-[13px] text-[#999999] mt-2">
+        <p className="text-[13px] text-muted-foreground mt-2">
           {recordedCount > 0
             ? `${recordedCount}ヶ月分の記録があります`
             : 'この年の記録はまだありません'}
@@ -101,24 +101,23 @@ export function MonthlyListSection({ summaries, year }: MonthlyListSectionProps)
       {/* Year-to-Date カード */}
       {recordedCount > 0 && (
         <div className="rounded-[16px] shadow-soft p-5">
-          <div className="text-[10px] font-medium tracking-[0.5px] text-[#999999] uppercase">
+          <div className="text-[10px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
             Year-to-Date / 年間収支
           </div>
           <div className="mt-1">
             <span
               className={`font-mono text-[28px] font-bold ${
-                isBalancePositive ? 'text-[#2563EB]' : 'text-[#E2483D]'
+                isBalancePositive ? 'text-accent' : 'text-destructive'
               }`}
             >
-              {isBalancePositive ? '+' : ''}
-              {balanceYTD.toLocaleString('ja-JP')}
+              {formatCurrency(balanceYTD, { signed: true })}
             </span>
           </div>
           <div className="flex items-center gap-3 mt-1">
-            <span className="font-mono text-[11px] font-medium text-[#666666]">
+            <span className="font-mono text-[11px] font-medium text-sub-text">
               Income {formatCurrency(incomeYTD)}
             </span>
-            <span className="font-mono text-[11px] font-medium text-[#666666]">
+            <span className="font-mono text-[11px] font-medium text-sub-text">
               Expense {formatCurrency(expenseYTD)}
             </span>
           </div>
@@ -137,10 +136,10 @@ export function MonthlyListSection({ summaries, year }: MonthlyListSectionProps)
 
       {/* BY MONTH ヘッダー */}
       <div className="flex items-baseline justify-between py-2">
-        <span className="text-[11px] font-medium tracking-[0.5px] text-[#999999] uppercase">
+        <span className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
           By Month / 月別
         </span>
-        <span className="text-[11px] text-[#999999]">
+        <span className="text-[11px] text-muted-foreground">
           12ヶ月
         </span>
       </div>

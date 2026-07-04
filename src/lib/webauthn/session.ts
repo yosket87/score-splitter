@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import {
   createSession as createApiSession,
   deleteSession as deleteApiSession,
@@ -24,8 +25,8 @@ export async function createSession(
 
   try {
     await createApiSession({
-    token,
-    person,
+      token,
+      person,
       authMethod,
       expiresAt: expiresAt.toISOString(),
     })
@@ -106,4 +107,10 @@ export async function isAuthenticated(): Promise<boolean> {
   }
 
   return new Date(data.expiresAt) > new Date()
+}
+
+export async function requireAuth(): Promise<void> {
+  if (!(await isAuthenticated())) {
+    redirect('/login')
+  }
 }

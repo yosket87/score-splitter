@@ -2,18 +2,16 @@
 
 import { useState, useRef } from 'react'
 import { TYPE_LABELS } from '@/lib/constants'
-import { Input } from '@/components/ui/input'
+import { EntryFields } from '@/components/forms/entry-fields'
 import { Button } from '@/components/ui/button'
 import { SubmitButton } from '@/components/ui/submit-button'
-import { PersonSelector } from '@/components/ui/person-selector'
-import { ToggleSwitch } from '@/components/ui/toggle-switch'
 import { createIncome } from '@/app/actions/income'
 import { createExpense } from '@/app/actions/expense'
 import { createCarryover } from '@/app/actions/carryover'
-import type { Person } from '@/types'
+import type { EntryType, Person } from '@/types'
 
 interface AddEntryFormProps {
-  type: 'income' | 'expense' | 'carryover'
+  type: EntryType
   month: string
   onSuccess: () => void
   onCancel: () => void
@@ -60,56 +58,16 @@ export function AddEntryForm({ type, month, onSuccess, onCancel }: AddEntryFormP
 
   return (
     <form ref={formRef} action={handleSubmit} className="flex flex-col gap-3">
-      <div>
-        <label className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block">
-          項目名
-        </label>
-        <Input
-          name="label"
-          placeholder="例：食費、家賃、給与"
-          className="h-12 rounded-xl"
-          autoComplete="off"
-          required
-        />
-      </div>
-      <div>
-        <label className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block">
-          金額
-        </label>
-        <Input
-          name="amount"
-          type="number"
-          inputMode="numeric"
-          placeholder="¥ 0"
-          className="h-14 rounded-xl text-[28px] font-bold text-right font-tabular tracking-[-0.02em]"
-          autoComplete="off"
-          min={1}
-          required
-        />
-      </div>
-      <div>
-        <label className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block">
-          担当者
-        </label>
-        <PersonSelector value={person} onChange={setPerson} />
-      </div>
-      {type === 'expense' && (
-        <ToggleSwitch
-          checked={isCarryover}
-          onChange={setIsCarryover}
-          label="繰越扱いにする"
-          description="精算には含めず翌月へ"
-        />
-      )}
-      {type === 'carryover' && (
-        <ToggleSwitch
-          checked={isCleared}
-          onChange={setIsCleared}
-          label="今月で清算する"
-          description="精算に含める"
-        />
-      )}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      <EntryFields
+        type={type}
+        person={person}
+        onPersonChange={setPerson}
+        isCarryover={isCarryover}
+        onCarryoverChange={setIsCarryover}
+        isCleared={isCleared}
+        onClearedChange={setIsCleared}
+        error={error}
+      />
       <div className="flex gap-3 pt-2">
         <Button
           type="button"

@@ -1,11 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
 
-vi.mock('next/font/google', () => ({
-  Inter: () => ({ variable: '--font-inter' }),
-  Geist_Mono: () => ({ variable: '--font-geist-mono' }),
-}))
-
 vi.mock('@vercel/speed-insights/next', () => ({
   SpeedInsights: () => null,
 }))

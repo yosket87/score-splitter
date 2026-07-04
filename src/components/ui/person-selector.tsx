@@ -1,5 +1,6 @@
 'use client'
 
+import { PERSON_LABELS } from '@/lib/constants'
 import type { Person } from '@/types'
 
 interface PersonSelectorProps {
@@ -40,7 +41,7 @@ export function PersonSelector({
                 : 'bg-[var(--card)] text-[var(--sub-text)] border-[var(--border)]'
             }`}
           >
-            {p === 'husband' ? '夫' : '妻'}
+            {PERSON_LABELS[p]}
           </button>
         )
       })}

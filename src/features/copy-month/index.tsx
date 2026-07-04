@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select'
 import { LottiePlayer } from '@/components/animations/lottie-player'
 import { getCopyMonthPreview, copyMonthData } from '@/app/actions/copy-month'
+import { PERSON_LABELS } from '@/lib/constants'
 import { formatMonth, formatCurrency } from '@/lib/utils/format'
 import type {
   CopyMonthPreview,
@@ -32,11 +33,6 @@ import type {
 interface CopyMonthDialogProps {
   currentMonth: string
   previousMonth: string
-}
-
-const personLabels = {
-  husband: '夫',
-  wife: '妻',
 }
 
 // 項目の選択状態（未選択 | 金額込み | 項目名のみ）
@@ -176,15 +172,16 @@ export function CopyMonthDialog({
 
     setIsPending(false)
 
-    if (result.success) {
+    if (result.success && result.data) {
+      const copyResult = result.data
       const total =
-        result.copied.incomes +
-        result.copied.expenses +
-        result.copied.carryovers
+        copyResult.copied.incomes +
+        copyResult.copied.expenses +
+        copyResult.copied.carryovers
       const skippedTotal =
-        result.skipped.incomes +
-        result.skipped.expenses +
-        result.skipped.carryovers
+        copyResult.skipped.incomes +
+        copyResult.skipped.expenses +
+        copyResult.skipped.carryovers
       if (skippedTotal > 0) {
         toast.success(`${total}件コピー、${skippedTotal}件スキップしました`)
       } else {
@@ -258,7 +255,7 @@ export function CopyMonthDialog({
                 />
                 <span className="flex-1 text-sm">{item.label}</span>
                 <span className="text-xs text-muted-foreground">
-                  {personLabels[item.person]}
+                  {PERSON_LABELS[item.person]}
                 </span>
                 <span className="text-sm font-tabular w-20 text-right">
                   {formatCurrency(item.amount)}

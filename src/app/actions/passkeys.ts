@@ -22,6 +22,7 @@ import {
   listPasskeys as listPasskeysByApi,
   updatePasskeyCounter,
 } from '@/lib/api/passkeys'
+import { PERSON_LABELS } from '@/lib/constants'
 import { getWebAuthnConfig } from '@/lib/webauthn/config'
 import { createSession, isAuthenticated } from '@/lib/webauthn/session'
 import type { ActionResult, Person } from '@/types'
@@ -52,8 +53,8 @@ export async function generateRegistrationOptions(
     const options = await generateRegOptions({
       rpName: config.rpName,
       rpID: config.rpID,
-      userName: person === 'husband' ? '夫' : '妻',
-      userDisplayName: person === 'husband' ? '夫' : '妻',
+      userName: PERSON_LABELS[person],
+      userDisplayName: PERSON_LABELS[person],
       userID,
       attestationType: 'none',
       excludeCredentials: existingCredentials.map((cred) => ({

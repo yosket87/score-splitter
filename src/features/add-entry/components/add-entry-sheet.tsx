@@ -15,9 +15,7 @@ import { cn } from '@/lib/utils'
 import { createIncome } from '@/app/actions/income'
 import { createExpense } from '@/app/actions/expense'
 import { createCarryover } from '@/app/actions/carryover'
-import type { Person } from '@/types'
-
-type EntryType = 'income' | 'expense' | 'carryover'
+import type { EntryType, Person } from '@/types'
 
 interface AddEntrySheetProps {
   open: boolean

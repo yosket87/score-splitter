@@ -5,9 +5,8 @@ import { Input } from '@/components/ui/input'
 import { PersonSelector } from '@/components/ui/person-selector'
 import { ToggleSwitch } from '@/components/ui/toggle-switch'
 import { cn } from '@/lib/utils'
-import type { Person } from '@/types'
+import type { EntryType, Person } from '@/types'
 
-type EntryType = 'income' | 'expense' | 'carryover'
 type EntryFieldsVariant = 'regular' | 'compact'
 
 interface EntryFieldsProps {

@@ -8,6 +8,9 @@ export interface ActionResult<T = unknown> {
 // 担当者
 export type Person = 'husband' | 'wife'
 
+// 入力項目種別
+export type EntryType = 'income' | 'expense' | 'carryover'
+
 // セッション
 export interface Session {
   person: Person | null

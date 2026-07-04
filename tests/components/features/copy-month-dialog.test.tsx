@@ -46,8 +46,11 @@ describe('CopyMonthDialog', () => {
     })
     vi.mocked(copyMonthData).mockResolvedValueOnce({
       success: true,
-      copied: { incomes: 1, expenses: 0, carryovers: 0 },
-      skipped: { incomes: 0, expenses: 0, carryovers: 0 },
+      data: {
+        success: true,
+        copied: { incomes: 1, expenses: 0, carryovers: 0 },
+        skipped: { incomes: 0, expenses: 0, carryovers: 0 },
+      },
     })
 
     render(

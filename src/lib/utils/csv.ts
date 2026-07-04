@@ -6,12 +6,13 @@ import {
   filterClearedCarryovers,
   getSettlementDirectionLabel,
 } from '@/lib/utils/calculation'
+import { PERSON_LABELS } from '@/lib/constants'
 import { formatMonth } from '@/lib/utils/format'
 
 const BOM = '\uFEFF'
 
 function personLabel(person: Person): string {
-  return person === 'husband' ? '夫' : '妻'
+  return PERSON_LABELS[person]
 }
 
 function escapeCsvField(value: string): string {

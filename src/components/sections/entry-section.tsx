@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { LottiePlayer } from '@/components/animations/lottie-player'
 import { listExit, listSpring } from '@/components/animations/tokens'
+import { PERSON_LABELS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import type { Person } from '@/types'
 
@@ -123,7 +124,7 @@ export function EntryRow({
           personBadgeClassName
         )}
       >
-        {person === 'husband' ? '夫' : '妻'}
+        {PERSON_LABELS[person]}
       </span>
       <span className={cn('text-[13px] font-medium truncate', labelClassName)}>
         {label}

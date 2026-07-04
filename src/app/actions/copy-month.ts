@@ -37,21 +37,24 @@ export async function getCopyMonthPreview(
  */
 export async function copyMonthData(
   options: CopyMonthOptions
-): Promise<CopyMonthResult> {
+): Promise<ActionResult<CopyMonthResult>> {
   await requireAuth()
 
   try {
     const result = await copyMonthDataByApi(options)
-    if (result.success) {
-      revalidatePath('/')
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error ?? 'データのコピーに失敗しました',
+      }
     }
-    return result
+
+    revalidatePath('/')
+    return { success: true, data: result }
   } catch (error) {
     console.error('月データコピーエラー:', error)
     return {
       success: false,
-      copied: { incomes: 0, expenses: 0, carryovers: 0 },
-      skipped: { incomes: 0, expenses: 0, carryovers: 0 },
       error:
         error instanceof Error ? error.message : 'データのコピーに失敗しました',
     }

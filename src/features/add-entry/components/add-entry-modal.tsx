@@ -6,9 +6,10 @@ import { TYPE_LABELS } from '@/lib/constants'
 import { Button } from '@/components/ui/button'
 import { ResponsiveModal } from '@/components/ui/responsive-modal'
 import { AddEntryForm } from './add-entry-form'
+import type { EntryType } from '@/types'
 
 interface AddEntryModalProps {
-  type: 'income' | 'expense' | 'carryover'
+  type: EntryType
   month: string
 }
 

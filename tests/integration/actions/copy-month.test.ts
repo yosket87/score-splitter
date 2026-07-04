@@ -86,7 +86,7 @@ describe('copy-month actions', () => {
 
     expect(mockCopyMonthApi.copyMonthData).toHaveBeenCalledWith(options)
     expect(mockRevalidatePath).toHaveBeenCalledWith('/')
-    expect(result).toEqual(copyResult)
+    expect(result).toEqual({ success: true, data: copyResult })
   })
 
   it('APIエラー時は失敗結果を返す', async () => {
@@ -103,8 +103,6 @@ describe('copy-month actions', () => {
 
     expect(result).toEqual({
       success: false,
-      copied: { incomes: 0, expenses: 0, carryovers: 0 },
-      skipped: { incomes: 0, expenses: 0, carryovers: 0 },
       error: 'API error',
     })
   })

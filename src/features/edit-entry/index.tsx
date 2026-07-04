@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { EntryFields } from '@/components/forms/entry-fields'
 import { ResponsiveModal } from '@/components/ui/responsive-modal'
 import { SubmitButton } from '@/components/ui/submit-button'
-import type { Person } from '@/types'
+import type { ActionResult, EntryType, Person } from '@/types'
 
 interface EditModalProps {
   id: string
@@ -15,13 +15,13 @@ interface EditModalProps {
   label: string
   amount: number
   person: Person
-  type: 'income' | 'expense' | 'carryover'
+  type: EntryType
   isCarryover?: boolean
   isCleared?: boolean
   onUpdate: (
     id: string,
     formData: FormData
-  ) => Promise<{ success: boolean; error?: string }>
+  ) => Promise<ActionResult>
 }
 
 

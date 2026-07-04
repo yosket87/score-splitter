@@ -8,10 +8,10 @@ import { SubmitButton } from '@/components/ui/submit-button'
 import { createIncome } from '@/app/actions/income'
 import { createExpense } from '@/app/actions/expense'
 import { createCarryover } from '@/app/actions/carryover'
-import type { Person } from '@/types'
+import type { EntryType, Person } from '@/types'
 
 interface AddEntryFormProps {
-  type: 'income' | 'expense' | 'carryover'
+  type: EntryType
   month: string
   onSuccess: () => void
   onCancel: () => void

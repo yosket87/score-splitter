@@ -3,6 +3,7 @@
 import { Key } from 'lucide-react'
 import { DeleteButton } from '@/components/ui/delete-button'
 import { deletePasskey } from '@/app/actions/passkeys'
+import { PERSON_LABELS } from '@/lib/constants'
 import type { PasskeyInfo } from '../types'
 
 interface PasskeyListProps {
@@ -34,7 +35,7 @@ export function PasskeyList({ passkeys, onDeleted }: PasskeyListProps) {
                 {passkey.deviceName ?? 'パスキー'}
               </p>
               <p className="text-[11px] text-sub-text">
-                {passkey.person === 'husband' ? '夫' : '妻'} ・{' '}
+                {PERSON_LABELS[passkey.person]} ・{' '}
                 {new Date(passkey.createdAt).toLocaleDateString('ja-JP')}
               </p>
             </div>

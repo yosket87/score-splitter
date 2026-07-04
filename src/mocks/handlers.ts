@@ -337,12 +337,14 @@ function isSelectedCopyItem(item: unknown): item is {
   )
 }
 
-function getRecordCopyKey(item: Pick<Row, 'label' | 'person'>) {
-  return `${item.label}|${item.person}`
+function getRecordCopyKey(item: unknown): string {
+  const row = item as { label?: unknown; person?: unknown }
+  return `${String(row.label ?? '')}|${String(row.person ?? '')}`
 }
 
-function getCarryoverCopyKey(item: Pick<Row, 'label' | 'amount' | 'person'>) {
-  return `${item.label}|${item.amount}|${item.person}`
+function getCarryoverCopyKey(item: unknown): string {
+  const row = item as { amount?: unknown; label?: unknown; person?: unknown }
+  return `${String(row.label ?? '')}|${String(row.amount ?? '')}|${String(row.person ?? '')}`
 }
 
 function buildCopyMonthPreview(sourceMonth: string, targetMonth: string) {

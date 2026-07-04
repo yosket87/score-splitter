@@ -1,9 +1,9 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { toast } from 'sonner'
 import { ExpenseSection } from '@/features/expense'
-import { deleteExpense } from '@/app/actions/expense'
+import { deleteExpense, toggleExpenseCarryover } from '@/app/actions/expense'
 import type { Expense } from '@/types'
 
 // Server Actionsのモック
@@ -39,6 +39,10 @@ describe('ExpenseSection', () => {
       isCarryover: false,
     },
   ]
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
   it('支出一覧を表示する', () => {
     render(<ExpenseSection expenses={mockExpenses} month="202601" />)
@@ -167,6 +171,43 @@ describe('ExpenseSection', () => {
       'h-11',
       'w-11'
     )
+  })
+
+  it('繰越トグルは送信中に無効化される', async () => {
+    const user = userEvent.setup()
+    let resolveAction!: (value: { success: true }) => void
+    vi.mocked(toggleExpenseCarryover).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveAction = resolve
+      })
+    )
+
+    render(<ExpenseSection expenses={mockExpenses} month="202601" />)
+
+    const button = screen.getByRole('button', { name: '食費を繰越にする' })
+    await user.click(button)
+
+    await waitFor(() => expect(button).toBeDisabled())
+
+    resolveAction({ success: true })
+    await waitFor(() => expect(button).not.toBeDisabled())
+  })
+
+  it('繰越トグル失敗時はエラーtoastを表示する', async () => {
+    const user = userEvent.setup()
+    vi.mocked(toggleExpenseCarryover).mockResolvedValueOnce({
+      success: false,
+      error: '繰越フラグの更新に失敗しました',
+    })
+
+    render(<ExpenseSection expenses={mockExpenses} month="202601" />)
+
+    await user.click(screen.getByRole('button', { name: '食費を繰越にする' }))
+
+    expect(toggleExpenseCarryover).toHaveBeenCalledWith('1', true)
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('繰越フラグの更新に失敗しました')
+    })
   })
 
   it('削除前に確認し、失敗時はエラーtoastを表示する', async () => {

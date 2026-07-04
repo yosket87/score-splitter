@@ -1,6 +1,9 @@
 'use client'
 
+import { useFormStatus } from 'react-dom'
+import { Loader2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
+import { toast } from 'sonner'
 import { DeleteButton } from '@/components/ui/delete-button'
 import { AddEntryModal } from '@/features/add-entry'
 import { EditModal } from '@/features/edit-entry'
@@ -13,6 +16,30 @@ import type { Expense } from '@/types'
 interface ExpenseSectionProps {
   expenses: Expense[]
   month: string
+}
+
+function CarryoverToggleButton({ expense }: { expense: Expense }) {
+  const { pending } = useFormStatus()
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      aria-busy={pending}
+      className={`-m-2 flex h-11 w-11 items-center justify-center rounded-full text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed ${
+        expense.isCarryover
+          ? 'text-accent bg-accent/10'
+          : 'text-muted-foreground hover:text-accent hover:bg-accent/10'
+      }`}
+      aria-label={expense.isCarryover ? `${expense.label}の繰越を解除` : `${expense.label}を繰越にする`}
+    >
+      {pending ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+      ) : (
+        expense.isCarryover ? '↩' : '↪'
+      )}
+    </button>
+  )
 }
 
 export function ExpenseSection({ expenses, month }: ExpenseSectionProps) {
@@ -67,19 +94,12 @@ export function ExpenseSection({ expenses, month }: ExpenseSectionProps) {
                 </span>
                 <div className="flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
                   <form action={async () => {
-                    await toggleExpenseCarryover(expense.id, !expense.isCarryover)
+                    const result = await toggleExpenseCarryover(expense.id, !expense.isCarryover)
+                    if (!result.success) {
+                      toast.error(result.error ?? '繰越フラグの更新に失敗しました')
+                    }
                   }}>
-                    <button
-                      type="submit"
-                      className={`-m-2 flex h-11 w-11 items-center justify-center rounded-full text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
-                        expense.isCarryover
-                          ? 'text-accent bg-accent/10'
-                          : 'text-muted-foreground hover:text-accent hover:bg-accent/10'
-                      }`}
-                      aria-label={expense.isCarryover ? `${expense.label}の繰越を解除` : `${expense.label}を繰越にする`}
-                    >
-                      {expense.isCarryover ? '↩' : '↪'}
-                    </button>
+                    <CarryoverToggleButton expense={expense} />
                   </form>
                   <EditModal
                     id={expense.id}

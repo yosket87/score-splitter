@@ -1,6 +1,9 @@
 'use client'
 
+import { useFormStatus } from 'react-dom'
+import { Loader2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
+import { toast } from 'sonner'
 import { DeleteButton } from '@/components/ui/delete-button'
 import { AddEntryModal } from '@/features/add-entry'
 import { EditModal } from '@/features/edit-entry'
@@ -13,6 +16,30 @@ import type { Carryover } from '@/types'
 interface CarryoverSectionProps {
   carryovers: Carryover[]
   month: string
+}
+
+function ClearedToggleButton({ carryover }: { carryover: Carryover }) {
+  const { pending } = useFormStatus()
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      aria-busy={pending}
+      className={`-m-2 flex h-11 w-11 items-center justify-center rounded-full text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed ${
+        carryover.isCleared
+          ? 'text-neon-green bg-neon-green/10'
+          : 'text-muted-foreground hover:text-neon-green hover:bg-neon-green/10'
+      }`}
+      aria-label={carryover.isCleared ? `${carryover.label}の清算を取消` : `${carryover.label}を清算する`}
+    >
+      {pending ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+      ) : (
+        carryover.isCleared ? '✓' : '○'
+      )}
+    </button>
+  )
 }
 
 export function CarryoverSection({ carryovers, month }: CarryoverSectionProps) {
@@ -72,19 +99,12 @@ export function CarryoverSection({ carryovers, month }: CarryoverSectionProps) {
                 </span>
                 <div className="flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
                   <form action={async () => {
-                    await toggleCarryoverCleared(carryover.id, !carryover.isCleared)
+                    const result = await toggleCarryoverCleared(carryover.id, !carryover.isCleared)
+                    if (!result.success) {
+                      toast.error(result.error ?? '清算フラグの更新に失敗しました')
+                    }
                   }}>
-                    <button
-                      type="submit"
-                      className={`-m-2 flex h-11 w-11 items-center justify-center rounded-full text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
-                        carryover.isCleared
-                          ? 'text-neon-green bg-neon-green/10'
-                          : 'text-muted-foreground hover:text-neon-green hover:bg-neon-green/10'
-                      }`}
-                      aria-label={carryover.isCleared ? `${carryover.label}の清算を取消` : `${carryover.label}を清算する`}
-                    >
-                      {carryover.isCleared ? '✓' : '○'}
-                    </button>
+                    <ClearedToggleButton carryover={carryover} />
                   </form>
                   <EditModal
                     id={carryover.id}

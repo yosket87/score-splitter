@@ -1,9 +1,9 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { toast } from 'sonner'
 import { CarryoverSection } from '@/features/carryover'
-import { deleteCarryover } from '@/app/actions/carryover'
+import { deleteCarryover, toggleCarryoverCleared } from '@/app/actions/carryover'
 import type { Carryover } from '@/types'
 
 // Server Actionsのモック
@@ -39,6 +39,10 @@ describe('CarryoverSection', () => {
       isCleared: false,
     },
   ]
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
   it('タイトル「繰越」を表示する', () => {
     render(<CarryoverSection carryovers={mockCarryovers} month="202601" />)
@@ -164,6 +168,43 @@ describe('CarryoverSection', () => {
       'h-11',
       'w-11'
     )
+  })
+
+  it('清算トグルは送信中に無効化される', async () => {
+    const user = userEvent.setup()
+    let resolveAction!: (value: { success: true }) => void
+    vi.mocked(toggleCarryoverCleared).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveAction = resolve
+      })
+    )
+
+    render(<CarryoverSection carryovers={mockCarryovers} month="202601" />)
+
+    const button = screen.getByRole('button', { name: '前月繰越を清算する' })
+    await user.click(button)
+
+    await waitFor(() => expect(button).toBeDisabled())
+
+    resolveAction({ success: true })
+    await waitFor(() => expect(button).not.toBeDisabled())
+  })
+
+  it('清算トグル失敗時はエラーtoastを表示する', async () => {
+    const user = userEvent.setup()
+    vi.mocked(toggleCarryoverCleared).mockResolvedValueOnce({
+      success: false,
+      error: '清算フラグの更新に失敗しました',
+    })
+
+    render(<CarryoverSection carryovers={mockCarryovers} month="202601" />)
+
+    await user.click(screen.getByRole('button', { name: '前月繰越を清算する' }))
+
+    expect(toggleCarryoverCleared).toHaveBeenCalledWith('1', true)
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('清算フラグの更新に失敗しました')
+    })
   })
 
   it('削除前に確認し、失敗時はエラーtoastを表示する', async () => {

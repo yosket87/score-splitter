@@ -1,28 +1,12 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import { Pencil } from 'lucide-react'
 import { TYPE_LABELS } from '@/lib/constants'
-import { useIsMobile } from '@/hooks/use-is-mobile'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { EntryFields } from '@/components/forms/entry-fields'
+import { ResponsiveModal } from '@/components/ui/responsive-modal'
 import { SubmitButton } from '@/components/ui/submit-button'
-import { PersonSelector } from '@/components/ui/person-selector'
-import { ToggleSwitch } from '@/components/ui/toggle-switch'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from '@/components/ui/drawer'
 import type { Person } from '@/types'
 
 interface EditModalProps {
@@ -52,13 +36,11 @@ export function EditModal({
   isCleared: initialIsCleared,
   onUpdate,
 }: EditModalProps) {
-  const formId = useId()
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [person, setPerson] = useState<Person>(initialPerson)
   const [isCarryover, setIsCarryover] = useState(initialIsCarryover ?? false)
   const [isCleared, setIsCleared] = useState(initialIsCleared ?? false)
-  const isMobile = useIsMobile()
 
   const displayAmount = type === 'income' ? amount : Math.abs(amount)
 
@@ -108,71 +90,18 @@ export function EditModal({
 
   const form = (
     <form action={handleSubmit} className="flex flex-col gap-3">
-      <div>
-        <label
-          htmlFor={`${formId}-label`}
-          className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block"
-        >
-          項目名
-        </label>
-        <Input
-          id={`${formId}-label`}
-          name="label"
-          defaultValue={label}
-          className="h-12 rounded-xl"
-          autoComplete="off"
-          required
-        />
-      </div>
-      <div>
-        <label
-          htmlFor={`${formId}-amount`}
-          className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block"
-        >
-          金額
-        </label>
-        <Input
-          id={`${formId}-amount`}
-          name="amount"
-          type="number"
-          inputMode="numeric"
-          defaultValue={displayAmount}
-          className="h-14 rounded-xl text-[28px] font-bold text-right font-tabular tracking-[-0.02em]"
-          autoComplete="off"
-          min={1}
-          required
-        />
-      </div>
-      <div>
-        <label
-          id={`${formId}-person-label`}
-          className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block"
-        >
-          担当者
-        </label>
-        <PersonSelector
-          value={person}
-          onChange={setPerson}
-          ariaLabelledBy={`${formId}-person-label`}
-        />
-      </div>
-      {type === 'expense' && (
-        <ToggleSwitch
-          checked={isCarryover}
-          onChange={setIsCarryover}
-          label="繰越扱いにする"
-          description="精算には含めず翌月へ"
-        />
-      )}
-      {type === 'carryover' && (
-        <ToggleSwitch
-          checked={isCleared}
-          onChange={setIsCleared}
-          label="今月で清算する"
-          description="精算に含める"
-        />
-      )}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      <EntryFields
+        type={type}
+        person={person}
+        onPersonChange={setPerson}
+        isCarryover={isCarryover}
+        onCarryoverChange={setIsCarryover}
+        isCleared={isCleared}
+        onClearedChange={setIsCleared}
+        error={error}
+        labelDefaultValue={label}
+        amountDefaultValue={displayAmount}
+      />
       <div className="flex gap-3 pt-2">
         <Button
           type="button"
@@ -189,29 +118,14 @@ export function EditModal({
     </form>
   )
 
-  if (isMobile) {
-    return (
-      <Drawer open={open} onOpenChange={handleOpenChange}>
-        <DrawerTrigger asChild>{trigger}</DrawerTrigger>
-        <DrawerContent className="px-4 pb-safe">
-          <DrawerHeader>
-            <DrawerTitle>{title}</DrawerTitle>
-          </DrawerHeader>
-          <div className="pb-4">{form}</div>
-        </DrawerContent>
-      </Drawer>
-    )
-  }
-
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        {form}
-      </DialogContent>
-    </Dialog>
+    <ResponsiveModal
+      open={open}
+      onOpenChange={handleOpenChange}
+      trigger={trigger}
+      title={title}
+    >
+      {form}
+    </ResponsiveModal>
   )
 }

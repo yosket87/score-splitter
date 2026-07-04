@@ -28,7 +28,7 @@ describe('getWebAuthnConfig', () => {
 
     const config = getWebAuthnConfig()
 
-    expect(config.rpName).toBe('家計計算アプリ')
+    expect(config.rpName).toBe('Score Splitter')
   })
 
   it('RP_IDが未設定の場合エラーをスローする', () => {

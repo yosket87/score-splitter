@@ -8,7 +8,7 @@ export function getWebAuthnConfig() {
 
   return {
     rpID,
-    rpName: process.env.WEBAUTHN_RP_NAME ?? '家計計算アプリ',
+    rpName: process.env.WEBAUTHN_RP_NAME ?? 'Score Splitter',
     origin,
   }
 }

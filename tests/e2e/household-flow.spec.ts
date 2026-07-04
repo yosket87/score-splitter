@@ -30,7 +30,7 @@ test.describe('ログインページ', () => {
   })
 
   test('ログインフォームが表示される', async ({ page }) => {
-    await expect(page.getByText('家計計算アプリ')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Score Splitter' })).toBeVisible()
     await expect(page.getByPlaceholder('パスワード')).toBeVisible()
     await expect(page.getByRole('button', { name: 'ログイン →' })).toBeVisible()
   })

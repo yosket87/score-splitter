@@ -25,12 +25,12 @@ export default function LoginPage() {
         {/* ヒーロー */}
         <section className="pb-6">
           <div className="w-12 h-12 rounded-[12px] bg-[#2563EB] text-white flex items-center justify-center">
-            <span className="text-[22px] font-bold">家</span>
+            <span className="text-[22px] font-bold">S</span>
           </div>
-          <h1 className="text-[22px] font-bold tracking-[-0.03em] leading-[1.05] mt-4">
-            家計計算アプリ
+          <h1 className="text-[22px] font-bold leading-[1.05] mt-4">
+            Score Splitter
           </h1>
-          <p className="text-[13px] text-[#666666] mt-2.5 leading-relaxed text-center">
+          <p className="text-[13px] text-[#666666] mt-2.5 leading-relaxed">
             パスワードを入力してログインしてください。
             <br />
             セッションは7日間保持されます。
@@ -49,7 +49,7 @@ export default function LoginPage() {
                   パスワード
                 </label>
                 <span className="text-[10px] text-sub-text font-tabular">
-                  {showPassword ? 'visible' : 'hidden'}
+                  パスワードの表示状態: {showPassword ? '表示' : '非表示'}
                 </span>
               </div>
 
@@ -98,15 +98,12 @@ export default function LoginPage() {
       </main>
 
       {/* フッター */}
-      <footer className="px-5 py-5 flex items-baseline justify-between">
+      <footer className="px-5 py-5">
         <p className="text-[11px] text-sub-text leading-relaxed">
           パスワードを忘れた場合は
           <br />
           管理者に問い合わせてください。
         </p>
-        <span className="text-[11px] font-bold tracking-[0.12em] uppercase text-[#2563EB] shrink-0">
-          Help ›
-        </span>
       </footer>
     </div>
   )

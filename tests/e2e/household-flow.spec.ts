@@ -380,6 +380,10 @@ test.describe('項目の削除', () => {
     await row.hover()
     await row.getByRole('button', { name: /副業.*を削除/ }).click()
 
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByText(/副業.*を削除しますか/)).toBeVisible()
+    await dialog.getByRole('button', { name: '削除する' }).click()
+
     await expect(section.getByText('副業')).not.toBeVisible({ timeout: 5000 })
   })
 })

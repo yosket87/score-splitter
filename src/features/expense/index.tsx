@@ -91,9 +91,11 @@ export function ExpenseSection({ expenses, month }: ExpenseSectionProps) {
                     isCarryover={expense.isCarryover}
                     onUpdate={updateExpense}
                   />
-                  <form action={async () => { await deleteExpense(expense.id) }}>
-                    <DeleteButton label={`${expense.label}を削除`} />
-                  </form>
+                  <DeleteButton
+                    itemName={expense.label}
+                    label={`${expense.label}を削除`}
+                    onDelete={() => deleteExpense(expense.id)}
+                  />
                 </div>
               </div>
             </motion.div>

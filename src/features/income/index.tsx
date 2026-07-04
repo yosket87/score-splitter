@@ -67,9 +67,11 @@ export function IncomeSection({ incomes, month }: IncomeSectionProps) {
                     type="income"
                     onUpdate={updateIncome}
                   />
-                  <form action={async () => { await deleteIncome(income.id) }}>
-                    <DeleteButton label={`${income.label}を削除`} />
-                  </form>
+                  <DeleteButton
+                    itemName={income.label}
+                    label={`${income.label}を削除`}
+                    onDelete={() => deleteIncome(income.id)}
+                  />
                 </div>
               </div>
             </motion.div>

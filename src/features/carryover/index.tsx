@@ -96,9 +96,11 @@ export function CarryoverSection({ carryovers, month }: CarryoverSectionProps) {
                     isCleared={carryover.isCleared}
                     onUpdate={updateCarryover}
                   />
-                  <form action={async () => { await deleteCarryover(carryover.id) }}>
-                    <DeleteButton label={`${carryover.label}を削除`} />
-                  </form>
+                  <DeleteButton
+                    itemName={carryover.label}
+                    label={`${carryover.label}を削除`}
+                    onDelete={() => deleteCarryover(carryover.id)}
+                  />
                 </div>
               </div>
             </motion.div>

@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import { ExpenseSection } from '@/features/expense'
+import { deleteExpense } from '@/app/actions/expense'
 import type { Expense } from '@/types'
 
 // Server Actionsのモック
@@ -9,6 +12,12 @@ vi.mock('@/app/actions/expense', () => ({
   updateExpense: vi.fn(),
   deleteExpense: vi.fn(),
   toggleExpenseCarryover: vi.fn(),
+}))
+
+vi.mock('sonner', () => ({
+  toast: {
+    error: vi.fn(),
+  },
 }))
 
 describe('ExpenseSection', () => {
@@ -141,5 +150,26 @@ describe('ExpenseSection', () => {
 
     // ヘッダーに繰越件数が表示される（「2件 — 繰越 1件」）
     expect(screen.getByText(/繰越\s+1件/)).toBeInTheDocument()
+  })
+
+  it('削除前に確認し、失敗時はエラーtoastを表示する', async () => {
+    const user = userEvent.setup()
+    vi.mocked(deleteExpense).mockResolvedValueOnce({
+      success: false,
+      error: '支出の削除に失敗しました',
+    })
+
+    render(<ExpenseSection expenses={mockExpenses} month="202601" />)
+
+    await user.click(screen.getByRole('button', { name: '食費を削除' }))
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('「食費」を削除しますか？')).toBeInTheDocument()
+    expect(deleteExpense).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: '削除する' }))
+
+    expect(deleteExpense).toHaveBeenCalledWith('1')
+    expect(toast.error).toHaveBeenCalledWith('支出の削除に失敗しました')
   })
 })

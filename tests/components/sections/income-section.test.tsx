@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import { IncomeSection } from '@/features/income'
+import { deleteIncome } from '@/app/actions/income'
 import type { Income } from '@/types'
 
 // Server Actionsのモック
@@ -8,6 +11,12 @@ vi.mock('@/app/actions/income', () => ({
   createIncome: vi.fn(),
   updateIncome: vi.fn(),
   deleteIncome: vi.fn(),
+}))
+
+vi.mock('sonner', () => ({
+  toast: {
+    error: vi.fn(),
+  },
 }))
 
 describe('IncomeSection', () => {
@@ -86,5 +95,26 @@ describe('IncomeSection', () => {
 
     expect(screen.getByRole('button', { name: '給料を編集' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'ボーナスを編集' })).toBeInTheDocument()
+  })
+
+  it('削除前に確認し、失敗時はエラーtoastを表示する', async () => {
+    const user = userEvent.setup()
+    vi.mocked(deleteIncome).mockResolvedValueOnce({
+      success: false,
+      error: '収入の削除に失敗しました',
+    })
+
+    render(<IncomeSection incomes={mockIncomes} month="202601" />)
+
+    await user.click(screen.getByRole('button', { name: '給料を削除' }))
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('「給料」を削除しますか？')).toBeInTheDocument()
+    expect(deleteIncome).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: '削除する' }))
+
+    expect(deleteIncome).toHaveBeenCalledWith('1')
+    expect(toast.error).toHaveBeenCalledWith('収入の削除に失敗しました')
   })
 })

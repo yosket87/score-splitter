@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import { CarryoverSection } from '@/features/carryover'
+import { deleteCarryover } from '@/app/actions/carryover'
 import type { Carryover } from '@/types'
 
 // Server Actionsのモック
@@ -9,6 +12,12 @@ vi.mock('@/app/actions/carryover', () => ({
   updateCarryover: vi.fn(),
   deleteCarryover: vi.fn(),
   toggleCarryoverCleared: vi.fn(),
+}))
+
+vi.mock('sonner', () => ({
+  toast: {
+    error: vi.fn(),
+  },
 }))
 
 describe('CarryoverSection', () => {
@@ -138,5 +147,26 @@ describe('CarryoverSection', () => {
 
     // 清算済み件数がヘッダーに表示される
     expect(screen.getByText(/清算済み\s+1件/)).toBeInTheDocument()
+  })
+
+  it('削除前に確認し、失敗時はエラーtoastを表示する', async () => {
+    const user = userEvent.setup()
+    vi.mocked(deleteCarryover).mockResolvedValueOnce({
+      success: false,
+      error: '繰越の削除に失敗しました',
+    })
+
+    render(<CarryoverSection carryovers={mockCarryovers} month="202601" />)
+
+    await user.click(screen.getByRole('button', { name: '前月繰越を削除' }))
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('「前月繰越」を削除しますか？')).toBeInTheDocument()
+    expect(deleteCarryover).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: '削除する' }))
+
+    expect(deleteCarryover).toHaveBeenCalledWith('1')
+    expect(toast.error).toHaveBeenCalledWith('繰越の削除に失敗しました')
   })
 })

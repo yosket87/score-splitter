@@ -1,8 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Trash2, Key } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Key } from 'lucide-react'
+import { DeleteButton } from '@/components/ui/delete-button'
 import { deletePasskey } from '@/app/actions/passkeys'
 import type { PasskeyInfo } from '../types'
 
@@ -12,18 +11,6 @@ interface PasskeyListProps {
 }
 
 export function PasskeyList({ passkeys, onDeleted }: PasskeyListProps) {
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-
-  async function handleDelete(credentialId: string) {
-    setDeletingId(credentialId)
-    const result = await deletePasskey(credentialId)
-    setDeletingId(null)
-
-    if (result.success) {
-      onDeleted()
-    }
-  }
-
   if (passkeys.length === 0) {
     return (
       <div className="text-center py-8 text-sub-text">
@@ -52,15 +39,13 @@ export function PasskeyList({ passkeys, onDeleted }: PasskeyListProps) {
               </p>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => handleDelete(passkey.id)}
-            disabled={deletingId === passkey.id}
-            aria-label={`${passkey.deviceName ?? 'パスキー'}を削除`}
-          >
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          <DeleteButton
+            itemName={passkey.deviceName ?? 'パスキー'}
+            label={`${passkey.deviceName ?? 'パスキー'}を削除`}
+            confirmDescription="このパスキーでのログインができなくなります。削除してよろしいですか？"
+            onDelete={() => deletePasskey(passkey.id)}
+            onDeleted={onDeleted}
+          />
         </div>
       ))}
     </div>

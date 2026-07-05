@@ -3,7 +3,7 @@
 import { useFormStatus } from 'react-dom'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { SectionShell, EntryRow } from '@/components/sections/entry-section'
+import { SectionShell, EntryRow } from '@/components/entry-section'
 import { DeleteButton } from '@/components/ui/delete-button'
 import { AddEntryModal } from '@/features/add-entry'
 import { EditModal } from '@/features/edit-entry'

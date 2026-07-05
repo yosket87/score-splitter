@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // Cloudflare Workers Builds がリポジトリrootで deploy しても Worker API を指すための設定。
+  "name": "score-splitter-api",
+  "main": "cloudflare/worker/src/index.ts",
+  "compatibility_date": "2026-06-28",
+  "workers_dev": true,
+  "preview_urls": true,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "score-splitter",
+      "database_id": "7f8d3531-a833-4474-84d5-cee3ac98ee96",
+      "migrations_dir": "cloudflare/worker/migrations"
+    }
+  ]
+}

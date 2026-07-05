@@ -97,7 +97,7 @@ type Person = 'husband' | 'wife'
 
 ## データベース
 
-3つのテーブル: `incomes`, `expenses`, `carryovers`
+4つのテーブル: `incomes`, `expenses`, `carryovers`, `waitlist_entries`
 
 詳細: [docs/database.md](docs/database.md)
 

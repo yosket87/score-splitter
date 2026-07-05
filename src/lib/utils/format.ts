@@ -48,15 +48,44 @@ export function parseMonth(date: Date): string {
 }
 
 /**
+ * 指定月に offset ヶ月を加算した月文字列を返す
+ * @param month 月文字列（例: 202601）
+ * @param offset 加算する月数（例: -1）
+ * @returns 加算後の月文字列（例: 202512）
+ */
+export function addMonths(month: string, offset: number): string {
+  const year = parseInt(month.slice(0, 4), 10)
+  const m = parseInt(month.slice(4, 6), 10)
+  return parseMonth(new Date(year, m - 1 + offset, 1))
+}
+
+/**
  * 指定月の1ヶ月前を返す
  * @param month 月文字列（例: 202602）
  * @returns 1ヶ月前の月文字列（例: 202601）
  */
 export function getPreviousMonth(month: string): string {
+  return addMonths(month, -1)
+}
+
+/**
+ * 月文字列を「YYYY.MM」形式に変換する
+ * @param month 月文字列（例: 202601）
+ * @returns フォーマットされた文字列（例: 2026.01）
+ */
+export function formatMonthDot(month: string): string {
+  return `${month.slice(0, 4)}.${month.slice(4, 6)}`
+}
+
+/**
+ * 指定月の日数を返す
+ * @param month 月文字列（例: 202601）
+ * @returns 指定月の日数
+ */
+export function getDaysInMonth(month: string): number {
   const year = parseInt(month.slice(0, 4), 10)
   const m = parseInt(month.slice(4, 6), 10)
-  const date = new Date(year, m - 2, 1)
-  return parseMonth(date)
+  return new Date(year, m, 0).getDate()
 }
 
 /**

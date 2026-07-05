@@ -38,7 +38,8 @@ src/
 │   ├── monthly-overview/ # ヒーロー（精算額表示）
 │   ├── monthly-list/    # 月一覧
 │   ├── copy-month/  # 月コピーダイアログ
-│   └── export-csv/  # CSVエクスポート
+│   ├── export-csv/  # CSVエクスポート
+│   └── waitlist-lp/ # 需要検証用ウェイトリストLP (/lp、認証不要)
 ├── components/
 │   ├── ui/          # shadcn/ui コンポーネント
 │   ├── layout/      # レイアウトコンポーネント

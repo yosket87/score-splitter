@@ -27,29 +27,22 @@ shadcn/uiベースの再利用可能なUIコンポーネント群。
 | Header | `header.tsx` | ページヘッダー（ロゴ、ログアウトボタン） |
 | MonthSelector | `month-selector.tsx` | 月選択ナビゲーション |
 
-### セクションコンポーネント (`src/components/sections/`)
-
-ページを構成する主要セクション。
+### 共有コンポーネント (`src/components/`)
 
 | コンポーネント | ファイル | 説明 |
 |--------------|---------|------|
-| IncomeSection | `income-section.tsx` | 収入管理セクション |
-| ExpenseSection | `expense-section.tsx` | 支出管理セクション |
-| CarryoverSection | `carryover-section.tsx` | 繰越管理セクション |
-| CalculationSection | `calculation-section.tsx` | 計算結果表示セクション |
+| SectionShell | `entry-section.tsx` | 収入/支出/繰越セクションの共通シェル |
+| EntryRow | `entry-section.tsx` | 収入/支出/繰越の行表示 |
+| EntryFields | `entry-fields.tsx` | 収入/支出/繰越フォームの共通入力フィールド |
 
-### フォームコンポーネント (`src/components/forms/`)
-
-| コンポーネント | ファイル | 説明 |
-|--------------|---------|------|
-| EntryForm | `entry-form.tsx` | 収入/支出/繰越の新規入力フォーム |
-| EditDialog | `edit-dialog.tsx` | データ編集ダイアログ |
-
-### 機能コンポーネント (`src/components/features/`)
+### 機能コンポーネント (`src/features/`)
 
 | コンポーネント | ファイル | 説明 |
 |--------------|---------|------|
-| CopyMonthDialog | `copy-month-dialog.tsx` | 月データコピー機能ダイアログ |
+| IncomeSection | `income/index.tsx` | 収入管理セクション |
+| ExpenseSection | `expense/index.tsx` | 支出管理セクション |
+| CarryoverSection | `carryover/index.tsx` | 繰越管理セクション |
+| CopyMonthDialog | `copy-month/index.tsx` | 月データコピー機能ダイアログ |
 
 ## コンポーネント階層
 
@@ -64,19 +57,16 @@ app/layout.tsx
     │   ├── 次月ボタン
     │   └── CopyMonthDialog
     ├── IncomeSection
-    │   ├── EntryForm
-    │   ├── Table（収入一覧）
-    │   └── EditDialog
+    │   ├── SectionShell
+    │   └── EntryRow
     ├── ExpenseSection
-    │   ├── EntryForm
-    │   ├── Table（支出一覧）
-    │   └── EditDialog
+    │   ├── SectionShell
+    │   └── EntryRow
     ├── CarryoverSection
-    │   ├── EntryForm
-    │   ├── Table（繰越一覧）
-    │   └── EditDialog
-    └── CalculationSection
-        └── 計算結果表示
+    │   ├── SectionShell
+    │   └── EntryRow
+    └── AddEntryModal / EditModal
+        └── EntryFields
 ```
 
 ## Server Actions (`src/app/actions/`)

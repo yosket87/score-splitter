@@ -18,20 +18,20 @@ score-splitter/
 │   │   └── globals.css           # グローバルスタイル
 │   │
 │   ├── components/
-│   │   ├── features/             # 機能コンポーネント
-│   │   │   └── copy-month-dialog.tsx
-│   │   ├── forms/                # フォームコンポーネント
-│   │   │   ├── entry-form.tsx
-│   │   │   └── edit-dialog.tsx
+│   │   ├── entry-fields.tsx      # 収入/支出/繰越フォーム共通フィールド
+│   │   ├── entry-section.tsx     # 収入/支出/繰越セクション共通UI
 │   │   ├── layout/               # レイアウトコンポーネント
 │   │   │   ├── header.tsx
 │   │   │   └── month-selector.tsx
-│   │   ├── sections/             # ページセクション
-│   │   │   ├── income-section.tsx
-│   │   │   ├── expense-section.tsx
-│   │   │   ├── carryover-section.tsx
-│   │   │   └── calculation-section.tsx
 │   │   └── ui/                   # UIコンポーネント（shadcn/ui）
+│   │
+│   ├── features/                 # ドメイン機能
+│   │   ├── income/               # 収入セクション
+│   │   ├── expense/              # 支出セクション
+│   │   ├── carryover/            # 繰越セクション
+│   │   ├── add-entry/            # エントリ追加
+│   │   ├── edit-entry/           # エントリ編集
+│   │   └── copy-month/           # 月コピー機能
 │   │
 │   ├── lib/
 │   │   ├── api/                  # Worker APIクライアント

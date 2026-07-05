@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { TYPE_LABELS } from '@/lib/constants'
-import { EntryFields } from '@/components/forms/entry-fields'
+import { EntryFields } from '@/components/entry-fields'
 import { Button } from '@/components/ui/button'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { createIncome } from '@/app/actions/income'

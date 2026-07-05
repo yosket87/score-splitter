@@ -113,6 +113,6 @@ export function IncomeSection({ incomes, month }: IncomeSectionProps) {
 ## 移行方針
 
 - **新規機能**: 必ず `src/features/` に作成
-- **既存コード**: タスクで触れる際に段階的に移行
-- **共存期間**: `src/components/sections/` と `src/features/` は共存可能
-- 完全移行後に旧ディレクトリ（`sections/`, `features/`, `forms/`）を削除
+- **既存コード**: ドメイン機能は `src/features/` へ移行済み
+- **共有コンポーネント**: 複数 feature で使うドメイン横断コンポーネントは `src/components/` 直下に配置
+- 旧ディレクトリ（`src/components/sections/`, `src/components/forms/`）は削除済み

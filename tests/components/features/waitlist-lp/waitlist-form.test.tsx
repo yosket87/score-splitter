@@ -28,6 +28,8 @@ describe('WaitlistForm', () => {
     expect(screen.getByLabelText('メールアドレス')).toBeInTheDocument()
     expect(screen.getByLabelText('無料なら使いたい')).toBeInTheDocument()
     expect(screen.getByLabelText('月380円でも使いたい')).toBeInTheDocument()
+    expect(screen.getByLabelText('無料なら使いたい')).not.toBeChecked()
+    expect(screen.getByLabelText('月380円でも使いたい')).not.toBeChecked()
 
     const honeypot = document.querySelector('input[name="website"]')
     expect(honeypot).not.toBeNull()
@@ -57,6 +59,7 @@ describe('WaitlistForm', () => {
     renderForm()
 
     await user.type(screen.getByLabelText('メールアドレス'), 'couple@example.com')
+    await user.click(screen.getByLabelText('無料なら使いたい'))
     await user.click(screen.getByRole('button', { name: 'ウェイトリストに登録' }))
 
     expect(

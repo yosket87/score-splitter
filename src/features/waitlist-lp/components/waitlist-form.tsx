@@ -40,11 +40,11 @@ export function WaitlistForm() {
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">料金の希望</legend>
         <label className="flex items-center gap-2 text-sm">
-          <input type="radio" name="priceIntent" value="free_only" defaultChecked />
+          <input type="radio" name="priceIntent" value="free_only" required />
           無料なら使いたい
         </label>
         <label className="flex items-center gap-2 text-sm">
-          <input type="radio" name="priceIntent" value="paid_ok" />
+          <input type="radio" name="priceIntent" value="paid_ok" required />
           月380円でも使いたい
         </label>
       </fieldset>

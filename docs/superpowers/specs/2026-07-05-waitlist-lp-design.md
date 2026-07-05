@@ -83,6 +83,8 @@ CREATE TABLE waitlist_entries (
 
 - Next.js側: 既存のVercelデプロイに乗る（`/lp` が増えるだけ）
 - Worker側: migration適用 + `wrangler deploy` が必要（Vercelプレビューだけ見てWorker本体のdeployを忘れない）
+- 公開前チェックリスト: LP公開前にCloudflareダッシュボードで `/waitlist` へのRate Limiting Ruleを設定する（公開エンドポイントのbot/スパム対策。大量偽登録は登録数・paid_ok比率という判断材料そのものを汚染するため）
+- 分析時のメモ: `created_at` のバースト（短時間の大量登録）で偽登録を除外できる
 
 ## 7. やらないこと（YAGNI）
 

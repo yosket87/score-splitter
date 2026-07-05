@@ -14,6 +14,12 @@ const fields = [
   { key: 'sharedExpense', label: '共通経費', placeholder: '180000' },
 ] as const
 
+const initialInvalidFields: Record<keyof SimulatorInput, boolean> = {
+  myIncome: false,
+  partnerIncome: false,
+  sharedExpense: false,
+}
+
 export function SettlementSimulator() {
   const { markSimulatorUsed } = useSimulatorUsage()
   const [input, setInput] = useState<SimulatorInput>({
@@ -21,15 +27,20 @@ export function SettlementSimulator() {
     partnerIncome: 0,
     sharedExpense: 0,
   })
+  const [invalidFields, setInvalidFields] =
+    useState<Record<keyof SimulatorInput, boolean>>(initialInvalidFields)
 
   const result = simulateSettlement(input)
 
   const handleChange = (key: keyof SimulatorInput, rawValue: string) => {
     markSimulatorUsed()
     const value = Number(rawValue)
+    // 空文字は0扱いで有効。数値として解釈でき0以上なら有効
+    const isValid = rawValue === '' || (Number.isFinite(value) && value >= 0)
+    setInvalidFields((previous) => ({ ...previous, [key]: !isValid }))
     setInput((previous) => ({
       ...previous,
-      [key]: Number.isFinite(value) && value >= 0 ? value : 0,
+      [key]: isValid ? value : 0,
     }))
   }
 
@@ -56,8 +67,22 @@ export function SettlementSimulator() {
                   inputMode="numeric"
                   min={0}
                   placeholder={field.placeholder}
+                  aria-invalid={invalidFields[field.key] || undefined}
+                  aria-describedby={
+                    invalidFields[field.key]
+                      ? `simulator-${field.key}-error`
+                      : undefined
+                  }
                   onChange={(event) => handleChange(field.key, event.target.value)}
                 />
+                {invalidFields[field.key] && (
+                  <p
+                    id={`simulator-${field.key}-error`}
+                    className="text-xs text-destructive"
+                  >
+                    0以上の数値を入力してください
+                  </p>
+                )}
               </div>
             ))}
           </div>

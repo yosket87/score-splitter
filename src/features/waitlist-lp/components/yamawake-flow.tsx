@@ -78,9 +78,10 @@ export function YamawakeFlow() {
                   16万円
                 </div>
               </div>
+              {/* 位置指定はinline transformに一本化（Tailwindのtranslateユーティリティは transform ではなく translate プロパティで合成されるため併用しない） */}
               <span
-                className="absolute top-1/2 -translate-y-1/2 inline-flex size-8 items-center justify-center rounded-full border-2 border-background bg-gradient-to-br from-rose-500 to-amber-500 text-white shadow-md"
-                style={{ left: '68%', transform: 'translate(-50%, -50%)' }}
+                className="absolute top-1/2 inline-flex size-8 items-center justify-center rounded-full border-2 border-background bg-gradient-to-br from-rose-500 to-amber-500 text-white shadow-md"
+                style={{ left: '68%', transform: 'translate(-50%, -100%)' }}
                 aria-hidden="true"
               >
                 <Heart className="size-4 fill-current" />

@@ -1,9 +1,8 @@
 'use client'
 
-import { useFormStatus } from 'react-dom'
-import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { SectionShell, EntryRow } from '@/components/sections/entry-section'
+import { SectionShell, EntryRow } from '@/components/entry-section'
+import { EntryToggleButton } from '@/components/entry-toggle-button'
 import { DeleteButton } from '@/components/ui/delete-button'
 import { AddEntryModal } from '@/features/add-entry'
 import { EditModal } from '@/features/edit-entry'
@@ -14,30 +13,6 @@ import type { Carryover } from '@/types'
 interface CarryoverSectionProps {
   carryovers: Carryover[]
   month: string
-}
-
-function ClearedToggleButton({ carryover }: { carryover: Carryover }) {
-  const { pending } = useFormStatus()
-
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      aria-busy={pending}
-      className={`-m-2 flex h-11 w-11 items-center justify-center rounded-full text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed ${
-        carryover.isCleared
-          ? 'text-accent bg-accent/10'
-          : 'text-muted-foreground hover:text-accent hover:bg-accent/10'
-      }`}
-      aria-label={carryover.isCleared ? `${carryover.label}の清算を取消` : `${carryover.label}を清算する`}
-    >
-      {pending ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-      ) : (
-        carryover.isCleared ? '✓' : '○'
-      )}
-    </button>
-  )
 }
 
 export function CarryoverSection({ carryovers, month }: CarryoverSectionProps) {
@@ -89,7 +64,16 @@ export function CarryoverSection({ carryovers, month }: CarryoverSectionProps) {
                   toast.error(result.error ?? '清算フラグの更新に失敗しました')
                 }
               }}>
-                <ClearedToggleButton carryover={carryover} />
+                <EntryToggleButton
+                  active={carryover.isCleared}
+                  activeIcon="✓"
+                  inactiveIcon="○"
+                  ariaLabel={
+                    carryover.isCleared
+                      ? `${carryover.label}の清算を取消`
+                      : `${carryover.label}を清算する`
+                  }
+                />
               </form>
               <EditModal
                 id={carryover.id}

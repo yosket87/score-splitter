@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { formatCurrency, formatMonth, parseMonth, isValidMonth } from '@/lib/utils/format'
+import {
+  addMonths,
+  formatCurrency,
+  formatMonth,
+  formatMonthDot,
+  getDaysInMonth,
+  isValidMonth,
+  parseMonth,
+} from '@/lib/utils/format'
 
 describe('formatCurrency', () => {
   it('正の値をカンマ区切りで表示する', () => {
@@ -58,6 +66,48 @@ describe('parseMonth', () => {
   it('月末の日付でも同じ月の文字列を返す', () => {
     const date = new Date(2026, 1, 28) // 2026年2月28日
     expect(parseMonth(date)).toBe('202602')
+  })
+})
+
+describe('addMonths', () => {
+  it('年跨ぎの翌月を返す', () => {
+    expect(addMonths('202512', 1)).toBe('202601')
+  })
+
+  it('年跨ぎの前月を返す', () => {
+    expect(addMonths('202601', -1)).toBe('202512')
+  })
+
+  it('12ヶ月後を返す', () => {
+    expect(addMonths('202601', 12)).toBe('202701')
+  })
+
+  it('offsetが0なら同じ月を返す', () => {
+    expect(addMonths('202601', 0)).toBe('202601')
+  })
+})
+
+describe('formatMonthDot', () => {
+  it('月文字列をYYYY.MM形式に変換する', () => {
+    expect(formatMonthDot('202601')).toBe('2026.01')
+  })
+})
+
+describe('getDaysInMonth', () => {
+  it('閏年の2月の日数を返す', () => {
+    expect(getDaysInMonth('202802')).toBe(29)
+  })
+
+  it('平年の2月の日数を返す', () => {
+    expect(getDaysInMonth('202302')).toBe(28)
+  })
+
+  it('31日の月の日数を返す', () => {
+    expect(getDaysInMonth('202601')).toBe(31)
+  })
+
+  it('30日の月の日数を返す', () => {
+    expect(getDaysInMonth('202604')).toBe(30)
   })
 })
 

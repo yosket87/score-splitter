@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { CopyMonthDialog } from '@/features/copy-month'
 import { ExportCsvButton } from '@/features/export-csv'
 import { labelSlide, motionDuration, motionEase } from '@/components/animations/tokens'
-import { formatMonth, parseMonth, getPreviousMonth, monthToPath } from '@/lib/utils/format'
+import { addMonths, formatMonth, parseMonth, getPreviousMonth, monthToPath } from '@/lib/utils/format'
 import type { Income, Expense, Carryover } from '@/types'
 
 interface MonthSelectorProps {
@@ -42,11 +42,8 @@ export function MonthSelector({ currentMonth, incomes, expenses, carryovers }: M
   const direction = useMonthDirection(currentMonth)
 
   function navigateMonth(offset: number) {
-    const year = parseInt(currentMonth.slice(0, 4), 10)
-    const month = parseInt(currentMonth.slice(4, 6), 10)
-    const date = new Date(year, month - 1 + offset, 1)
     startTransition(() => {
-      router.push(monthToPath(parseMonth(date)))
+      router.push(monthToPath(addMonths(currentMonth, offset)))
     })
   }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Copy } from 'lucide-react'
 import { toast } from 'sonner'
@@ -21,23 +21,18 @@ import {
 } from '@/components/ui/select'
 import { LottiePlayer } from '@/components/animations/lottie-player'
 import { getCopyMonthPreview, copyMonthData } from '@/app/actions/copy-month'
-import { PERSON_LABELS } from '@/lib/constants'
-import { formatMonth, formatCurrency } from '@/lib/utils/format'
+import { formatMonth } from '@/lib/utils/format'
+import { CopyItemGroup } from './components/copy-item-group'
+import { useCopySelection } from './use-copy-selection'
 import type {
   CopyMonthPreview,
   CopyMode,
-  CopyItem,
-  ItemCopyMode,
-  SelectedCopyItem,
 } from '@/types'
 
 interface CopyMonthDialogProps {
   currentMonth: string
   previousMonth: string
 }
-
-// 項目の選択状態（未選択 | 金額込み | 項目名のみ）
-type ItemSelection = 'none' | 'withAmount' | 'labelOnly'
 
 export function CopyMonthDialog({
   currentMonth,
@@ -49,11 +44,21 @@ export function CopyMonthDialog({
   const [preview, setPreview] = useState<CopyMonthPreview | null>(null)
   const [mode, setMode] = useState<CopyMode>('add')
   const [showReplaceConfirmation, setShowReplaceConfirmation] = useState(false)
-  // 各項目の選択状態を管理（id -> selection）
-  const [itemSelections, setItemSelections] = useState<Map<string, ItemSelection>>(
-    new Map()
-  )
-  const [includeCarryover, setIncludeCarryover] = useState(true)
+  const {
+    itemSelections,
+    includeCarryover,
+    setIncludeCarryover,
+    groupedItems,
+    selectedItems,
+    canCopy,
+    totalSelected,
+    resetSelection,
+    initializeSelection,
+    setItemSelection,
+    toggleAllInType,
+    selectAll,
+    deselectAll,
+  } = useCopySelection(preview)
 
   // ダイアログ開閉時のハンドラ
   function handleOpenChange(nextOpen: boolean) {
@@ -61,8 +66,7 @@ export function CopyMonthDialog({
     if (nextOpen) {
       // 状態リセット
       setPreview(null)
-      setItemSelections(new Map())
-      setIncludeCarryover(true)
+      resetSelection()
       setShowReplaceConfirmation(false)
     }
   }
@@ -76,81 +80,13 @@ export function CopyMonthDialog({
           return
         }
         setPreview(result.data)
-        // デフォルトで全項目を「金額込み」で選択
-        const selections = new Map<string, ItemSelection>()
-        result.data.items.forEach((item) => {
-          selections.set(item.id, 'withAmount')
-        })
-        setItemSelections(selections)
+        initializeSelection(result.data.items)
       })
     }
-  }, [open, previousMonth, currentMonth])
-
-  // 項目をタイプ別にグループ化
-  const groupedItems = useMemo(() => {
-    if (!preview) return { income: [], expense: [] }
-    return {
-      income: preview.items.filter((i) => i.type === 'income'),
-      expense: preview.items.filter((i) => i.type === 'expense'),
-    }
-  }, [preview])
-
-  function setItemSelection(id: string, selection: ItemSelection) {
-    setItemSelections((prev) => {
-      const next = new Map(prev)
-      next.set(id, selection)
-      return next
-    })
-  }
-
-  function toggleAllInType(type: 'income' | 'expense') {
-    const items = groupedItems[type]
-    const allSelected = items.every(
-      (item) => itemSelections.get(item.id) !== 'none'
-    )
-
-    setItemSelections((prev) => {
-      const next = new Map(prev)
-      items.forEach((item) => {
-        next.set(item.id, allSelected ? 'none' : 'withAmount')
-      })
-      return next
-    })
-  }
-
-  function selectAll() {
-    if (!preview) return
-    const selections = new Map<string, ItemSelection>()
-    preview.items.forEach((item) => {
-      selections.set(item.id, 'withAmount')
-    })
-    setItemSelections(selections)
-    setIncludeCarryover(true)
-  }
-
-  function deselectAll() {
-    if (!preview) return
-    const selections = new Map<string, ItemSelection>()
-    preview.items.forEach((item) => {
-      selections.set(item.id, 'none')
-    })
-    setItemSelections(selections)
-    setIncludeCarryover(false)
-  }
+  }, [open, previousMonth, currentMonth, initializeSelection])
 
   async function handleCopy() {
     if (!preview) return
-
-    // 選択された項目をSelectedCopyItemに変換
-    const selectedItems: SelectedCopyItem[] = preview.items
-      .filter((item) => {
-        const selection = itemSelections.get(item.id)
-        return selection && selection !== 'none'
-      })
-      .map((item) => ({
-        ...item,
-        itemCopyMode: (itemSelections.get(item.id) as ItemCopyMode) || 'withAmount',
-      }))
 
     if (selectedItems.length === 0 && !includeCarryover) {
       toast.error('コピーする項目を選択してください')
@@ -200,89 +136,6 @@ export function CopyMonthDialog({
     preview && (preview.items.length > 0 || preview.carryoverCount > 0)
   const hasExistingData = Boolean(preview && preview.existingCount > 0)
   const requiresReplaceConfirmation = mode === 'replace' && hasExistingData
-
-  // 選択されている項目数を計算
-  const selectedCount = Array.from(itemSelections.values()).filter(
-    (s) => s !== 'none'
-  ).length
-  const canCopy = selectedCount > 0 || includeCarryover
-  const totalSelected =
-    selectedCount + (includeCarryover && preview ? preview.carryoverCount : 0)
-
-  function renderItemGroup(type: 'income' | 'expense', items: CopyItem[]) {
-    if (items.length === 0) return null
-
-    const typeLabel = type === 'income' ? '収入' : '支出'
-    const selectedInGroup = items.filter(
-      (item) => itemSelections.get(item.id) !== 'none'
-    ).length
-    const allSelected = selectedInGroup === items.length
-    const someSelected = selectedInGroup > 0 && selectedInGroup < items.length
-
-    return (
-      <div key={type} className="space-y-2">
-        <label className="flex cursor-pointer items-center gap-2">
-          <input
-            type="checkbox"
-            checked={allSelected}
-            ref={(el) => {
-              if (el) el.indeterminate = someSelected
-            }}
-            onChange={() => toggleAllInType(type)}
-            className="h-4 w-4 rounded border-input focus-visible:ring-2 focus-visible:ring-ring/50"
-          />
-          <span className="font-medium">{typeLabel}</span>
-          <span className="text-sm text-muted-foreground">({items.length}件)</span>
-        </label>
-        <div className="ml-6 space-y-1">
-          {items.map((item) => {
-            const selection = itemSelections.get(item.id) || 'none'
-            const isSelected = selection !== 'none'
-
-            return (
-              <div
-                key={item.id}
-                className="flex items-center gap-2 rounded px-2 py-1 hover:bg-muted/50"
-              >
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={() =>
-                    setItemSelection(
-                      item.id,
-                      isSelected ? 'none' : 'withAmount'
-                    )
-                  }
-                  aria-label={`${item.label}を選択`}
-                  className="h-4 w-4 rounded border-input focus-visible:ring-2 focus-visible:ring-ring/50"
-                />
-                <span className="flex-1 text-sm">{item.label}</span>
-                <span className="text-xs text-muted-foreground">
-                  {PERSON_LABELS[item.person]}
-                </span>
-                <span className="text-sm font-tabular w-20 text-right">
-                  {formatCurrency(item.amount)}
-                </span>
-                {isSelected && (
-                  <select
-                    value={selection}
-                    onChange={(e) =>
-                      setItemSelection(item.id, e.target.value as ItemSelection)
-                    }
-                    aria-label={`${item.label}のコピーモード`}
-                    className="text-xs border border-input rounded px-2 py-1 bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                  >
-                    <option value="withAmount">金額込み</option>
-                    <option value="labelOnly">項目名のみ</option>
-                  </select>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    )
-  }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -348,8 +201,20 @@ export function CopyMonthDialog({
                 </div>
 
                 <div className="flex-1 overflow-y-auto space-y-4 pr-2">
-                  {renderItemGroup('income', groupedItems.income)}
-                  {renderItemGroup('expense', groupedItems.expense)}
+                  <CopyItemGroup
+                    type="income"
+                    items={groupedItems.income}
+                    selections={itemSelections}
+                    onSelectionChange={setItemSelection}
+                    onToggleAll={toggleAllInType}
+                  />
+                  <CopyItemGroup
+                    type="expense"
+                    items={groupedItems.expense}
+                    selections={itemSelections}
+                    onSelectionChange={setItemSelection}
+                    onToggleAll={toggleAllInType}
+                  />
 
                   {/* 繰越（一括選択のみ） */}
                   {preview.carryoverCount > 0 && (

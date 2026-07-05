@@ -9,7 +9,7 @@ import {
   DrawerTitle,
   DrawerClose,
 } from '@/components/ui/drawer'
-import { EntryFields } from '@/components/forms/entry-fields'
+import { EntryFields } from '@/components/entry-fields'
 import { TYPE_LABELS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { createIncome } from '@/app/actions/income'

@@ -5,6 +5,8 @@
   "compatibility_date": "2026-06-28",
   "workers_dev": true,
   "preview_urls": true,
+  // カスタムドメイン。ゾーン（yamawake.app）が同一アカウントにあるためdeploy時にDNSレコードが自動作成される
+  "routes": [{ "pattern": "api.yamawake.app", "custom_domain": true }],
   "d1_databases": [
     {
       "binding": "DB",

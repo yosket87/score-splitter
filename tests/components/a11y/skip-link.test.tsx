@@ -1,10 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
 
-vi.mock('@vercel/speed-insights/next', () => ({
-  SpeedInsights: () => null,
-}))
-
 vi.mock('@/components/ui/sonner', () => ({
   Toaster: () => null,
 }))

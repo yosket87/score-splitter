@@ -13,6 +13,9 @@ const eslintConfig = defineConfig([
     "build/**",
     "coverage/**",
     "next-env.d.ts",
+    // Cloudflare (OpenNext) の生成物
+    ".open-next/**",
+    "cloudflare-env.d.ts",
   ]),
 ]);
 

@@ -16,6 +16,12 @@ npm run dev          # 開発サーバー起動 (localhost:3000)
 npm run build        # 本番ビルド
 npm run lint         # ESLint実行
 
+# デプロイ (Cloudflare Workers)
+npm run preview      # workerd上でローカル実行 (要 .dev.vars、localhost:8787)
+npm run deploy       # フロントエンド (score-splitter-web) をデプロイ
+npm run deploy:worker # Worker API (score-splitter-api) をデプロイ
+npm run cf-typegen   # wrangler.jsonc の vars 変更後に環境変数型を再生成
+
 # テスト
 npm run test         # Vitestウォッチモード
 npm run test:run     # 単発実行
@@ -66,8 +72,13 @@ tests/
 ### 技術スタック
 - Next.js 16 + React 19 + TypeScript
 - Tailwind CSS 4 + shadcn/ui
-- Cloudflare Workers + D1
+- Cloudflare Workers + D1（フロントは @opennextjs/cloudflare でWorkersにホスト）
 - Vitest + Playwright
+
+### Cloudflare構成の注意
+- wrangler設定は2ファイル: root `wrangler.jsonc`（フロント `score-splitter-web`）と `cloudflare/worker/wrangler.jsonc`（API `score-splitter-api`）
+- `process.env.*` はリクエストコンテキスト内（Server Actions/RSCの関数内）でのみ読み出す。モジュールトップレベルで読むとWorker実行時に `undefined` になる
+- 詳細: [docs/deployment.md](docs/deployment.md)
 
 詳細: [docs/tech-stack.md](docs/tech-stack.md)
 
@@ -135,3 +146,4 @@ UIやフロントエンドの変更時は、必ず以下の手順でブラウザ
 | [docs/database.md](docs/database.md) | データベース設計 |
 | [docs/testing.md](docs/testing.md) | テスト構成 |
 | [docs/configuration.md](docs/configuration.md) | 設定ファイル |
+| [docs/deployment.md](docs/deployment.md) | デプロイ構成・手順 |

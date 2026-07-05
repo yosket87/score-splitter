@@ -36,7 +36,7 @@ export function middleware(request: NextRequest) {
 
 function routeByHost(request: NextRequest): NextResponse | null {
   const host = getRequestHost(request)
-  const { pathname, search } = request.nextUrl
+  const { pathname } = request.nextUrl
 
   // apex: LPサイトとして振る舞い、アプリ系パスは app サブドメインへ逃がす
   if (LP_HOSTS.has(host)) {
@@ -49,7 +49,13 @@ function routeByHost(request: NextRequest): NextResponse | null {
       // 正規URLは apex ルートに一本化（重複コンテンツ回避）
       return NextResponse.redirect(LP_CANONICAL_URL, 308)
     }
-    return NextResponse.redirect(new URL(`${pathname}${search}`, `https://${APP_HOST}`), 307)
+    // pathnameを文字列連結でURLに埋め込むと `//evil.com` がauthorityに化けて
+    // オープンリダイレクトになるため、URLオブジェクトのホストだけ差し替える
+    const appUrl = request.nextUrl.clone()
+    appUrl.protocol = 'https:'
+    appUrl.host = APP_HOST
+    appUrl.port = ''
+    return NextResponse.redirect(appUrl, 307)
   }
 
   // アプリホスト: LPの正規URLは apex のみ

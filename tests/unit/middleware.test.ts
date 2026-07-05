@@ -99,6 +99,40 @@ describe('middleware ホストベースルーティング', () => {
 
       expect(response.headers.get('x-middleware-rewrite')).toContain('/lp')
     })
+
+    it('大文字のhostヘッダでもLPサイトとして扱う', () => {
+      const response = middleware(createHostRequest('YAMAWAKE.APP', '/'))
+
+      expect(response.headers.get('x-middleware-rewrite')).toContain('/lp')
+    })
+
+    it('ポート付きのhostヘッダでもLPサイトとして扱う', () => {
+      const response = middleware(createHostRequest('yamawake.app:443', '/'))
+
+      expect(response.headers.get('x-middleware-rewrite')).toContain('/lp')
+    })
+
+    it('www.yamawake.app のアプリ系パスも app.yamawake.app へredirectする', () => {
+      const response = middleware(createHostRequest('www.yamawake.app', '/login'))
+
+      expect(response.headers.get('location')).toBe('https://app.yamawake.app/login')
+    })
+
+    it('//で始まるパスを外部ホストへのredirectにしない（オープンリダイレクト対策）', () => {
+      const response = middleware(createHostRequest('yamawake.app', '//evil.com'))
+
+      const location = response.headers.get('location')
+      expect(location).not.toBeNull()
+      expect(new URL(location as string).host).toBe('app.yamawake.app')
+    })
+
+    it('バックスラッシュ始まりのパスも外部ホストへのredirectにしない', () => {
+      const response = middleware(createHostRequest('yamawake.app', '/\\evil.com'))
+
+      const location = response.headers.get('location')
+      expect(location).not.toBeNull()
+      expect(new URL(location as string).host).toBe('app.yamawake.app')
+    })
   })
 
   describe('app.yamawake.app はアプリとして振る舞う', () => {

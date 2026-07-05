@@ -1,4 +1,6 @@
-// ホストベースルーティングのローカル検証スクリプト（使い捨て）
+// ホストベースルーティングのローカル検証スクリプト。
+// matcher依存の挙動（/lp/ 配下の静的アセット除外など）はユニットテストでは検証できないため、
+// 実サーバーに対して確認する。
 // 使い方: npm run dev:mock を起動した状態で `node scripts/verify-host-routing.mjs`
 // 注意: fetch(undici)はHostヘッダを送信できないため node:http を使う
 import http from 'node:http'
@@ -77,6 +79,16 @@ const cases = [
     host: 'yamawake.app',
     path: '/lp/monthly-dashboard-preview.png',
     expect: (res) => res.status === 200,
+  },
+  {
+    name: 'apex //evil.com → 外部ホストへredirectしない（オープンリダイレクト対策）',
+    host: 'yamawake.app',
+    path: '//evil.com',
+    // devサーバーはNext.js自体の重複スラッシュ正規化で相対Locationを返すことがあるため、
+    // apex基準で解決して自ドメイン配下に留まることを確認する
+    expect: (res) =>
+      res.location !== null &&
+      new URL(res.location, 'https://yamawake.app').host.endsWith('yamawake.app'),
   },
 ]
 

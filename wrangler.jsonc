@@ -1,17 +1,27 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  // Cloudflare Workers Builds がリポジトリrootで deploy しても Worker API を指すための設定。
-  "name": "score-splitter-api",
-  "main": "cloudflare/worker/src/index.ts",
+  // フロントエンド（Next.js on Cloudflare Workers / OpenNext）の設定。
+  // Worker API の設定は cloudflare/worker/wrangler.jsonc を参照。
+  "name": "score-splitter-web",
+  "main": ".open-next/worker.js",
   "compatibility_date": "2026-06-28",
+  // global_fetch_strictly_public: 同一アカウントの Worker API へのHTTP fetchを公開URL経由で通すために必要
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // next-themes等がスクリプトを文字列化する際にesbuildの__nameヘルパーが混入するのを防ぐ
+  // （OpenNext公式の既知問題対処: https://opennext.js.org/cloudflare/howtos/keep_names）
+  "keep_names": false,
   "workers_dev": true,
   "preview_urls": true,
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "score-splitter",
-      "database_id": "7f8d3531-a833-4474-84d5-cee3ac98ee96",
-      "migrations_dir": "cloudflare/worker/migrations"
-    }
-  ]
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "vars": {
+    // 非シークレットのみ。シークレット（CLOUDFLARE_WORKER_API_TOKEN / APP_PASSWORD_HASH_BASE64）は
+    // wrangler secret put で設定する（vars に書くと deploy のたびにダッシュボード設定を上書きするため厳禁）
+    "CLOUDFLARE_WORKER_API_URL": "https://score-splitter-api.yosket87.workers.dev",
+    "WEBAUTHN_RP_ID": "score-splitter-web.yosket87.workers.dev",
+    "WEBAUTHN_RP_ORIGIN": "https://score-splitter-web.yosket87.workers.dev",
+    "WEBAUTHN_RP_NAME": "Score Splitter"
+  }
 }

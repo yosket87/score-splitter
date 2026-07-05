@@ -1,9 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
 
-vi.mock('@vercel/speed-insights/next', () => ({
-  SpeedInsights: () => null,
-}))
-
 vi.mock('@/components/ui/sonner', () => ({
   Toaster: () => null,
 }))

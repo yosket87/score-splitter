@@ -769,6 +769,7 @@ git commit -m "feat: LP精算シミュレーターの計算ユーティリティ
 - Create: `src/features/waitlist-lp/components/simulator-usage-provider.tsx`
 - Create: `src/features/waitlist-lp/components/hero.tsx`
 - Create: `src/features/waitlist-lp/components/problem-section.tsx`
+- Create: `src/features/waitlist-lp/components/why-section.tsx`
 - Create: `src/features/waitlist-lp/components/feature-section.tsx`
 - Create: `src/features/waitlist-lp/components/faq-section.tsx`
 - Create: `src/features/waitlist-lp/components/lp-footer.tsx`
@@ -778,7 +779,7 @@ git commit -m "feat: LP精算シミュレーターの計算ユーティリティ
 - Consumes: なし（自己完結）
 - Produces:
   - `SimulatorUsageProvider({ children })` / `useSimulatorUsage(): { simulatorUsed: boolean; markSimulatorUsed: () => void }` — Task 5のシミュレーターが `markSimulatorUsed` を呼び、Task 6のフォームが `simulatorUsed` を読む
-  - `Hero` / `ProblemSection` / `FeatureSection` / `FaqSection` / `LpFooter` — propsなしの表示コンポーネント。登録フォームへのアンカーは `#signup`
+  - `Hero` / `ProblemSection` / `WhySection` / `FeatureSection` / `FaqSection` / `LpFooter` — propsなしの表示コンポーネント。登録フォームへのアンカーは `#signup`。`WhySection` は山分けモデルのチーム思想（病気・育児・収入差の3シナリオ）を伝える中核メッセージセクション
 
 - [ ] **Step 1: プロバイダーの失敗するテストを書く**
 
@@ -893,7 +894,7 @@ export function Hero() {
       </h1>
       <p className="mx-auto mt-6 max-w-xl text-muted-foreground">
         共働き夫婦の毎月の精算を、1つの数字で終わらせる家計アプリを準備中です。
-        ウェイトリストに登録すると、公開時に最初にご案内します。
+        ふたりはひとつのチーム。どちらの収入が減っても、同じ仕組みのまま支え合えます。
       </p>
       <Button asChild size="lg" className="mt-8">
         <a href="#signup">ウェイトリストに登録</a>
@@ -936,6 +937,51 @@ export function ProblemSection() {
             <h3 className="font-semibold">{problem.title}</h3>
             <p className="mt-2 text-sm text-muted-foreground">
               {problem.description}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+```
+
+`src/features/waitlist-lp/components/why-section.tsx`:
+
+```tsx
+const reasons = [
+  {
+    title: '働けなくなっても、仕組みはそのまま',
+    description:
+      '病気や事故でどちらかの収入が途絶えても、家計のルールを作り直す必要はありません。ふたりの収入をひとつにして山分けする仕組みは、最初から支え合いが前提です。',
+  },
+  {
+    title: '子育てで休んでも、お小遣いは減らない',
+    description:
+      '時短や育休で給料が減ったら自分のお小遣いも減る——その構図では、休む側だけが我慢することになります。山分けなら減った分もふたりで分け合うから、協力しやすい。',
+  },
+  {
+    title: '収入差があっても、対等',
+    description:
+      '稼ぎが多い方が偉い、ではなく「ふたりで稼いだお金をふたりで分ける」。だからお金の話し合いがフェアになります。',
+  },
+]
+
+export function WhySection() {
+  return (
+    <section className="px-6 py-16">
+      <p className="text-center text-sm font-semibold tracking-widest text-primary">
+        なぜ、山分けなのか
+      </p>
+      <h2 className="mt-2 text-center text-2xl font-bold">
+        夫婦は、常にチームだから。
+      </h2>
+      <div className="mx-auto mt-10 max-w-3xl space-y-6">
+        {reasons.map((reason) => (
+          <div key={reason.title} className="rounded-lg border p-6">
+            <h3 className="font-semibold">{reason.title}</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {reason.description}
             </p>
           </div>
         ))}
@@ -1442,6 +1488,7 @@ import { SimulatorUsageProvider } from './components/simulator-usage-provider'
 import { Hero } from './components/hero'
 import { SettlementSimulator } from './components/settlement-simulator'
 import { ProblemSection } from './components/problem-section'
+import { WhySection } from './components/why-section'
 import { FeatureSection } from './components/feature-section'
 import { SignupSection } from './components/signup-section'
 import { FaqSection } from './components/faq-section'
@@ -1454,6 +1501,7 @@ export function WaitlistLp() {
         <Hero />
         <SettlementSimulator />
         <ProblemSection />
+        <WhySection />
         <FeatureSection />
         <SignupSection />
         <FaqSection />

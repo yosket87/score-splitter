@@ -44,17 +44,23 @@ const passkeysApiMock = vi.hoisted(() => ({
   deleteExpiredChallenges: vi.fn(),
 }))
 
+const waitlistApiMock = vi.hoisted(() => ({
+  registerWaitlist: vi.fn(),
+}))
+
 vi.mock('@/lib/api/records', () => recordsApiMock)
 vi.mock('@/lib/api/monthly-summary', () => monthlySummaryApiMock)
 vi.mock('@/lib/api/copy-month', () => copyMonthApiMock)
 vi.mock('@/lib/api/sessions', () => sessionsApiMock)
 vi.mock('@/lib/api/passkeys', () => passkeysApiMock)
+vi.mock('@/lib/api/waitlist', () => waitlistApiMock)
 
 export const mockRecordsApi = recordsApiMock
 export const mockMonthlySummaryApi = monthlySummaryApiMock
 export const mockCopyMonthApi = copyMonthApiMock
 export const mockSessionsApi = sessionsApiMock
 export const mockPasskeysApi = passkeysApiMock
+export const mockWaitlistApi = waitlistApiMock
 
 export function clearApiMocks() {
   for (const group of [
@@ -63,6 +69,7 @@ export function clearApiMocks() {
     mockCopyMonthApi,
     mockSessionsApi,
     mockPasskeysApi,
+    mockWaitlistApi,
   ]) {
     for (const mock of Object.values(group)) {
       mock.mockReset()

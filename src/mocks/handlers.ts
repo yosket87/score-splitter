@@ -19,6 +19,38 @@ const WORKER_API_TOKEN = process.env.CLOUDFLARE_WORKER_API_TOKEN || 'mock-worker
 type Row = Record<string, unknown>
 
 export const handlers = [
+  http.post(`${WORKER_API_URL}/waitlist`, async ({ request }) => {
+    const body = (await request.json()) as {
+      email?: string
+      priceIntent?: string
+      simulatorUsed?: boolean
+      website?: string
+    }
+
+    // honeypot: 成功を装い保存しない
+    if (typeof body.website === 'string' && body.website.trim() !== '') {
+      return HttpResponse.json({ data: { registered: true } }, { status: 201 })
+    }
+
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+    const validIntent = body.priceIntent === 'free_only' || body.priceIntent === 'paid_ok'
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !validIntent) {
+      return HttpResponse.json({ error: 'リクエストの形式が不正です' }, { status: 400 })
+    }
+
+    const table = getTable('waitlist_entries')
+    if (!table.some((row) => row.email === email)) {
+      table.push({
+        id: `waitlist-${table.length + 1}`,
+        email,
+        price_intent: body.priceIntent,
+        simulator_used: body.simulatorUsed ? 1 : 0,
+        created_at: new Date().toISOString(),
+      })
+    }
+    return HttpResponse.json({ data: { registered: true } }, { status: 201 })
+  }),
+
   http.post(`${WORKER_API_URL}/login-attempts/check`, ({ request }) => {
     if (!isAuthorized(request)) return unauthorized()
     return HttpResponse.json({ data: { allowed: true } })

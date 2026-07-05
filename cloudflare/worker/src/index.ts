@@ -1,6 +1,7 @@
 import { copyMonthData, getCopyMonthPreview } from './copy-month'
 import { createRuntime, type Env, type RuntimeDeps } from './d1'
 import { assertAuth, errorJson, HttpError, json, readJson } from './http'
+import { registerWaitlistEntry } from './waitlist'
 import {
   createChallenge,
   deleteChallenges,
@@ -45,10 +46,19 @@ export async function handleRequest(
   deps: RuntimeDeps = {}
 ): Promise<Response> {
   try {
-    assertAuth(request, env.WORKER_API_TOKEN)
     const runtime = createRuntime(deps)
     const url = new URL(request.url)
     const parts = url.pathname.split('/').filter(Boolean)
+
+    // ウェイトリスト登録はLPから未認証で呼ばれる唯一の公開エンドポイント
+    if (parts.length === 1 && parts[0] === 'waitlist' && request.method === 'POST') {
+      return json(
+        { data: await registerWaitlistEntry(env.DB, runtime, await readJson(request)) },
+        { status: 201 }
+      )
+    }
+
+    assertAuth(request, env.WORKER_API_TOKEN)
 
     if (parts.length === 1 && isRecordPath(parts[0])) {
       const type = recordTypeFromPath(parts[0])

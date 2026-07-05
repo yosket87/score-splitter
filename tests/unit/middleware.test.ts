@@ -32,4 +32,10 @@ describe('middleware', () => {
 
     expect(response.headers.get('location')).toBeNull()
   })
+
+  it('有効な形式のセッションCookieでもログインページは通す', () => {
+    const response = middleware(createRequest('/login', VALID_SESSION_TOKEN))
+
+    expect(response.headers.get('location')).toBeNull()
+  })
 })

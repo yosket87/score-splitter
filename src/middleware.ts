@@ -10,10 +10,8 @@ export function middleware(request: NextRequest) {
 
   // ログインページにアクセスしようとしている場合
   if (isLoginPage) {
-    // すでにログイン済みならトップページへ
-    if (hasSession) {
-      return NextResponse.redirect(new URL('/', request.url))
-    }
+    // middlewareではDBの実セッションを検証できないため、ログインページ側で判定する。
+    // 古いCookieをここでログイン済み扱いすると /login と / のリダイレクトループになる。
     return NextResponse.next()
   }
 

@@ -5,103 +5,73 @@ import type { Carryover, Expense, Income } from '@/types'
 
 const personSchema = z.enum(['husband', 'wife'])
 
-const incomeSchema: z.ZodType<Income> = z.object({
+const entryRecordBaseFields = {
   id: z.string(),
   month: z.string(),
   label: z.string(),
   amount: z.number(),
   person: personSchema,
   createdAt: z.string().optional(),
-})
+}
+
+const incomeSchema: z.ZodType<Income> = z.object(entryRecordBaseFields)
 
 const expenseSchema: z.ZodType<Expense> = z.object({
-  id: z.string(),
-  month: z.string(),
-  label: z.string(),
-  amount: z.number(),
-  person: personSchema,
+  ...entryRecordBaseFields,
   isCarryover: z.boolean(),
-  createdAt: z.string().optional(),
 })
 
 const carryoverSchema: z.ZodType<Carryover> = z.object({
-  id: z.string(),
-  month: z.string(),
-  label: z.string(),
-  amount: z.number(),
-  person: personSchema,
+  ...entryRecordBaseFields,
   isCleared: z.boolean(),
-  createdAt: z.string().optional(),
 })
 
-const incomeEnvelopeSchema = apiEnvelopeSchema(incomeSchema)
-const incomeListEnvelopeSchema = apiEnvelopeSchema(z.array(incomeSchema))
-const expenseEnvelopeSchema = apiEnvelopeSchema(expenseSchema)
-const expenseListEnvelopeSchema = apiEnvelopeSchema(z.array(expenseSchema))
-const carryoverEnvelopeSchema = apiEnvelopeSchema(carryoverSchema)
-const carryoverListEnvelopeSchema = apiEnvelopeSchema(z.array(carryoverSchema))
+function createEntryApi<T>(basePath: string, schema: z.ZodType<T>) {
+  const envelopeSchema = apiEnvelopeSchema(schema)
+  const listEnvelopeSchema = apiEnvelopeSchema(z.array(schema))
 
-export async function getIncomesByMonth(month: string): Promise<Income[]> {
-  const response = await apiRequest<ApiEnvelope<Income[]>>(
-    `/incomes?month=${encodeURIComponent(month)}`,
-    { responseSchema: incomeListEnvelopeSchema }
-  )
-  return response.data
+  return {
+    async getByMonth(month: string): Promise<T[]> {
+      const response = await apiRequest<ApiEnvelope<T[]>>(
+        `${basePath}?month=${encodeURIComponent(month)}`,
+        { responseSchema: listEnvelopeSchema }
+      )
+      return response.data
+    },
+    async create(input: Omit<T, 'id' | 'createdAt'>): Promise<T> {
+      const response = await apiRequest<ApiEnvelope<T>>(basePath, {
+        method: 'POST',
+        body: input,
+        responseSchema: envelopeSchema,
+      })
+      return response.data
+    },
+    async update(id: string, input: Omit<T, 'id' | 'createdAt'>): Promise<T> {
+      const response = await apiRequest<ApiEnvelope<T>>(`${basePath}/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: input,
+        responseSchema: envelopeSchema,
+      })
+      return response.data
+    },
+    async remove(id: string): Promise<void> {
+      await apiRequest(`${basePath}/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    },
+  }
 }
 
-export async function createIncome(input: Omit<Income, 'id' | 'createdAt'>): Promise<Income> {
-  const response = await apiRequest<ApiEnvelope<Income>>('/incomes', {
-    method: 'POST',
-    body: input,
-    responseSchema: incomeEnvelopeSchema,
-  })
-  return response.data
-}
+const incomeApi = createEntryApi<Income>('/incomes', incomeSchema)
+const expenseApi = createEntryApi<Expense>('/expenses', expenseSchema)
+const carryoverApi = createEntryApi<Carryover>('/carryovers', carryoverSchema)
 
-export async function updateIncome(
-  id: string,
-  input: Omit<Income, 'id' | 'createdAt'>
-): Promise<Income> {
-  const response = await apiRequest<ApiEnvelope<Income>>(`/incomes/${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    body: input,
-    responseSchema: incomeEnvelopeSchema,
-  })
-  return response.data
-}
+export const getIncomesByMonth = incomeApi.getByMonth
+export const createIncome = incomeApi.create
+export const updateIncome = incomeApi.update
+export const deleteIncome = incomeApi.remove
 
-export async function deleteIncome(id: string): Promise<void> {
-  await apiRequest(`/incomes/${encodeURIComponent(id)}`, { method: 'DELETE' })
-}
-
-export async function getExpensesByMonth(month: string): Promise<Expense[]> {
-  const response = await apiRequest<ApiEnvelope<Expense[]>>(
-    `/expenses?month=${encodeURIComponent(month)}`,
-    { responseSchema: expenseListEnvelopeSchema }
-  )
-  return response.data
-}
-
-export async function createExpense(input: Omit<Expense, 'id' | 'createdAt'>): Promise<Expense> {
-  const response = await apiRequest<ApiEnvelope<Expense>>('/expenses', {
-    method: 'POST',
-    body: input,
-    responseSchema: expenseEnvelopeSchema,
-  })
-  return response.data
-}
-
-export async function updateExpense(
-  id: string,
-  input: Omit<Expense, 'id' | 'createdAt'>
-): Promise<Expense> {
-  const response = await apiRequest<ApiEnvelope<Expense>>(`/expenses/${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    body: input,
-    responseSchema: expenseEnvelopeSchema,
-  })
-  return response.data
-}
+export const getExpensesByMonth = expenseApi.getByMonth
+export const createExpense = expenseApi.create
+export const updateExpense = expenseApi.update
 
 export async function toggleExpenseCarryover(id: string, isCarryover: boolean): Promise<void> {
   await apiRequest(`/expenses/${encodeURIComponent(id)}/carryover`, {
@@ -110,43 +80,11 @@ export async function toggleExpenseCarryover(id: string, isCarryover: boolean): 
   })
 }
 
-export async function deleteExpense(id: string): Promise<void> {
-  await apiRequest(`/expenses/${encodeURIComponent(id)}`, { method: 'DELETE' })
-}
+export const deleteExpense = expenseApi.remove
 
-export async function getCarryoversByMonth(month: string): Promise<Carryover[]> {
-  const response = await apiRequest<ApiEnvelope<Carryover[]>>(
-    `/carryovers?month=${encodeURIComponent(month)}`,
-    { responseSchema: carryoverListEnvelopeSchema }
-  )
-  return response.data
-}
-
-export async function createCarryover(
-  input: Omit<Carryover, 'id' | 'createdAt'>
-): Promise<Carryover> {
-  const response = await apiRequest<ApiEnvelope<Carryover>>('/carryovers', {
-    method: 'POST',
-    body: input,
-    responseSchema: carryoverEnvelopeSchema,
-  })
-  return response.data
-}
-
-export async function updateCarryover(
-  id: string,
-  input: Omit<Carryover, 'id' | 'createdAt'>
-): Promise<Carryover> {
-  const response = await apiRequest<ApiEnvelope<Carryover>>(
-    `/carryovers/${encodeURIComponent(id)}`,
-    {
-      method: 'PATCH',
-      body: input,
-      responseSchema: carryoverEnvelopeSchema,
-    }
-  )
-  return response.data
-}
+export const getCarryoversByMonth = carryoverApi.getByMonth
+export const createCarryover = carryoverApi.create
+export const updateCarryover = carryoverApi.update
 
 export async function toggleCarryoverCleared(id: string, isCleared: boolean): Promise<void> {
   await apiRequest(`/carryovers/${encodeURIComponent(id)}/cleared`, {
@@ -155,6 +93,4 @@ export async function toggleCarryoverCleared(id: string, isCleared: boolean): Pr
   })
 }
 
-export async function deleteCarryover(id: string): Promise<void> {
-  await apiRequest(`/carryovers/${encodeURIComponent(id)}`, { method: 'DELETE' })
-}
+export const deleteCarryover = carryoverApi.remove

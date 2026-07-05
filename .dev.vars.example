@@ -2,7 +2,7 @@
 # このファイルを .dev.vars にコピーして実際の値を設定する（.dev.vars はgitignore済み）。
 # 注意: preview ではMSWモックは使えないため、実際のWorker APIに向ける。USE_MOCKS は設定しないこと。
 NEXTJS_ENV=development
-CLOUDFLARE_WORKER_API_URL=https://score-splitter-api.yosket87.workers.dev
+CLOUDFLARE_WORKER_API_URL=https://api.yamawake.app
 CLOUDFLARE_WORKER_API_TOKEN=<worker-api-token>
 APP_PASSWORD_HASH_BASE64=<bcryptハッシュのBase64>
 WEBAUTHN_RP_ID=localhost

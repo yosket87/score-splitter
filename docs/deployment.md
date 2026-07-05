@@ -9,7 +9,22 @@
 | `score-splitter-web` | `wrangler.jsonc`（root） | Next.jsフロントエンド（OpenNext） |
 | `score-splitter-api` | `cloudflare/worker/wrangler.jsonc` | Worker API + D1 |
 
-URLはいずれも `https://<worker名>.<account-subdomain>.workers.dev`。
+## カスタムドメイン（yamawake.app）
+
+Cloudflare Custom Domains（各 `wrangler.jsonc` の `routes` + `custom_domain: true`）で割り当てる。ゾーンが同一アカウントにあるため、deploy時にDNSレコードが自動作成される（対象ホストに既存レコードがあるとdeployが失敗するので事前に空にしておく）。
+
+| ホスト | 割当先Worker | 内容 |
+|--------|-------------|------|
+| `yamawake.app` | `score-splitter-web` | ウェイトリストLP（`/` を `/lp` へrewrite） |
+| `app.yamawake.app` | `score-splitter-web` | アプリ本体 |
+| `api.yamawake.app` | `score-splitter-api` | Worker API |
+| `www.yamawake.app` | （Workerなし） | ゾーンのRedirect Ruleで `yamawake.app` へ301 |
+
+- LP/アプリの出し分けは `src/middleware.ts` のホスト判定で行う。apexのアプリ系パスは `app.yamawake.app` へ307、`/lp` の正規URLは `https://yamawake.app/` に一本化（308）。localhost / workers.dev / preview URLは従来挙動
+- ホストを跨ぐのはredirectのみ（rewriteは同一ホスト内）なので、Server Actionsの `experimental.serverActions.allowedOrigins` は不要。将来ホスト跨ぎrewriteを導入する場合のみ設定が必要
+- `NEXT_PUBLIC_SITE_URL`（LPの `metadataBase` 用）はLPが静的プリレンダリングされるためビルド時に必要。Workers Builds（score-splitter-web）のビルド変数にも `https://yamawake.app` を設定すること
+- www用のDNS（`www` をProxiedでCNAME → `yamawake.app`）とRedirect Rule（`www.yamawake.app/*` → `https://yamawake.app/$1`、301）はダッシュボードで手動設定
+- 旧 `https://<worker名>.<account-subdomain>.workers.dev` は切り戻し先として当面併存させ、安定稼働確認後に `workers_dev: false` へ変更する（`preview_urls` は独立設定のため据え置き）。API側のworkers.dev URLはフロントの `CLOUDFLARE_WORKER_API_URL` 切替前に無効化しないこと
 
 ## Workers Builds（Git連携）の設定値
 

@@ -15,7 +15,7 @@ export function SectionCard({
 }: SectionCardProps) {
   const chip = (
     <span
-      className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-100 to-rose-100 text-rose-600 dark:from-amber-900/40 dark:to-rose-900/40 dark:text-rose-300"
+      className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300"
       aria-hidden="true"
     >
       <Icon className="size-5" />
@@ -24,7 +24,7 @@ export function SectionCard({
 
   if (layout === 'row') {
     return (
-      <div className="flex items-start gap-4 rounded-2xl border bg-background p-6 shadow-sm">
+      <div className="flex items-start gap-4 rounded-xl border bg-background p-6 shadow-sm">
         {chip}
         <div>
           <h3 className="font-semibold">{title}</h3>
@@ -35,7 +35,7 @@ export function SectionCard({
   }
 
   return (
-    <div className="rounded-2xl border bg-background p-6 shadow-sm">
+    <div className="rounded-xl border bg-background p-6 shadow-sm">
       {chip}
       <h3 className="mt-4 font-semibold">{title}</h3>
       <p className="mt-2 text-sm text-muted-foreground">{description}</p>

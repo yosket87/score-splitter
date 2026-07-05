@@ -12,7 +12,7 @@ import { LpFooter } from './components/lp-footer'
 export function WaitlistLp() {
   return (
     <SimulatorUsageProvider>
-      <main id="main">
+      <main id="main" className="pb-20 sm:pb-0">
         <Hero />
         <YamawakeFlow />
         <SettlementSimulator />
@@ -23,6 +23,20 @@ export function WaitlistLp() {
         <FaqSection />
       </main>
       <LpFooter />
+      <MobileSignupCta />
     </SimulatorUsageProvider>
+  )
+}
+
+function MobileSignupCta() {
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] sm:hidden">
+      <a
+        href="#signup"
+        className="mx-auto flex min-h-12 max-w-sm items-center justify-center rounded-xl bg-orange-600 px-5 text-sm font-semibold text-white shadow-lg shadow-orange-900/20 transition-colors hover:bg-orange-700 focus-visible:ring-[3px] focus-visible:ring-orange-500/40 focus-visible:outline-none dark:bg-orange-500 dark:text-slate-950 dark:hover:bg-orange-400"
+      >
+        ウェイトリストに登録
+      </a>
+    </div>
   )
 }

@@ -24,7 +24,7 @@ const problems = [
 
 export function ProblemSection() {
   return (
-    <section className="bg-rose-50/60 px-6 py-16 dark:bg-rose-950/10">
+    <section className="bg-slate-50 px-6 py-16 dark:bg-slate-950/40">
       <h2 className="text-center text-2xl font-bold">
         こんな精算、していませんか
       </h2>

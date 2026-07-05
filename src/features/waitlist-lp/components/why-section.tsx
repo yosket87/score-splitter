@@ -24,8 +24,8 @@ const reasons = [
 
 export function WhySection() {
   return (
-    <section className="bg-amber-50/60 px-6 py-16 dark:bg-amber-950/10">
-      <p className="text-center text-sm font-semibold tracking-widest text-primary">
+    <section className="bg-sky-50/70 px-6 py-16 dark:bg-sky-950/20">
+      <p className="text-center text-sm font-semibold tracking-widest text-sky-700 dark:text-sky-300">
         なぜ、山分けなのか
       </p>
       <h2 className="mt-2 text-center text-2xl font-bold">

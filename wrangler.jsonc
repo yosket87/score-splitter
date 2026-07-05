@@ -12,6 +12,12 @@
   "keep_names": false,
   "workers_dev": true,
   "preview_urls": true,
+  // カスタムドメイン。apex = ウェイトリストLP、app = アプリ本体（出し分けは src/middleware.ts のホスト判定）。
+  // ゾーン（yamawake.app）が同一アカウントにあるためdeploy時にDNSレコードが自動作成される
+  "routes": [
+    { "pattern": "yamawake.app", "custom_domain": true },
+    { "pattern": "app.yamawake.app", "custom_domain": true }
+  ],
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
@@ -19,9 +25,12 @@
   "vars": {
     // 非シークレットのみ。シークレット（CLOUDFLARE_WORKER_API_TOKEN / APP_PASSWORD_HASH_BASE64）は
     // wrangler secret put で設定する（vars に書くと deploy のたびにダッシュボード設定を上書きするため厳禁）
-    "CLOUDFLARE_WORKER_API_URL": "https://score-splitter-api.yosket87.workers.dev",
-    "WEBAUTHN_RP_ID": "score-splitter-web.yosket87.workers.dev",
-    "WEBAUTHN_RP_ORIGIN": "https://score-splitter-web.yosket87.workers.dev",
-    "WEBAUTHN_RP_NAME": "Score Splitter"
+    "CLOUDFLARE_WORKER_API_URL": "https://api.yamawake.app",
+    // RP IDはregistrable domainにする（app.yamawake.appのoriginで有効。将来サブドメインを変えてもパスキーが生き残る）
+    "WEBAUTHN_RP_ID": "yamawake.app",
+    "WEBAUTHN_RP_ORIGIN": "https://app.yamawake.app",
+    "WEBAUTHN_RP_NAME": "Score Splitter",
+    // LP（/lp）のmetadataBase用。静的プリレンダリングされるためWorkers Buildsのビルド変数にも同値を設定すること
+    "NEXT_PUBLIC_SITE_URL": "https://yamawake.app"
   }
 }

@@ -4,7 +4,7 @@
 
 | 技術 | バージョン | 用途 |
 |-----|----------|------|
-| Next.js | 16.1.6 | Reactフレームワーク |
+| Next.js | 16.2.10 | Reactフレームワーク |
 | React | 19.2.3 | UIライブラリ |
 | TypeScript | 5.x | 型安全な開発 |
 | Tailwind CSS | 4.x | CSSフレームワーク |
@@ -20,12 +20,14 @@
 | Zod | 4.3.6 | スキーマバリデーション |
 | @hookform/resolvers | 5.2.2 | RHF + Zod連携 |
 
-## バックエンド・データベース
+## ホスティング・バックエンド
 
 | 技術 | バージョン | 用途 |
 |-----|----------|------|
-| Cloudflare Workers | - | アプリ専用API |
+| Cloudflare Workers | - | フロントエンド・APIのホスティング |
+| @opennextjs/cloudflare | 1.20.x | Next.jsをWorkers上で動かすアダプタ |
 | Cloudflare D1 | - | SQLiteベースの永続データベース |
+| Wrangler | 4.x | Cloudflare CLI（デプロイ・ローカル実行） |
 
 ## 認証・セキュリティ
 
@@ -70,6 +72,10 @@
   "dev": "next dev",                    // 開発サーバー起動
   "build": "next build",                // プロダクションビルド
   "start": "next start",                // プロダクションサーバー起動
+  "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",  // workerd上でローカル実行
+  "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",    // フロントエンドをデプロイ
+  "deploy:worker": "wrangler deploy --config cloudflare/worker/wrangler.jsonc",  // Worker APIをデプロイ
+  "cf-typegen": "wrangler types --env-interface CloudflareEnv --include-runtime=false cloudflare-env.d.ts",  // 環境変数の型生成
   "lint": "eslint",                     // ESLintチェック
   "migrate:supabase-to-d1": "node scripts/supabase-to-d1.mjs",
   "test": "vitest",                     // Vitestウォッチモード

@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next'
-import { SpeedInsights } from '@vercel/speed-insights/next'
 import { Toaster } from '@/components/ui/sonner'
 import { ThemeProvider } from '@/components/providers/theme-provider'
 import { MotionProvider } from '@/components/animations/motion-provider'
@@ -43,7 +42,6 @@ export default function RootLayout({
             <Toaster />
           </MotionProvider>
         </ThemeProvider>
-        <SpeedInsights />
       </body>
     </html>
   )

@@ -40,6 +40,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# cloudflare (opennext)
+/.open-next/
+.dev.vars
+.wrangler/
+
 # supabase
 supabase/.temp/
 

@@ -77,7 +77,10 @@ export function AddEntryForm({ type, month, onSuccess, onCancel }: AddEntryFormP
         >
           キャンセル
         </Button>
-        <SubmitButton className="flex-1 h-12" pendingChildren="追加中...">
+        <SubmitButton
+          className="flex-1 h-12 bg-accent text-accent-foreground shadow-fab hover:bg-sky-700 dark:hover:bg-sky-300"
+          pendingChildren="追加中..."
+        >
           {TYPE_LABELS[type]}を追加
         </SubmitButton>
       </div>

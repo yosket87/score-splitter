@@ -10,7 +10,7 @@ test.beforeEach(async ({ request }) => {
 async function login(page: Page) {
   await page.goto('/login')
   await page.getByPlaceholder('パスワード').fill(MOCK_PASSWORD)
-  await page.getByRole('button', { name: 'ログイン →' }).click()
+  await page.getByRole('button', { name: 'ログイン', exact: true }).click()
   await page.waitForURL(/\/\d{4}\/\d{2}/)
 }
 
@@ -37,12 +37,14 @@ test.describe('ログインページ', () => {
   test('ログインフォームが表示される', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'Score Splitter' })).toBeVisible()
     await expect(page.getByPlaceholder('パスワード')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'ログイン →' })).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'ログイン', exact: true })
+    ).toBeVisible()
   })
 
   test('不正なパスワードでエラーが表示される', async ({ page }) => {
     await page.getByPlaceholder('パスワード').fill('wrong-password')
-    await page.getByRole('button', { name: 'ログイン →' }).click()
+    await page.getByRole('button', { name: 'ログイン', exact: true }).click()
 
     await expect(
       page.getByText(/パスワードが正しくありません/)
@@ -51,7 +53,7 @@ test.describe('ログインページ', () => {
 
   test('正しいパスワードで月詳細に遷移する', async ({ page }) => {
     await page.getByPlaceholder('パスワード').fill(MOCK_PASSWORD)
-    await page.getByRole('button', { name: 'ログイン →' }).click()
+    await page.getByRole('button', { name: 'ログイン', exact: true }).click()
     await page.waitForURL(/\/\d{4}\/\d{2}/)
 
     await expect(page.getByText(/Balance/)).toBeVisible()

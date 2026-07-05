@@ -24,7 +24,7 @@ export default async function YearPage({ params }: YearPageProps) {
   const summaries = summariesResult.data ?? []
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen gradient-page">
       <Header />
       <main
         id="main"

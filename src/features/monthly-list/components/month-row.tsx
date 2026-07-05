@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ChevronRight } from 'lucide-react'
 import { formatCurrency, formatMonth, monthToPath } from '@/lib/utils/format'
 import type { MonthlySummary } from '@/types'
 
@@ -81,8 +82,9 @@ export function MonthRow({
         >
           {formatCurrency(summary.balance, { signed: true })}
         </span>
-        <span className="text-[10px] font-medium text-accent">
-          View &gt;
+        <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-accent">
+          View
+          <ChevronRight className="h-3 w-3" aria-hidden="true" />
         </span>
       </div>
     </Link>

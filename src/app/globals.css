@@ -54,6 +54,8 @@
   --color-wife-light: var(--wife-light);
   --color-neon-red-light: var(--neon-red-light);
   --color-neon-cyan-light: var(--neon-cyan-light);
+  --color-brand-orange: var(--brand-orange);
+  --color-brand-orange-light: var(--brand-orange-light);
   --color-chart-bar-muted: var(--chart-bar-muted);
   --color-warning: var(--warning);
   --color-sub-text: var(--sub-text);
@@ -65,98 +67,100 @@
 
   /* 背景系 */
   --background: #FAFBFC;
-  --foreground: #1A1A1A;
+  --foreground: #0F172A;
   --card: #FFFFFF;
-  --card-foreground: #1A1A1A;
+  --card-foreground: #0F172A;
   --popover: #FFFFFF;
-  --popover-foreground: #1A1A1A;
+  --popover-foreground: #0F172A;
 
   /* サブテキスト */
-  --sub-text: #666666;
+  --sub-text: #64748B;
 
   /* プライマリ */
-  --primary: #1A1A1A;
+  --primary: #0F172A;
   --primary-foreground: #FFFFFF;
 
   /* セカンダリ */
-  --secondary: #F3F4F6;
-  --secondary-foreground: #1A1A1A;
+  --secondary: #F0F9FF;
+  --secondary-foreground: #0F172A;
 
   /* ミュート */
-  --muted: #F3F4F6;
-  --muted-foreground: #767676;
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
 
-  /* アクセント — ブルー */
-  --accent: #2563EB;
+  /* アクセント — LPと同じsky系 */
+  --accent: #0369A1;
   --accent-foreground: #FFFFFF;
+  --brand-orange: #EA580C;
+  --brand-orange-light: #FFEDD5;
 
   /* デストラクティブ */
   --destructive: #E2483D;
 
   /* ボーダー・入力 */
-  --border: #E5E7EB;
-  --input: #F3F4F6;
-  --ring: #2563EB;
+  --border: #E2E8F0;
+  --input: #F1F5F9;
+  --ring: #0EA5E9;
 
   /* ドメインカラー */
   --neon-red: #E2483D;
-  --neon-cyan: #2563EB;
+  --neon-cyan: #0369A1;
 
   /* 担当者カラー */
-  --husband: #3B82F6;
-  --husband-light: #DBEAFE;
-  --wife: #EF4444;
-  --wife-light: #FEE2E2;
+  --husband: #0284C7;
+  --husband-light: #E0F2FE;
+  --wife: #F97316;
+  --wife-light: #FFEDD5;
 
   /* シャドウ効果 */
-  --glow-accent: #2563EB;
-  --glow-sm: 0 1px 3px #00000014;
-  --glow-md: 0 2px 8px #0000001A;
-  --glow-lg: 0 4px 16px #0000001F;
+  --glow-accent: #0EA5E9;
+  --glow-sm: 0 2px 8px #0EA5E926;
+  --glow-md: 0 6px 18px #0EA5E92E;
+  --glow-lg: 0 10px 28px #0EA5E936;
 
   /* Soft Cards シャドウ */
-  --shadow-soft: 0 2px 8px #0000000D, 0 0 0 1px #E5E7EB;
-  --shadow-soft-lg: 0 4px 16px #0000000D, 0 0 0 1px #E5E7EB;
-  --shadow-fab: 0 4px 12px #2563EB33;
+  --shadow-soft: 0 2px 8px #0F172A0D, 0 0 0 1px #E2E8F0;
+  --shadow-soft-lg: 0 8px 24px #0F172A12, 0 0 0 1px #E2E8F0;
+  --shadow-fab: 0 8px 20px #0369A133, 0 2px 6px #EA580C1F;
 
   /* カードシャドウ */
-  --shadow-card: 0 2px 8px #0000000D, 0 0 0 1px #E5E7EB;
-  --shadow-card-hover: 0 8px 22px #2563EB2E, 0 0 0 1.5px #2563EB;
+  --shadow-card: 0 2px 8px #0F172A0D, 0 0 0 1px #E2E8F0;
+  --shadow-card-hover: 0 8px 22px #0369A12E, 0 0 0 1.5px #0EA5E9;
 
   /* サーフェス */
-  --surface-chip: #F3F4F6;
-  --surface-total: #FAFBFC;
+  --surface-chip: #F0F9FF;
+  --surface-total: #F8FAFC;
 
   /* ドメインカラー（ライト版） */
   --neon-red-light: #FFE8E6;
-  --neon-cyan-light: #EFF6FF;
+  --neon-cyan-light: #E0F2FE;
 
   /* 担当者カラー（ソリッド） */
-  --gradient-husband: #3B82F6;
-  --gradient-wife: #EF4444;
+  --gradient-husband: #0EA5E9;
+  --gradient-wife: #F97316;
 
   /* チャートバー（非カレント） */
   --chart-bar-muted: #E5E7EB;
 
   /* 警告カラー */
-  --warning: #F59E0B;
+  --warning: #EA580C;
 
   /* チャート */
-  --chart-1: #2563EB;
-  --chart-2: #3B82F6;
-  --chart-3: #2563EB;
-  --chart-4: #EF4444;
-  --chart-5: #E2483D;
+  --chart-1: #0369A1;
+  --chart-2: #0EA5E9;
+  --chart-3: #F97316;
+  --chart-4: #FB7185;
+  --chart-5: #EA580C;
 
   /* サイドバー（互換性のため） */
-  --sidebar: #F3F4F6;
-  --sidebar-foreground: #1A1A1A;
-  --sidebar-primary: #2563EB;
+  --sidebar: #F0F9FF;
+  --sidebar-foreground: #0F172A;
+  --sidebar-primary: #0369A1;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F3F4F6;
-  --sidebar-accent-foreground: #1A1A1A;
-  --sidebar-border: #E5E7EB;
-  --sidebar-ring: #2563EB;
+  --sidebar-accent: #E0F2FE;
+  --sidebar-accent-foreground: #0F172A;
+  --sidebar-border: #E2E8F0;
+  --sidebar-ring: #0EA5E9;
 }
 
 /* ===== ダークモード ===== */
@@ -182,8 +186,10 @@
   --muted-foreground: #9CA3AF;
 
   /* アクセント — ブルー（ダーク版） */
-  --accent: #60A5FA;
-  --accent-foreground: #0F1117;
+  --accent: #38BDF8;
+  --accent-foreground: #082F49;
+  --brand-orange: #FDBA74;
+  --brand-orange-light: #F9731626;
 
   /* デストラクティブ */
   --destructive: #F87171;
@@ -191,35 +197,35 @@
   /* ボーダー・入力 */
   --border: #ffffff14;
   --input: #ffffff1F;
-  --ring: #60A5FA;
+  --ring: #38BDF8;
 
   /* サブテキスト */
   --sub-text: #9CA3AF;
 
   /* ドメインカラー */
   --neon-red: #F87171;
-  --neon-cyan: #60A5FA;
+  --neon-cyan: #38BDF8;
 
   /* 担当者カラー */
-  --husband: #60A5FA;
-  --husband-light: #60A5FA26;
-  --wife: #FB7185;
-  --wife-light: #FB718526;
+  --husband: #38BDF8;
+  --husband-light: #0EA5E926;
+  --wife: #FDBA74;
+  --wife-light: #F9731626;
 
   /* グロー効果（ダーク用） */
-  --glow-accent: #60A5FA;
-  --glow-sm: 0 0 8px #60A5FA26;
-  --glow-md: 0 0 16px #60A5FA33;
-  --glow-lg: 0 0 24px #60A5FA40;
+  --glow-accent: #38BDF8;
+  --glow-sm: 0 0 8px #38BDF826;
+  --glow-md: 0 0 16px #38BDF833;
+  --glow-lg: 0 0 24px #38BDF840;
 
   /* Soft Cards シャドウ（ダーク用） */
   --shadow-soft: 0 4px 14px #0000004D, 0 0 1px #ffffff0D;
   --shadow-soft-lg: 0 8px 24px #00000059, 0 0 1px #ffffff14;
-  --shadow-fab: 0 4px 12px #60A5FA4D;
+  --shadow-fab: 0 8px 20px #38BDF84D, 0 2px 8px #FDBA7426;
 
   /* カードシャドウ（ダーク用） */
   --shadow-card: 0 4px 14px #0000004D, 0 0 1px #ffffff0D;
-  --shadow-card-hover: 0 8px 22px #60A5FA2E, 0 0 1px #ffffff14;
+  --shadow-card-hover: 0 8px 22px #38BDF82E, 0 0 1px #ffffff14;
 
   /* サーフェス（ダーク用） */
   --surface-chip: #252833;
@@ -227,34 +233,34 @@
 
   /* ドメインカラー（ダーク版） */
   --neon-red-light: #F8717126;
-  --neon-cyan-light: #60A5FA26;
+  --neon-cyan-light: #38BDF826;
 
   /* 担当者カラー（ダーク版） */
-  --gradient-husband: #60A5FA;
-  --gradient-wife: #FB7185;
+  --gradient-husband: #38BDF8;
+  --gradient-wife: #FDBA74;
 
   /* チャートバー（非カレント・ダーク版） */
   --chart-bar-muted: #374151;
 
   /* 警告カラー */
-  --warning: #FBBF24;
+  --warning: #FDBA74;
 
   /* チャート */
-  --chart-1: #60A5FA;
-  --chart-2: #34D399;
-  --chart-3: #60A5FA;
+  --chart-1: #38BDF8;
+  --chart-2: #7DD3FC;
+  --chart-3: #FDBA74;
   --chart-4: #FB7185;
-  --chart-5: #F87171;
+  --chart-5: #F97316;
 
   /* サイドバー（互換性のため） */
   --sidebar: #1A1D27;
   --sidebar-foreground: #E5E7EB;
-  --sidebar-primary: #60A5FA;
+  --sidebar-primary: #38BDF8;
   --sidebar-primary-foreground: #0F1117;
   --sidebar-accent: #252833;
   --sidebar-accent-foreground: #E5E7EB;
   --sidebar-border: #ffffff14;
-  --sidebar-ring: #60A5FA;
+  --sidebar-ring: #38BDF8;
 }
 
 @layer base {
@@ -302,6 +308,16 @@
 
 @utility gradient-fab {
   background: var(--accent);
+}
+
+@utility gradient-page {
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--accent) 8%, var(--background)) 0%,
+      var(--background) 48%,
+      color-mix(in srgb, var(--brand-orange) 6%, var(--background)) 100%
+    );
 }
 
 @utility shadow-card {

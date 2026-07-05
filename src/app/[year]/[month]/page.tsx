@@ -46,7 +46,7 @@ export default async function MonthPage({ params }: MonthPageProps) {
   const recentSummaries = allSummaries.slice(0, 6)
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen gradient-page">
       <HeroSection
         currentMonth={month}
         incomes={incomes}

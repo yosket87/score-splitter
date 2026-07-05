@@ -12,7 +12,7 @@ interface HeaderActionsProps {
 
 export function HeaderActions({ variant = 'default' }: HeaderActionsProps) {
   const iconClass = variant === 'hero'
-    ? 'text-white/70 hover:text-white'
+    ? 'text-sky-900/70 hover:text-sky-950 dark:text-white/70 dark:hover:text-white'
     : 'text-muted-foreground hover:text-accent'
 
   return (

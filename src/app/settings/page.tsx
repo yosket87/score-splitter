@@ -8,12 +8,12 @@ export default async function SettingsPage() {
   await requireAuth()
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+    <div className="min-h-screen gradient-page flex flex-col">
+      <header className="flex items-center justify-between border-b border-border bg-background/80 px-5 py-3.5 backdrop-blur">
         <div className="flex items-center gap-2">
           <Link
             href="/"
-            className="text-sub-text hover:text-accent transition-colors"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sub-text transition-colors hover:bg-sky-50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 dark:hover:bg-white/10"
             aria-label="戻る"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -29,7 +29,9 @@ export default async function SettingsPage() {
         <h1 className="text-[18px] font-bold tracking-[-0.02em] mb-6">
           パスキー管理
         </h1>
-        <PasskeySettings />
+        <div className="rounded-[20px] border border-sky-100/80 bg-card/95 p-5 shadow-soft-lg dark:border-white/10">
+          <PasskeySettings />
+        </div>
       </main>
     </div>
   )

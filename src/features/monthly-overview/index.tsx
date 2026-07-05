@@ -16,7 +16,16 @@ import {
   getSettlementDirectionLabel,
 } from '@/lib/utils/calculation'
 import { calculateMonthBalance } from '@/lib/utils/monthly-summary'
-import { formatCurrency, formatMonth, getPreviousMonth, parseMonth, monthToPath } from '@/lib/utils/format'
+import {
+  addMonths,
+  formatCurrency,
+  formatMonth,
+  formatMonthDot,
+  getDaysInMonth,
+  getPreviousMonth,
+  parseMonth,
+  monthToPath,
+} from '@/lib/utils/format'
 import type { Income, Expense, Carryover } from '@/types'
 
 interface HeroSectionProps {
@@ -44,16 +53,6 @@ const monthLabelVariants = {
   exit: (d: number) => ({ x: d * -labelSlide, opacity: 0 }),
 }
 
-function formatMonthDot(month: string): string {
-  return `${month.slice(0, 4)}.${month.slice(4, 6)}`
-}
-
-function getDaysInMonth(month: string): number {
-  const year = parseInt(month.slice(0, 4), 10)
-  const m = parseInt(month.slice(4, 6), 10)
-  return new Date(year, m, 0).getDate()
-}
-
 export function HeroSection({
   currentMonth,
   incomes,
@@ -76,10 +75,7 @@ export function HeroSection({
   const m = parseInt(currentMonth.slice(4, 6), 10)
 
   function navigateMonth(offset: number) {
-    const year = parseInt(currentMonth.slice(0, 4), 10)
-    const month = parseInt(currentMonth.slice(4, 6), 10)
-    const date = new Date(year, month - 1 + offset, 1)
-    router.push(monthToPath(parseMonth(date)))
+    router.push(monthToPath(addMonths(currentMonth, offset)))
   }
 
   function goToCurrentMonth() {

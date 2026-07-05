@@ -31,9 +31,9 @@ function isValidSessionCookieValue(value: string | undefined): boolean {
 
 export const config = {
   matcher: [
-    // ルートパスとその他のページパスに適用
+    // ルートパスとその他のページパスに適用（/lpは公開LPのため認証対象外）
     '/',
     '/login',
-    '/((?!_next|favicon.ico|api).*)',
+    '/((?!_next|favicon.ico|api|lp).*)',
   ],
 }

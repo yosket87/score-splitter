@@ -1,5 +1,6 @@
 import { SimulatorUsageProvider } from './components/simulator-usage-provider'
 import { Hero } from './components/hero'
+import { YamawakeFlow } from './components/yamawake-flow'
 import { SettlementSimulator } from './components/settlement-simulator'
 import { ProblemSection } from './components/problem-section'
 import { WhySection } from './components/why-section'
@@ -13,6 +14,7 @@ export function WaitlistLp() {
     <SimulatorUsageProvider>
       <main id="main">
         <Hero />
+        <YamawakeFlow />
         <SettlementSimulator />
         <ProblemSection />
         <WhySection />

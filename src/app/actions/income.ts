@@ -6,7 +6,7 @@ import {
   getIncomesByMonth as getIncomeRecordsByMonth,
   updateIncome as updateIncomeRecord,
 } from '@/lib/api/records'
-import { revalidateHouseholdData } from './revalidation'
+import { readEntryFormData, runEntryMutation, runEntryQuery } from './entry-helpers'
 import { incomeSchema } from '@/lib/validations/income'
 import { requireAuth } from '@/lib/webauthn/session'
 import type { Income, ActionResult } from '@/types'
@@ -14,13 +14,10 @@ import type { Income, ActionResult } from '@/types'
 export async function getIncomesByMonth(month: string): Promise<ActionResult<Income[]>> {
   await requireAuth()
 
-  try {
-    const data = await getIncomeRecordsByMonth(month)
-    return { success: true, data }
-  } catch (error) {
-    console.error('収入取得エラー:', error)
-    return { success: false, error: '収入データの取得に失敗しました' }
-  }
+  return runEntryQuery(
+    { log: '収入取得エラー:', error: '収入データの取得に失敗しました' },
+    () => getIncomeRecordsByMonth(month)
+  )
 }
 
 export async function createIncome(
@@ -28,31 +25,21 @@ export async function createIncome(
 ): Promise<ActionResult<Income>> {
   await requireAuth()
 
-  const rawData = {
-    month: formData.get('month') as string,
-    label: formData.get('label') as string,
-    amount: Number(formData.get('amount')),
-    person: formData.get('person') as string,
-  }
-
-  const parsed = incomeSchema.safeParse(rawData)
+  const parsed = incomeSchema.safeParse(readEntryFormData(formData))
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message }
   }
 
-  try {
-    const data = await createIncomeRecord({
+  return runEntryMutation(
+    { log: '収入作成エラー:', error: '収入の作成に失敗しました' },
+    parsed.data.month,
+    () => createIncomeRecord({
       month: parsed.data.month,
       label: parsed.data.label,
       amount: parsed.data.amount,
       person: parsed.data.person,
     })
-    revalidateHouseholdData(parsed.data.month)
-    return { success: true, data }
-  } catch (error) {
-    console.error('収入作成エラー:', error)
-    return { success: false, error: '収入の作成に失敗しました' }
-  }
+  )
 }
 
 export async function updateIncome(
@@ -61,42 +48,29 @@ export async function updateIncome(
 ): Promise<ActionResult<Income>> {
   await requireAuth()
 
-  const rawData = {
-    month: formData.get('month') as string,
-    label: formData.get('label') as string,
-    amount: Number(formData.get('amount')),
-    person: formData.get('person') as string,
-  }
-
-  const parsed = incomeSchema.safeParse(rawData)
+  const parsed = incomeSchema.safeParse(readEntryFormData(formData))
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message }
   }
 
-  try {
-    const data = await updateIncomeRecord(id, {
+  return runEntryMutation(
+    { log: '収入更新エラー:', error: '収入の更新に失敗しました' },
+    parsed.data.month,
+    () => updateIncomeRecord(id, {
       month: parsed.data.month,
       label: parsed.data.label,
       amount: parsed.data.amount,
       person: parsed.data.person,
     })
-    revalidateHouseholdData(parsed.data.month)
-    return { success: true, data }
-  } catch (error) {
-    console.error('収入更新エラー:', error)
-    return { success: false, error: '収入の更新に失敗しました' }
-  }
+  )
 }
 
 export async function deleteIncome(id: string, month?: string): Promise<ActionResult> {
   await requireAuth()
 
-  try {
-    await deleteIncomeRecord(id)
-    revalidateHouseholdData(month)
-    return { success: true }
-  } catch (error) {
-    console.error('収入削除エラー:', error)
-    return { success: false, error: '収入の削除に失敗しました' }
-  }
+  return runEntryMutation(
+    { log: '収入削除エラー:', error: '収入の削除に失敗しました' },
+    month,
+    () => deleteIncomeRecord(id)
+  )
 }

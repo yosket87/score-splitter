@@ -34,6 +34,6 @@ export const config = {
     // ルートパスとその他のページパスに適用（/lpは公開LPのため認証対象外）
     '/',
     '/login',
-    '/((?!_next|favicon.ico|api|lp).*)',
+    '/((?!_next|favicon.ico|api|lp(?:/|$)).*)',
   ],
 }

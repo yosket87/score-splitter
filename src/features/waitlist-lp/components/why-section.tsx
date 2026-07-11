@@ -24,14 +24,14 @@ const reasons = [
 
 export function WhySection() {
   return (
-    <section className="bg-sky-50/70 px-6 py-16 dark:bg-sky-950/20">
-      <p className="text-center text-sm font-semibold tracking-widest text-sky-700 dark:text-sky-300">
+    <section className="bg-card px-6 py-20">
+      <p className="text-eyebrow text-center text-accent">
         なぜ、山分けなのか
       </p>
-      <h2 className="mt-2 text-center text-2xl font-bold">
+      <h2 className="mt-2 text-center text-3xl font-bold tracking-tight">
         夫婦は、常にチームだから。
       </h2>
-      <div className="mx-auto mt-10 max-w-3xl space-y-6">
+      <div className="mx-auto mt-12 max-w-3xl divide-y divide-border">
         {reasons.map((reason) => (
           <SectionCard
             key={reason.title}

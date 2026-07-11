@@ -23,13 +23,13 @@ const faqs = [
 
 export function FaqSection() {
   return (
-    <section className="bg-muted/50 px-6 py-16">
-      <h2 className="text-center text-2xl font-bold">よくある質問</h2>
-      <dl className="mx-auto mt-10 max-w-2xl space-y-6">
+    <section className="bg-background px-6 py-20">
+      <h2 className="text-center text-3xl font-bold tracking-tight">よくある質問</h2>
+      <dl className="mx-auto mt-12 max-w-2xl divide-y divide-border rounded-2xl bg-card">
         {faqs.map((faq) => (
-          <div key={faq.question} className="rounded-lg bg-background p-6 shadow-sm">
+          <div key={faq.question} className="p-6">
             <dt className="font-semibold">{faq.question}</dt>
-            <dd className="mt-2 text-sm text-muted-foreground">{faq.answer}</dd>
+            <dd className="mt-2 text-sm leading-relaxed text-muted-foreground">{faq.answer}</dd>
           </div>
         ))}
       </dl>

@@ -45,8 +45,8 @@ export function SettlementSimulator() {
   }
 
   return (
-    <section className="px-6 py-16">
-      <Card className="mx-auto max-w-2xl border-sky-200/70 shadow-md dark:border-sky-900/50">
+    <section className="bg-card px-6 py-20">
+      <Card className="mx-auto max-w-2xl">
         <CardHeader>
           <CardTitle>ふたりの精算額を試してみる</CardTitle>
           <p className="text-sm text-muted-foreground">
@@ -86,14 +86,14 @@ export function SettlementSimulator() {
               </div>
             ))}
           </div>
-          <div className="rounded-xl bg-gradient-to-br from-sky-50 to-orange-50 p-6 text-center dark:from-sky-950/40 dark:to-orange-950/25">
+          <div className="rounded-2xl bg-background p-6 text-center">
             <p className="text-sm text-muted-foreground">ひとりの取り分</p>
-            <p className="text-2xl font-bold">{formatCurrency(result.allowance)}</p>
+            <p className="text-2xl font-bold tracking-tight">{formatCurrency(result.allowance)}</p>
             <p className="mt-4 text-sm text-muted-foreground">今月の精算</p>
             <p className="text-lg font-semibold">
               {result.payer === 'me' ? 'あなた → パートナー' : 'パートナー → あなた'}
             </p>
-            <p className="text-3xl font-bold text-primary">
+            <p className="text-4xl font-bold tracking-tight text-accent">
               {formatCurrency(result.amount)}
             </p>
           </div>

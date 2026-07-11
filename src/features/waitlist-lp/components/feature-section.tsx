@@ -24,9 +24,9 @@ const features = [
 
 export function FeatureSection() {
   return (
-    <section className="px-6 py-16">
-      <h2 className="text-center text-2xl font-bold">ヤマワケができること</h2>
-      <div className="mx-auto mt-10 grid max-w-4xl gap-6 sm:grid-cols-3">
+    <section className="bg-background px-6 py-20">
+      <h2 className="text-center text-3xl font-bold tracking-tight">ヤマワケができること</h2>
+      <div className="mx-auto mt-12 grid max-w-4xl gap-10 sm:grid-cols-3">
         {features.map((feature) => (
           <SectionCard
             key={feature.title}

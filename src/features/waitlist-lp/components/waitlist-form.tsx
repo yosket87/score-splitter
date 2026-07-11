@@ -34,7 +34,7 @@ export function WaitlistForm({
         role="status"
         className={cn(
           'rounded-lg bg-muted p-6 text-center font-semibold',
-          isCompact && 'bg-white/90 p-4 text-sm text-slate-900 shadow-sm dark:bg-slate-950/80 dark:text-slate-100'
+          isCompact && 'bg-card p-4 text-sm'
         )}
       >
         登録ありがとうございます。準備ができたらご連絡します。
@@ -53,7 +53,7 @@ export function WaitlistForm({
           required
           autoComplete="email"
           placeholder="you@example.com"
-          className={cn(isCompact && 'bg-background/90 shadow-sm')}
+          className={cn(isCompact && 'bg-card')}
         />
       </div>
 
@@ -63,7 +63,7 @@ export function WaitlistForm({
           htmlFor={freeOnlyId}
           className={cn(
             'flex min-h-11 items-center gap-2 text-sm',
-            isCompact && 'rounded-lg border bg-background/80 px-3 shadow-sm'
+            isCompact && 'rounded-lg border bg-card px-3'
           )}
         >
           <input
@@ -80,7 +80,7 @@ export function WaitlistForm({
           htmlFor={paidOkId}
           className={cn(
             'flex min-h-11 items-center gap-2 text-sm',
-            isCompact && 'rounded-lg border bg-background/80 px-3 shadow-sm'
+            isCompact && 'rounded-lg border bg-card px-3'
           )}
         >
           <input
@@ -113,12 +113,8 @@ export function WaitlistForm({
       ) : null}
 
       <SubmitButton
-        size={isCompact ? 'lg' : 'default'}
-        className={cn(
-          'min-h-11 w-full',
-          isCompact &&
-            'bg-orange-600 text-white shadow-sm hover:bg-orange-700 dark:bg-orange-500 dark:text-slate-950 dark:hover:bg-orange-400'
-        )}
+        size="pill"
+        className="min-h-11 w-full"
         pendingChildren="送信中..."
       >
         ウェイトリストに登録

@@ -24,17 +24,18 @@ const problems = [
 
 export function ProblemSection() {
   return (
-    <section className="bg-slate-50 px-6 py-16 dark:bg-slate-950/40">
-      <h2 className="text-center text-2xl font-bold">
+    <section className="bg-hero-tile px-6 py-20">
+      <h2 className="text-center text-3xl font-bold tracking-tight text-white">
         こんな精算、していませんか
       </h2>
-      <div className="mx-auto mt-10 grid max-w-4xl gap-6 sm:grid-cols-3">
+      <div className="mx-auto mt-12 grid max-w-4xl gap-10 sm:grid-cols-3">
         {problems.map((problem) => (
           <SectionCard
             key={problem.title}
             icon={problem.icon}
             title={problem.title}
             description={problem.description}
+            tone="dark"
           />
         ))}
       </div>

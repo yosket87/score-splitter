@@ -45,6 +45,14 @@
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
 
+  /* 本文17px（Apple基準）— rootのfont-sizeは変えずtext-baseだけ拡大 */
+  --text-base: 17px;
+  --text-base--line-height: 1.47;
+
+  /* 見出し用の負トラッキング（≈ -0.374px @17px） */
+  --tracking-tight: -0.022em;
+  --tracking-tighter: -0.03em;
+
   /* ドメインカラー — Tailwindユーティリティ自動生成 */
   --color-husband: var(--husband);
   --color-husband-light: var(--husband-light);
@@ -227,6 +235,8 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
   }
 }
 
@@ -234,6 +244,14 @@
 @utility font-tabular {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
+}
+
+/* eyebrowラベル — 叫ばない控えめなuppercase（色は呼び出し側で指定） */
+@utility text-eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 @utility shadow-fab {

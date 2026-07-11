@@ -73,7 +73,7 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
       <div>
         <label
           id={`${formId}-person-label`}
-          className="text-[11px] font-bold tracking-[0.14em] uppercase text-sub-text block mb-2"
+          className="text-eyebrow text-sub-text block mb-2"
         >
           登録する人
         </label>
@@ -115,7 +115,7 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
       <div>
         <label
           htmlFor={`${formId}-device-name`}
-          className="text-[11px] font-bold tracking-[0.14em] uppercase text-sub-text block mb-2"
+          className="text-eyebrow text-sub-text block mb-2"
         >
           デバイス名（任意）
         </label>

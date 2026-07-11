@@ -31,7 +31,7 @@ export function PasskeySettings() {
     <div className="space-y-6">
       {/* 登録済みパスキー一覧 */}
       <section>
-        <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase text-sub-text mb-3">
+        <h2 className="text-eyebrow text-sub-text mb-3">
           登録済みパスキー
         </h2>
         {loadError ? (
@@ -53,7 +53,7 @@ export function PasskeySettings() {
 
       {/* 登録フォーム */}
       <section className="border-t border-border pt-6">
-        <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase text-sub-text mb-3">
+        <h2 className="text-eyebrow text-sub-text mb-3">
           新しいパスキーを登録
         </h2>
         <RegisterPasskeyForm onRegistered={fetchPasskeys} />

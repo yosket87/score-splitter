@@ -44,7 +44,7 @@ export function EntryFields({
       <div>
         <label
           htmlFor={`${formId}-label`}
-          className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block"
+          className="text-eyebrow text-sub-text mb-1.5 block"
         >
           項目名
         </label>
@@ -64,7 +64,7 @@ export function EntryFields({
       <div>
         <label
           htmlFor={`${formId}-amount`}
-          className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block"
+          className="text-eyebrow text-sub-text mb-1.5 block"
         >
           金額
         </label>
@@ -97,7 +97,7 @@ export function EntryFields({
       <div>
         <label
           id={`${formId}-person-label`}
-          className="text-[11px] font-bold tracking-[0.16em] uppercase text-sub-text mb-1.5 block"
+          className="text-eyebrow text-sub-text mb-1.5 block"
         >
           担当者
         </label>

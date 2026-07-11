@@ -18,7 +18,7 @@ export default async function SettingsPage() {
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-sub-text">
+          <span className="text-eyebrow text-sub-text">
             設定
           </span>
         </div>
@@ -26,7 +26,7 @@ export default async function SettingsPage() {
       </header>
 
       <main id="main" tabIndex={-1} className="flex-1 px-5 pt-6 pb-8 max-w-md mx-auto w-full">
-        <h1 className="text-[18px] font-bold tracking-[-0.02em] mb-6">
+        <h1 className="text-[18px] font-bold tracking-tight mb-6">
           パスキー管理
         </h1>
         <PasskeySettings />

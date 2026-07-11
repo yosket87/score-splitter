@@ -29,7 +29,7 @@ export function ExpenseSection({ expenses, month }: ExpenseSectionProps) {
       addSlot={<AddEntryModal type="expense" month={month} />}
       totalSlot={
         <div className="flex items-baseline justify-between px-3.5 py-3 border-t border-border bg-[var(--surface-total)]">
-          <span className="text-[11px] text-muted-foreground font-semibold tracking-[0.8px] uppercase">
+          <span className="text-eyebrow text-muted-foreground">
             Total
           </span>
           <span className="font-mono text-[15px] font-bold text-destructive">

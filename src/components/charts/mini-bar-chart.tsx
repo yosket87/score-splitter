@@ -22,7 +22,7 @@ export function MiniBarChart({ summaries, currentMonth }: MiniBarChartProps) {
 
   return (
     <div>
-      <div className="text-[10px] font-bold tracking-[0.18em] uppercase text-sub-text md:text-[12px]">
+      <div className="text-eyebrow text-sub-text">
         過去{sorted.length}ヶ月のトレンド
       </div>
       <div

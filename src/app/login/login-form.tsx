@@ -13,7 +13,7 @@ export function LoginForm() {
     <div className="min-h-screen bg-background flex flex-col">
       {/* ヘッダー */}
       <header className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-        <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-sub-text">
+        <span className="text-eyebrow text-sub-text">
           Score Splitter
         </span>
         <ThemeToggle />
@@ -43,7 +43,7 @@ export function LoginForm() {
               <div className="flex items-baseline justify-between mb-2">
                 <label
                   htmlFor="password"
-                  className="text-[11px] font-bold tracking-[0.14em] uppercase text-sub-text"
+                  className="text-eyebrow text-sub-text"
                 >
                   パスワード
                 </label>
@@ -65,7 +65,7 @@ export function LoginForm() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
-                  className="text-[11px] font-bold tracking-[0.10em] uppercase text-accent shrink-0"
+                  className="text-eyebrow text-accent shrink-0"
                 >
                   {showPassword ? '隠す' : '表示'}
                 </button>

@@ -40,7 +40,7 @@ export function SectionShell({
       <div className="flex items-baseline justify-between pb-2 mb-1">
         <h3
           data-testid={titleTestId}
-          className="text-[11px] font-bold tracking-[0.8px] text-foreground uppercase"
+          className="text-eyebrow text-foreground"
         >
           {title}
         </h3>

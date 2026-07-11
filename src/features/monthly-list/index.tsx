@@ -69,7 +69,7 @@ export function MonthlyListSection({ summaries, year }: MonthlyListSectionProps)
     <section aria-label="月の一覧">
       {/* セクションヘッド */}
       <div className="pb-4">
-        <div className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
+        <div className="text-eyebrow text-muted-foreground">
           Months / 月一覧
         </div>
         <div className="flex items-center gap-3 mt-1.5">
@@ -101,7 +101,7 @@ export function MonthlyListSection({ summaries, year }: MonthlyListSectionProps)
       {/* Year-to-Date カード */}
       {recordedCount > 0 && (
         <div className="rounded-xl bg-card p-5">
-          <div className="text-[10px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
+          <div className="text-eyebrow text-muted-foreground">
             Year-to-Date / 年間収支
           </div>
           <div className="mt-1">
@@ -136,7 +136,7 @@ export function MonthlyListSection({ summaries, year }: MonthlyListSectionProps)
 
       {/* BY MONTH ヘッダー */}
       <div className="flex items-baseline justify-between py-2">
-        <span className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
+        <span className="text-eyebrow text-muted-foreground">
           By Month / 月別
         </span>
         <span className="text-[11px] text-muted-foreground">

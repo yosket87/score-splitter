@@ -28,7 +28,7 @@ export function TrendCard({ summaries, currentMonth }: TrendCardProps) {
       aria-label={`直近${summaries.length}ヶ月の収入と支出の推移グラフ`}
     >
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold tracking-[0.8px] text-muted-foreground uppercase">
+        <span className="text-eyebrow text-muted-foreground">
           Trend / 推移
         </span>
         <span className="text-[10px] font-medium text-muted-foreground">

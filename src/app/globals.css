@@ -46,67 +46,62 @@
   --radius-4xl: calc(var(--radius) + 16px);
 
   /* ドメインカラー — Tailwindユーティリティ自動生成 */
-  --color-neon-red: var(--neon-red);
-  --color-neon-cyan: var(--neon-cyan);
   --color-husband: var(--husband);
   --color-husband-light: var(--husband-light);
   --color-wife: var(--wife);
   --color-wife-light: var(--wife-light);
-  --color-neon-red-light: var(--neon-red-light);
-  --color-neon-cyan-light: var(--neon-cyan-light);
+  --color-destructive-soft: var(--destructive-soft);
   --color-chart-bar-muted: var(--chart-bar-muted);
   --color-warning: var(--warning);
   --color-sub-text: var(--sub-text);
+  --color-hero-tile: var(--hero-tile);
 }
 
 /* ===== ライトモード（デフォルト） ===== */
 :root {
   --radius: 0.75rem;
 
-  /* 背景系 */
-  --background: #FAFBFC;
-  --foreground: #1A1A1A;
-  --card: #FFFFFF;
-  --card-foreground: #1A1A1A;
-  --popover: #FFFFFF;
-  --popover-foreground: #1A1A1A;
+  /* 背景系 — 白カード on parchment の面色差で区切る */
+  --background: #f5f5f7;
+  --foreground: #1d1d1f;
+  --card: #ffffff;
+  --card-foreground: #1d1d1f;
+  --popover: #ffffff;
+  --popover-foreground: #1d1d1f;
 
   /* サブテキスト */
-  --sub-text: #666666;
+  --sub-text: #6e6e73;
 
-  /* プライマリ */
-  --primary: #1A1A1A;
-  --primary-foreground: #FFFFFF;
+  /* プライマリ — Action Blue */
+  --primary: #0066cc;
+  --primary-foreground: #ffffff;
 
   /* セカンダリ */
-  --secondary: #F3F4F6;
-  --secondary-foreground: #1A1A1A;
+  --secondary: #f5f5f7;
+  --secondary-foreground: #1d1d1f;
 
   /* ミュート */
-  --muted: #F3F4F6;
-  --muted-foreground: #767676;
+  --muted: #f5f5f7;
+  --muted-foreground: #6e6e73;
 
-  /* アクセント — ブルー */
-  --accent: #2563EB;
-  --accent-foreground: #FFFFFF;
+  /* アクセント — Action Blue（全インタラクティブ要素の単一アクセント） */
+  --accent: #0066cc;
+  --accent-foreground: #ffffff;
 
   /* デストラクティブ */
-  --destructive: #E2483D;
+  --destructive: #e30000;
+  --destructive-soft: #ffd9d6;
 
   /* ボーダー・入力 */
-  --border: #E5E7EB;
-  --input: #F3F4F6;
-  --ring: #2563EB;
+  --border: #d2d2d7;
+  --input: #f5f5f7;
+  --ring: #0066cc;
 
-  /* ドメインカラー */
-  --neon-red: #E2483D;
-  --neon-cyan: #2563EB;
-
-  /* 担当者カラー */
-  --husband: #3B82F6;
-  --husband-light: #DBEAFE;
-  --wife: #EF4444;
-  --wife-light: #FEE2E2;
+  /* 担当者カラー — 夫=Action Blue / 妻=ピンク系レッド（エラー赤と判別可） */
+  --husband: #0066cc;
+  --husband-light: #e8f1fb;
+  --wife: #ff375f;
+  --wife-light: #ffe3e9;
 
   /* シャドウ効果 */
   --glow-accent: #2563EB;
@@ -124,87 +119,82 @@
   --shadow-card-hover: 0 8px 22px #2563EB2E, 0 0 0 1.5px #2563EB;
 
   /* サーフェス */
-  --surface-chip: #F3F4F6;
-  --surface-total: #FAFBFC;
+  --surface-chip: #e8e8ed;
+  --surface-total: #fafafc;
 
-  /* ドメインカラー（ライト版） */
-  --neon-red-light: #FFE8E6;
-  --neon-cyan-light: #EFF6FF;
+  /* ヒーロータイル — near-blackフルブリードタイル */
+  --hero-tile: #1d1d1f;
 
-  /* 担当者カラー（ソリッド） */
-  --gradient-husband: #3B82F6;
-  --gradient-wife: #EF4444;
+  /* カードホバー面 */
+  --card-hover: #f5f5f7;
 
   /* チャートバー（非カレント） */
-  --chart-bar-muted: #E5E7EB;
+  --chart-bar-muted: #e8e8ed;
 
-  /* 警告カラー */
-  --warning: #F59E0B;
+  /* 警告カラー — 白地でテキストとして読める深めの琥珀 */
+  --warning: #b45309;
 
   /* チャート */
-  --chart-1: #2563EB;
-  --chart-2: #3B82F6;
-  --chart-3: #2563EB;
-  --chart-4: #EF4444;
-  --chart-5: #E2483D;
+  --chart-1: #0066cc;
+  --chart-2: #ff375f;
+  --chart-3: #004a99;
+  --chart-4: #e30000;
+  --chart-5: #ffd9d6;
 
   /* サイドバー（互換性のため） */
-  --sidebar: #F3F4F6;
-  --sidebar-foreground: #1A1A1A;
-  --sidebar-primary: #2563EB;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F3F4F6;
-  --sidebar-accent-foreground: #1A1A1A;
-  --sidebar-border: #E5E7EB;
-  --sidebar-ring: #2563EB;
+  --sidebar: #f5f5f7;
+  --sidebar-foreground: #1d1d1f;
+  --sidebar-primary: #0066cc;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f5f5f7;
+  --sidebar-accent-foreground: #1d1d1f;
+  --sidebar-border: #d2d2d7;
+  --sidebar-ring: #0066cc;
 }
 
 /* ===== ダークモード ===== */
 .dark {
-  /* 背景系 */
-  --background: #0F1117;
-  --foreground: #E5E7EB;
-  --card: #1A1D27;
-  --card-foreground: #E5E7EB;
-  --popover: #1A1D27;
-  --popover-foreground: #E5E7EB;
+  /* 背景系 — 中立near-blackの濃淡で階層を表現 */
+  --background: #1d1d1f;
+  --foreground: #f5f5f7;
+  --card: #272729;
+  --card-foreground: #f5f5f7;
+  --popover: #2a2a2c;
+  --popover-foreground: #f5f5f7;
 
-  /* プライマリ */
-  --primary: #E5E7EB;
-  --primary-foreground: #0F1117;
+  /* プライマリ — Action Blue（ダーク版） */
+  --primary: #0a84ff;
+  --primary-foreground: #ffffff;
 
   /* セカンダリ */
-  --secondary: #252833;
-  --secondary-foreground: #E5E7EB;
+  --secondary: #3a3a3c;
+  --secondary-foreground: #f5f5f7;
 
   /* ミュート */
-  --muted: #252833;
-  --muted-foreground: #9CA3AF;
+  --muted: #3a3a3c;
+  --muted-foreground: #a1a1a6;
 
-  /* アクセント — ブルー（ダーク版） */
-  --accent: #60A5FA;
-  --accent-foreground: #0F1117;
+  /* アクセント — Action Blue（ダーク版） */
+  --accent: #0a84ff;
+  --accent-foreground: #ffffff;
 
   /* デストラクティブ */
-  --destructive: #F87171;
+  --destructive: #ff453a;
+  --destructive-soft: #ff453a2b;
 
   /* ボーダー・入力 */
-  --border: #ffffff14;
-  --input: #ffffff1F;
-  --ring: #60A5FA;
+  --border: #ffffff1a;
+  --input: #ffffff24;
+  --ring: #0a84ff;
 
   /* サブテキスト */
-  --sub-text: #9CA3AF;
-
-  /* ドメインカラー */
-  --neon-red: #F87171;
-  --neon-cyan: #60A5FA;
+  --sub-text: #a1a1a6;
 
   /* 担当者カラー */
-  --husband: #60A5FA;
-  --husband-light: #60A5FA26;
-  --wife: #FB7185;
-  --wife-light: #FB718526;
+  --husband: #0a84ff;
+  --husband-light: #0a84ff2b;
+  --wife: #ff375f;
+  --wife-light: #ff375f2b;
 
   /* グロー効果（ダーク用） */
   --glow-accent: #60A5FA;
@@ -222,39 +212,37 @@
   --shadow-card-hover: 0 8px 22px #60A5FA2E, 0 0 1px #ffffff14;
 
   /* サーフェス（ダーク用） */
-  --surface-chip: #252833;
-  --surface-total: #1A1D27;
+  --surface-chip: #3a3a3c;
+  --surface-total: #252527;
 
-  /* ドメインカラー（ダーク版） */
-  --neon-red-light: #F8717126;
-  --neon-cyan-light: #60A5FA26;
+  /* ヒーロータイル — 背景よりワントーン明るいnear-black */
+  --hero-tile: #272729;
 
-  /* 担当者カラー（ダーク版） */
-  --gradient-husband: #60A5FA;
-  --gradient-wife: #FB7185;
+  /* カードホバー面 */
+  --card-hover: #2a2a2c;
 
   /* チャートバー（非カレント・ダーク版） */
-  --chart-bar-muted: #374151;
+  --chart-bar-muted: #3a3a3c;
 
   /* 警告カラー */
-  --warning: #FBBF24;
+  --warning: #ff9f0a;
 
   /* チャート */
-  --chart-1: #60A5FA;
-  --chart-2: #34D399;
-  --chart-3: #60A5FA;
-  --chart-4: #FB7185;
-  --chart-5: #F87171;
+  --chart-1: #0a84ff;
+  --chart-2: #ff375f;
+  --chart-3: #409cff;
+  --chart-4: #ff453a;
+  --chart-5: #ff453a2b;
 
   /* サイドバー（互換性のため） */
-  --sidebar: #1A1D27;
-  --sidebar-foreground: #E5E7EB;
-  --sidebar-primary: #60A5FA;
-  --sidebar-primary-foreground: #0F1117;
-  --sidebar-accent: #252833;
-  --sidebar-accent-foreground: #E5E7EB;
-  --sidebar-border: #ffffff14;
-  --sidebar-ring: #60A5FA;
+  --sidebar: #272729;
+  --sidebar-foreground: #f5f5f7;
+  --sidebar-primary: #0a84ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #3a3a3c;
+  --sidebar-accent-foreground: #f5f5f7;
+  --sidebar-border: #ffffff1a;
+  --sidebar-ring: #0a84ff;
 }
 
 @layer base {

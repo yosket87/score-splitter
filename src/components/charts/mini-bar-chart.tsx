@@ -44,7 +44,7 @@ export function MiniBarChart({ summaries, currentMonth }: MiniBarChartProps) {
                   ? 'var(--accent)'
                   : isPositive
                     ? 'var(--chart-bar-muted)'
-                    : 'var(--neon-red-light)',
+                    : 'var(--destructive-soft)',
               }}
               initial={{ height: 0 }}
               animate={{ height: `${heightPct}%` }}

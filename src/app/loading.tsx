@@ -27,16 +27,16 @@ export default function Loading() {
         </div>
 
         {/* ヒーロー / サマリー */}
-        <div className="rounded-[22px] shadow-soft-lg p-5">
+        <div className="rounded-2xl bg-card p-5">
           <Skeleton className="h-2.5 w-32" />
           <Skeleton className="h-10 w-48 mt-3" />
           <Skeleton className="h-3 w-56 mt-3" />
           <div className="grid grid-cols-2 mt-4 gap-3">
-            <div className="rounded-[18px] shadow-soft p-4">
+            <div className="rounded-2xl bg-secondary p-4">
               <Skeleton className="h-2 w-12" />
               <Skeleton className="h-5 w-24 mt-2" />
             </div>
-            <div className="rounded-[18px] shadow-soft p-4">
+            <div className="rounded-2xl bg-secondary p-4">
               <Skeleton className="h-2 w-12" />
               <Skeleton className="h-5 w-24 mt-2" />
             </div>
@@ -50,7 +50,7 @@ export default function Loading() {
         </div>
 
         {/* リスト行 */}
-        <div className="rounded-[18px] shadow-soft overflow-hidden">
+        <div className="rounded-2xl bg-card overflow-hidden">
           {Array.from({ length: 6 }, (_, i) => (
             <div
               key={i}

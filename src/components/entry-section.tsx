@@ -49,7 +49,7 @@ export function SectionShell({
         </span>
       </div>
 
-      <div className="rounded-[18px] bg-card shadow-soft overflow-hidden">
+      <div className="rounded-2xl bg-card overflow-hidden">
         <div className="border-b border-border" />
         <AnimatePresence initial={false}>
           {children}

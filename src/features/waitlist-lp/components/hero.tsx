@@ -58,7 +58,7 @@ export function Hero() {
             })}
           </div>
 
-          <div className="mt-6 max-w-xl rounded-xl border bg-background/90 p-4 shadow-soft-lg backdrop-blur sm:p-5">
+          <div className="mt-6 max-w-xl rounded-xl border bg-background/90 p-4 backdrop-blur sm:p-5">
             <p className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">
               公開時に優先案内を受け取る
             </p>
@@ -67,7 +67,7 @@ export function Hero() {
         </div>
 
         <div className="relative lg:pl-4">
-          <div className="overflow-hidden rounded-2xl border bg-card shadow-soft-lg">
+          <div className="overflow-hidden rounded-2xl border bg-card">
             <Image
               src="/lp/monthly-dashboard-preview.png"
               alt="ヤマワケの月次画面で収支、お小遣い、精算額を表示しているプレビュー"

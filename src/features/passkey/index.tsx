@@ -37,7 +37,7 @@ export function PasskeySettings() {
         {loadError ? (
           <div
             role="alert"
-            className="rounded-[12px] bg-destructive/10 px-4 py-3 text-[13px] text-destructive"
+            className="rounded-lg bg-destructive/10 px-4 py-3 text-[13px] text-destructive"
           >
             <p className="font-semibold">パスキー一覧の取得に失敗しました</p>
             <p className="mt-1 text-[12px]">時間をおいて再度お試しください。</p>

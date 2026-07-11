@@ -87,7 +87,7 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
             role="radio"
             aria-checked={person === 'husband'}
             onClick={() => setPerson('husband')}
-            className={`flex-1 h-10 rounded-[10px] text-[13px] font-semibold transition-colors ${
+            className={`flex-1 h-10 rounded-md text-[13px] font-semibold transition-colors ${
               person === 'husband'
                 ? 'bg-accent text-accent-foreground'
                 : 'bg-muted text-muted-foreground'
@@ -100,7 +100,7 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
             role="radio"
             aria-checked={person === 'wife'}
             onClick={() => setPerson('wife')}
-            className={`flex-1 h-10 rounded-[10px] text-[13px] font-semibold transition-colors ${
+            className={`flex-1 h-10 rounded-md text-[13px] font-semibold transition-colors ${
               person === 'wife'
                 ? 'bg-accent text-accent-foreground'
                 : 'bg-muted text-muted-foreground'
@@ -125,7 +125,7 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
           value={deviceName}
           onChange={(e) => setDeviceName(e.target.value)}
           placeholder="例: iPhone, 1Password"
-          className="w-full h-10 rounded-[10px] bg-muted px-3 text-[13px] border-none outline-none placeholder:text-muted-foreground/50"
+          className="w-full h-10 rounded-md bg-muted px-3 text-[13px] border-none outline-none placeholder:text-muted-foreground/50"
         />
       </div>
 
@@ -139,7 +139,7 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
       <Button
         onClick={handleRegister}
         disabled={isRegistering}
-        className="w-full h-11 rounded-[12px] bg-accent text-accent-foreground text-[13px] font-bold tracking-[0.10em]"
+        className="w-full h-11 rounded-full bg-accent text-accent-foreground text-[15px] font-semibold"
       >
         <Plus className="h-4 w-4 mr-1.5" />
         {isRegistering ? '登録中…' : 'パスキーを登録'}

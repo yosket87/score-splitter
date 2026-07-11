@@ -35,7 +35,7 @@ export function PersonSelector({
             role="radio"
             aria-checked={active}
             onClick={() => onChange(p)}
-            className={`flex-1 py-3 rounded-[14px] text-sm font-semibold text-center transition-colors border ${
+            className={`flex-1 py-3 rounded-lg text-sm font-semibold text-center transition-colors border ${
               active
                 ? p === 'husband'
                   ? 'bg-husband-light text-husband border-husband'

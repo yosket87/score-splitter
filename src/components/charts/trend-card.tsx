@@ -23,7 +23,7 @@ export function TrendCard({ summaries, currentMonth }: TrendCardProps) {
 
   return (
     <div
-      className="rounded-[16px] bg-card p-4 shadow-soft"
+      className="rounded-xl bg-card p-4"
       role="img"
       aria-label={`直近${summaries.length}ヶ月の収入と支出の推移グラフ`}
     >

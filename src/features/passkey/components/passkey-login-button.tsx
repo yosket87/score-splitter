@@ -64,7 +64,7 @@ export function PasskeyLoginButton() {
         type="button"
         onClick={handlePasskeyLogin}
         disabled={isAuthenticating}
-        className="w-full h-12 px-5 bg-foreground text-background rounded-[12px] text-[13px] font-bold tracking-[0.10em] flex items-center justify-center gap-2 disabled:opacity-50 transition-opacity"
+        className="w-full h-12 px-5 bg-foreground text-background rounded-full text-[15px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition-opacity"
       >
         <Key className="h-4 w-4" />
         {isAuthenticating ? '認証中…' : 'パスキーでログイン'}

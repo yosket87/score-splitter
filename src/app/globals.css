@@ -103,20 +103,8 @@
   --wife: #ff375f;
   --wife-light: #ffe3e9;
 
-  /* シャドウ効果 */
-  --glow-accent: #2563EB;
-  --glow-sm: 0 1px 3px #00000014;
-  --glow-md: 0 2px 8px #0000001A;
-  --glow-lg: 0 4px 16px #0000001F;
-
-  /* Soft Cards シャドウ */
-  --shadow-soft: 0 2px 8px #0000000D, 0 0 0 1px #E5E7EB;
-  --shadow-soft-lg: 0 4px 16px #0000000D, 0 0 0 1px #E5E7EB;
-  --shadow-fab: 0 4px 12px #2563EB33;
-
-  /* カードシャドウ */
-  --shadow-card: 0 2px 8px #0000000D, 0 0 0 1px #E5E7EB;
-  --shadow-card-hover: 0 8px 22px #2563EB2E, 0 0 0 1.5px #2563EB;
+  /* シャドウ — 浮遊要素（FAB・製品レンダー）専用の唯一の影 */
+  --shadow-elevated: 0 4px 12px #0000001f;
 
   /* サーフェス */
   --surface-chip: #e8e8ed;
@@ -196,20 +184,8 @@
   --wife: #ff375f;
   --wife-light: #ff375f2b;
 
-  /* グロー効果（ダーク用） */
-  --glow-accent: #60A5FA;
-  --glow-sm: 0 0 8px #60A5FA26;
-  --glow-md: 0 0 16px #60A5FA33;
-  --glow-lg: 0 0 24px #60A5FA40;
-
-  /* Soft Cards シャドウ（ダーク用） */
-  --shadow-soft: 0 4px 14px #0000004D, 0 0 1px #ffffff0D;
-  --shadow-soft-lg: 0 8px 24px #00000059, 0 0 1px #ffffff14;
-  --shadow-fab: 0 4px 12px #60A5FA4D;
-
-  /* カードシャドウ（ダーク用） */
-  --shadow-card: 0 4px 14px #0000004D, 0 0 1px #ffffff0D;
-  --shadow-card-hover: 0 8px 22px #60A5FA2E, 0 0 1px #ffffff14;
+  /* シャドウ（ダーク用） */
+  --shadow-elevated: 0 4px 12px #00000066;
 
   /* サーフェス（ダーク用） */
   --surface-chip: #3a3a3c;
@@ -260,53 +236,8 @@
   font-feature-settings: "tnum";
 }
 
-@utility glow-sm {
-  box-shadow: var(--glow-sm);
-}
-
-@utility glow-md {
-  box-shadow: var(--glow-md);
-}
-
-@utility glow-lg {
-  box-shadow: var(--glow-lg);
-}
-
-@utility shadow-soft {
-  box-shadow: var(--shadow-soft);
-}
-
-@utility shadow-soft-lg {
-  box-shadow: var(--shadow-soft-lg);
-}
-
 @utility shadow-fab {
-  box-shadow: var(--shadow-fab);
-}
-
-@utility gradient-hero-card {
-  background: var(--gradient-hero-card);
-}
-
-@utility gradient-fab {
-  background: var(--accent);
-}
-
-@utility shadow-card {
-  box-shadow: var(--shadow-card);
-}
-
-@utility shadow-card-hover {
-  box-shadow: var(--shadow-card-hover);
-}
-
-@utility card-interactive {
-  transition: border-color 200ms ease, box-shadow 200ms ease, transform 200ms ease;
-  &:hover {
-    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
-    box-shadow: var(--shadow-card-hover);
-    transform: translateY(-1px);
-  }
+  box-shadow: var(--shadow-elevated);
 }
 
 @utility animate-fade-in {

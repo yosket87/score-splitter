@@ -23,7 +23,7 @@ export function LoginForm() {
       <main id="main" tabIndex={-1} className="flex-1 px-5 pt-10 pb-4 flex flex-col max-w-md mx-auto w-full">
         {/* ヒーロー */}
         <section className="pb-6">
-          <div className="w-12 h-12 rounded-[12px] bg-accent text-accent-foreground flex items-center justify-center">
+          <div className="w-12 h-12 rounded-lg bg-accent text-accent-foreground flex items-center justify-center">
             <span className="text-[22px] font-bold">S</span>
           </div>
           <h1 className="text-[22px] font-bold leading-[1.05] mt-4">
@@ -37,7 +37,7 @@ export function LoginForm() {
         </section>
 
         {/* パスワードフォーム */}
-        <div className="rounded-[20px] shadow-soft-lg p-[18px]">
+        <div className="rounded-2xl bg-card p-[18px]">
           <form action={formAction} className="flex flex-col gap-3.5">
             <div>
               <div className="flex items-baseline justify-between mb-2">
@@ -52,7 +52,7 @@ export function LoginForm() {
                 </span>
               </div>
 
-              <div className="rounded-[12px] bg-muted flex items-center px-4 h-12">
+              <div className="rounded-lg bg-muted flex items-center px-4 h-12">
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
@@ -82,7 +82,7 @@ export function LoginForm() {
             <button
               type="submit"
               disabled={isPending}
-              className="mt-1 h-12 px-5 bg-accent text-accent-foreground rounded-[12px] text-[13px] font-bold tracking-[0.14em] uppercase flex items-center justify-between shadow-fab disabled:opacity-50 transition-opacity"
+              className="mt-1 h-12 px-6 bg-accent text-accent-foreground rounded-full text-[15px] font-semibold flex items-center justify-between disabled:opacity-50 transition-opacity"
             >
               <span>{isPending ? 'ログイン中…' : 'ログイン'}</span>
               {!isPending && <span className="text-lg font-normal">→</span>}

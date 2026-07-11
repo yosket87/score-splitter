@@ -215,7 +215,7 @@ export function HeroSection({
         {/* Mini Cards */}
         <div className="flex gap-2.5">
           {/* Allowance */}
-          <div className="flex-1 rounded-[12px] bg-card shadow-sm p-3">
+          <div className="flex-1 rounded-lg bg-card p-3">
             <span className="text-[9px] font-medium tracking-[0.5px] text-muted-foreground uppercase block">
               Allowance / お小遣い
             </span>
@@ -226,7 +226,7 @@ export function HeroSection({
           </div>
 
           {/* Settlement */}
-          <div className="flex-1 rounded-[12px] bg-card shadow-sm p-3">
+          <div className="flex-1 rounded-lg bg-card p-3">
             <span className="text-[9px] font-medium tracking-[0.5px] text-muted-foreground uppercase block">
               Settlement / 精算額
             </span>

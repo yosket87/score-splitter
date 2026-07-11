@@ -100,7 +100,7 @@ export function MonthlyListSection({ summaries, year }: MonthlyListSectionProps)
 
       {/* Year-to-Date カード */}
       {recordedCount > 0 && (
-        <div className="rounded-[16px] shadow-soft p-5">
+        <div className="rounded-xl bg-card p-5">
           <div className="text-[10px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
             Year-to-Date / 年間収支
           </div>

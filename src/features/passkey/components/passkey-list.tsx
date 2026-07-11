@@ -26,7 +26,7 @@ export function PasskeyList({ passkeys, onDeleted }: PasskeyListProps) {
       {passkeys.map((passkey) => (
         <div
           key={passkey.id}
-          className="flex items-center justify-between rounded-[12px] bg-muted/50 px-4 py-3"
+          className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3"
         >
           <div className="flex items-center gap-3">
             <Key className="h-4 w-4 text-sub-text" />

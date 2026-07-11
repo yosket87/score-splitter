@@ -119,7 +119,7 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
           </DrawerHeader>
 
           <div
-            className="flex h-11 gap-1 mx-4 mb-3 bg-muted rounded-[12px] p-[3px]"
+            className="flex h-11 gap-1 mx-4 mb-3 bg-muted rounded-lg p-[3px]"
             role="radiogroup"
             aria-label="項目種別"
           >
@@ -166,7 +166,7 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
           <div className="px-4 pb-4">
             <SheetSubmitButton
               pendingChildren="追加中..."
-              className="w-full h-12 bg-accent text-accent-foreground rounded-[12px] text-[15px] font-bold text-center shadow-fab transition-opacity"
+              className="w-full h-12 bg-accent text-accent-foreground rounded-full text-[15px] font-semibold text-center transition-opacity"
             >
               {TYPE_LABELS[entryType]}を追加
             </SheetSubmitButton>

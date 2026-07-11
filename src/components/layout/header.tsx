@@ -14,7 +14,7 @@ export function Header({ tone = 'default' }: HeaderProps) {
     <header
       className={cn(
         'sticky top-0 z-50 backdrop-blur-xl',
-        isHero ? 'bg-hero-tile/80' : 'bg-background/80'
+        isHero ? 'bg-hero-tile' : 'bg-background/80'
       )}
     >
       <div className="px-5 py-4 flex items-center justify-between max-w-4xl mx-auto">

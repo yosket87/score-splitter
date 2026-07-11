@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { Header } from '@/components/layout/header'
 import { HeroSection } from '@/features/monthly-overview'
 import { TrendCard } from '@/components/charts/trend-card'
 import { IncomeSection } from '@/features/income'
@@ -47,6 +48,7 @@ export default async function MonthPage({ params }: MonthPageProps) {
 
   return (
     <div className="min-h-screen bg-background">
+      <Header tone="hero" />
       <HeroSection
         currentMonth={month}
         incomes={incomes}
@@ -55,7 +57,7 @@ export default async function MonthPage({ params }: MonthPageProps) {
       >
         <TrendCard summaries={recentSummaries} currentMonth={month} />
       </HeroSection>
-      <main id="main" tabIndex={-1} className="px-5 pt-2 pb-8 space-y-4 max-w-4xl mx-auto">
+      <main id="main" tabIndex={-1} className="px-5 pt-8 pb-10 space-y-10 max-w-4xl mx-auto">
         <IncomeSection incomes={incomes} month={month} />
         <ExpenseSection expenses={expenses} month={month} />
         <CarryoverSection carryovers={carryovers} month={month} />

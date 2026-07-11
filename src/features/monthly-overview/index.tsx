@@ -8,8 +8,6 @@ import { AnimatePresence, motion } from 'motion/react'
 import { AnimatedYen } from '@/components/animations/animated-number'
 import { CopyMonthDialog } from '@/features/copy-month'
 import { ExportCsvButton } from '@/features/export-csv'
-import { HeaderActions } from '@/components/layout/header-actions'
-import { useTheme } from 'next-themes'
 import { labelSlide, motionDuration, motionEase } from '@/components/animations/tokens'
 import {
   calculateSettlement,
@@ -61,8 +59,6 @@ export function HeroSection({
   children,
 }: HeroSectionProps) {
   const router = useRouter()
-  const { resolvedTheme } = useTheme()
-  const isDark = resolvedTheme === 'dark'
   const direction = useMonthDirection(currentMonth)
   const previousMonth = getPreviousMonth(currentMonth)
 
@@ -83,45 +79,8 @@ export function HeroSection({
   }
 
   return (
-    <section
-      className="relative overflow-hidden"
-      style={{
-        background: isDark
-          ? `
-            linear-gradient(to bottom, transparent 65%, #0F1117AA 85%, #0F1117 100%),
-            radial-gradient(at 0% 0%, #1E2A6E 0%, transparent 50%),
-            radial-gradient(at 50% 0%, #2A1F6E 0%, transparent 50%),
-            radial-gradient(at 100% 0%, #1E3A8A 0%, transparent 50%),
-            radial-gradient(at 0% 50%, #312E81 0%, transparent 50%),
-            radial-gradient(at 50% 50%, #2E4A8E 0%, transparent 50%),
-            radial-gradient(at 100% 50%, #1E5A8A 0%, transparent 50%),
-            radial-gradient(at 0% 100%, #1E1B4B 0%, transparent 50%),
-            radial-gradient(at 50% 100%, #172554 0%, transparent 50%),
-            radial-gradient(at 100% 100%, #164E63 0%, transparent 50%)
-          `
-          : `
-            linear-gradient(to bottom, transparent 65%, #FAFBFCAA 85%, #FAFBFC 100%),
-            radial-gradient(at 0% 0%, #3454D1 0%, transparent 50%),
-            radial-gradient(at 50% 0%, #4C3BCF 0%, transparent 50%),
-            radial-gradient(at 100% 0%, #3B82F6 0%, transparent 50%),
-            radial-gradient(at 0% 50%, #6366F1 0%, transparent 50%),
-            radial-gradient(at 50% 50%, #5B8DEF 0%, transparent 50%),
-            radial-gradient(at 100% 50%, #38BDF8 0%, transparent 50%),
-            radial-gradient(at 0% 100%, #C7D2FE 0%, transparent 50%),
-            radial-gradient(at 50% 100%, #DBEAFE 0%, transparent 50%),
-            radial-gradient(at 100% 100%, #BAE6FD 0%, transparent 50%)
-          `,
-      }}
-    >
-      <div className="relative flex flex-col gap-3 pt-[calc(env(safe-area-inset-top)+16px)] px-5 pb-7">
-        {/* Header — 月一覧と同じ */}
-        <div className="flex items-center justify-between">
-          <span className="text-[12px] font-bold tracking-[1px] text-white uppercase">
-            Score Splitter
-          </span>
-          <HeaderActions variant="hero" />
-        </div>
-
+    <section className="relative overflow-hidden bg-hero-tile">
+      <div className="relative flex flex-col gap-3 pt-2 px-5 pb-10 max-w-4xl mx-auto">
         {/* Nav — 一覧へ戻る + 月ナビ */}
         <div className="flex items-center justify-between">
           <Link
@@ -193,8 +152,8 @@ export function HeroSection({
         <div className="h-px bg-white/10 w-full" />
 
         {/* Balance */}
-        <div className="flex flex-col items-center gap-1.5 py-3">
-          <span className="text-[10px] font-semibold tracking-[0.8px] text-white/70 uppercase">
+        <div className="flex flex-col items-center gap-1.5 py-6">
+          <span className="text-eyebrow text-white/70">
             Balance / 月の収支
           </span>
           <span className="text-sm font-medium font-mono text-white/50">
@@ -202,9 +161,9 @@ export function HeroSection({
           </span>
           <AnimatedYen
             value={monthlyBalance}
-            className="text-4xl font-bold font-mono text-white tracking-tight"
+            className="text-5xl md:text-6xl font-bold font-mono text-white tracking-tight"
           />
-          <span className="text-[11px] text-white/70">
+          <span className="text-[13px] text-white/70 mt-1">
             収入 {formatCurrency(result.totalIncome)} − 支出 {formatCurrency(allExpenseTotal, { absolute: true })}
           </span>
           <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/10 text-[10px] text-white/80">
@@ -212,37 +171,37 @@ export function HeroSection({
           </span>
         </div>
 
-        {/* Mini Cards */}
-        <div className="flex gap-2.5">
+        {/* Stats — ヘアライン区切りのフラット統計行 */}
+        <div className="grid grid-cols-2">
           {/* Allowance */}
-          <div className="flex-1 rounded-lg bg-card p-3">
-            <span className="text-[9px] font-medium tracking-[0.5px] text-muted-foreground uppercase block">
+          <div className="flex flex-col gap-1 px-3">
+            <span className="text-eyebrow text-white/50">
               Allowance / お小遣い
             </span>
             <AnimatedYen
               value={result.allowance}
-              className="text-lg font-bold font-mono text-foreground mt-1 block"
+              className="text-lg font-bold font-mono text-white"
             />
           </div>
 
           {/* Settlement */}
-          <div className="flex-1 rounded-lg bg-card p-3">
-            <span className="text-[9px] font-medium tracking-[0.5px] text-muted-foreground uppercase block">
+          <div className="flex flex-col gap-1 px-3 border-l border-white/10">
+            <span className="text-eyebrow text-white/50">
               Settlement / 精算額
             </span>
             {result.settlement !== 0 ? (
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2">
                 <AnimatedYen
                   value={result.settlement}
                   absolute
-                  className="text-lg font-bold font-mono text-foreground"
+                  className="text-lg font-bold font-mono text-white"
                 />
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded-lg bg-accent/10 text-[8px] font-semibold text-accent">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-white/10 text-[10px] font-semibold text-white/80">
                   {getSettlementDirectionLabel(result.settlement)}
                 </span>
               </div>
             ) : (
-              <span className="text-lg font-bold font-mono text-muted-foreground mt-1 block">
+              <span className="text-lg font-bold font-mono text-white/50">
                 精算なし
               </span>
             )}

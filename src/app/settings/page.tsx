@@ -9,7 +9,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+      <header className="sticky top-0 z-50 backdrop-blur-xl bg-background/80 flex items-center justify-between px-5 py-3.5">
         <div className="flex items-center gap-2">
           <Link
             href="/"

@@ -75,3 +75,21 @@ describe('HeroSection', () => {
     expect(screen.getByText('妻 → 夫')).toBeInTheDocument()
   })
 })
+
+describe('HeroSection のタイル背景', () => {
+  it('ヒーローにインラインstyleのグラデーション背景を持たない', () => {
+    const { container } = render(
+      <HeroSection
+        currentMonth="202604"
+        incomes={[]}
+        expenses={[]}
+        carryovers={[]}
+      />
+    )
+
+    const section = container.querySelector('section')
+    expect(section).not.toBeNull()
+    expect(section?.getAttribute('style') ?? '').not.toMatch(/gradient/)
+    expect(section?.className).toContain('bg-hero-tile')
+  })
+})

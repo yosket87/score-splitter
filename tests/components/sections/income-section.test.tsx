@@ -68,8 +68,7 @@ describe('IncomeSection', () => {
   it('タイトル「収入」を表示する', () => {
     render(<IncomeSection incomes={mockIncomes} month="202601" />)
 
-    // タイトルは "Income / 収入" 形式
-    expect(screen.getByText('Income / 収入')).toBeInTheDocument()
+    expect(screen.getByText('収入')).toBeInTheDocument()
   })
 
   it('担当者バッジを表示する', () => {

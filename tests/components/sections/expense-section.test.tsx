@@ -75,8 +75,7 @@ describe('ExpenseSection', () => {
   it('タイトル「支出」を表示する', () => {
     render(<ExpenseSection expenses={mockExpenses} month="202601" />)
 
-    // タイトルは "Expense / 支出" 形式
-    expect(screen.getByText('Expense / 支出')).toBeInTheDocument()
+    expect(screen.getByText('支出')).toBeInTheDocument()
   })
 
   it('担当者バッジを表示する', () => {

@@ -2,6 +2,7 @@
 
 import { motion } from 'motion/react'
 import { barSpring } from '@/components/animations/tokens'
+import { useMotionPrefs } from '@/components/animations/use-motion-prefs'
 import type { MonthlySummary } from '@/types'
 
 interface TrendCardProps {
@@ -15,6 +16,8 @@ function formatShortMonth(month: string): string {
 }
 
 export function TrendCard({ summaries, currentMonth }: TrendCardProps) {
+  const { reduced } = useMotionPrefs()
+
   if (summaries.length === 0) return null
 
   const maxVal = summaries.reduce((max, s) => {
@@ -23,13 +26,13 @@ export function TrendCard({ summaries, currentMonth }: TrendCardProps) {
 
   return (
     <div
-      className="rounded-[16px] bg-card p-4 shadow-soft"
+      className="app-solid-panel rounded-2xl p-4"
       role="img"
       aria-label={`直近${summaries.length}ヶ月の収入と支出の推移グラフ`}
     >
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-semibold tracking-[0.8px] text-muted-foreground uppercase">
-          Trend / 推移
+          推移
         </span>
         <span className="text-[10px] font-medium text-muted-foreground">
           直近{summaries.length}ヶ月
@@ -58,15 +61,15 @@ export function TrendCard({ summaries, currentMonth }: TrendCardProps) {
               <div className="flex items-end gap-[3px] h-[84px] w-full justify-center">
                 <motion.div
                   className={`w-2 rounded-t-[3px] ${isCurrent ? 'bg-accent' : 'bg-husband'}`}
-                  initial={{ height: 0 }}
+                  initial={reduced ? false : { height: 0 }}
                   animate={{ height: `${incomeH}%` }}
-                  transition={barSpring}
+                  transition={reduced ? { duration: 0 } : barSpring}
                 />
                 <motion.div
                   className="w-2 rounded-t-[3px] bg-wife"
-                  initial={{ height: 0 }}
+                  initial={reduced ? false : { height: 0 }}
                   animate={{ height: `${expenseH}%` }}
-                  transition={barSpring}
+                  transition={reduced ? { duration: 0 } : barSpring}
                 />
               </div>
               <span className={`text-[8px] font-mono ${isCurrent ? 'text-accent font-bold' : 'text-muted-foreground'}`}>

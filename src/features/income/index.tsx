@@ -19,7 +19,7 @@ export function IncomeSection({ incomes, month }: IncomeSectionProps) {
   return (
     <SectionShell
       dataSection="income"
-      title="Income / 収入"
+      title="収入"
       meta={`${incomes.length}件`}
       isEmpty={incomes.length === 0}
       emptyLabel="収入がありません"
@@ -27,7 +27,7 @@ export function IncomeSection({ incomes, month }: IncomeSectionProps) {
       totalSlot={
         <div className="flex items-baseline justify-between px-3.5 py-3 border-t border-border bg-[var(--surface-total)]">
           <span className="text-[11px] text-muted-foreground font-semibold tracking-[0.8px] uppercase">
-            Total
+            合計
           </span>
           <span className="font-mono text-[15px] font-bold text-accent">
             {formatCurrency(total)}

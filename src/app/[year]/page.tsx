@@ -24,12 +24,12 @@ export default async function YearPage({ params }: YearPageProps) {
   const summaries = summariesResult.data ?? []
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="app-shell">
       <Header />
       <main
         id="main"
         tabIndex={-1}
-        className="px-5 py-5 space-y-6 max-w-4xl mx-auto"
+        className="mx-auto max-w-6xl px-4 py-5 sm:px-5 lg:py-8"
       >
         <MonthlyListSection summaries={summaries} year={Number(year)} />
       </main>

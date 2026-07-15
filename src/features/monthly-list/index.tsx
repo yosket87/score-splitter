@@ -3,9 +3,10 @@
 import { useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { CalendarDays, ChevronDown } from 'lucide-react'
 import { MonthRow } from './components/month-row'
 import { YearlyBarChart } from '@/components/charts/yearly-bar-chart'
-import { formatCurrency, parseMonth, monthToPath } from '@/lib/utils/format'
+import { formatCurrency, monthToPath, parseMonth } from '@/lib/utils/format'
 import type { MonthlySummary } from '@/types'
 
 interface MonthlyListSectionProps {
@@ -13,149 +14,169 @@ interface MonthlyListSectionProps {
   year: number
 }
 
-export function MonthlyListSection({ summaries, year }: MonthlyListSectionProps) {
+export function MonthlyListSection({
+  summaries,
+  year,
+}: MonthlyListSectionProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const currentMonth = parseMonth(new Date())
 
-  if (summaries.length === 0) {
-    return (
-      <div className="flex flex-col items-center gap-4 py-12 text-center">
-        <p className="text-muted-foreground">まだ記録がありません。</p>
-        <Link
-          href={monthToPath(currentMonth)}
-          className="text-accent underline-offset-4 hover:underline"
-        >
-          今月の画面を開く
-        </Link>
-      </div>
-    )
-  }
+  const availableYears = Array.from(
+    new Set([
+      ...summaries.map((summary) => Number(summary.month.slice(0, 4))),
+      year,
+    ])
+  ).sort((a, b) => a - b)
 
-  const availableYears = [...new Set(summaries.map((s) => Number(s.month.slice(0, 4))))].sort()
-  if (!availableYears.includes(year)) {
-    availableYears.push(year)
-    availableYears.sort()
-  }
-
-  const yearSummaries = summaries.filter((s) =>
-    s.month.startsWith(String(year))
+  const yearSummaries = summaries.filter((summary) =>
+    summary.month.startsWith(String(year))
   )
   const recordedCount = yearSummaries.length
-  const balanceYTD = yearSummaries.reduce((sum, s) => sum + s.balance, 0)
-  const incomeYTD = yearSummaries.reduce((sum, s) => sum + s.incomeTotal, 0)
+  const balanceYTD = yearSummaries.reduce(
+    (sum, summary) => sum + summary.balance,
+    0
+  )
+  const incomeYTD = yearSummaries.reduce(
+    (sum, summary) => sum + summary.incomeTotal,
+    0
+  )
   const expenseYTD = yearSummaries.reduce(
-    (sum, s) => sum + Math.abs(s.expenseTotal),
+    (sum, summary) => sum + Math.abs(summary.expenseTotal),
     0
   )
 
-  const allMonths = Array.from({ length: 12 }, (_, i) => {
-    const m = `${year}${String(i + 1).padStart(2, '0')}`
+  const allMonths = Array.from({ length: 12 }, (_, index) => {
+    const value = `${year}${String(index + 1).padStart(2, '0')}`
     return {
-      month: m,
-      index: i + 1,
-      summary: yearSummaries.find((s) => s.month === m) ?? null,
+      month: value,
+      index: index + 1,
+      summary:
+        yearSummaries.find((summary) => summary.month === value) ?? null,
     }
   })
 
   const maxBalance = Math.max(
-    ...yearSummaries.map((s) => Math.abs(s.balance)),
+    ...yearSummaries.map((summary) => Math.abs(summary.balance)),
     1
   )
-
   const isBalancePositive = balanceYTD >= 0
 
   return (
     <section aria-label="月の一覧">
-      {/* セクションヘッド */}
-      <div className="pb-4">
-        <div className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
-          Months / 月一覧
-        </div>
-        <div className="flex items-center gap-3 mt-1.5">
-          <div className="text-4xl font-bold leading-none">
-            {year}
+      <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+        <div>
+          <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground">
+            月一覧
+          </p>
+          <div className="mt-1 flex items-center gap-3">
+            <h1 className="text-4xl font-bold leading-none">{year}年</h1>
+            <div className="relative">
+              <select
+                value={year}
+                onChange={(event) =>
+                  startTransition(() => router.push(`/${event.target.value}`))
+                }
+                disabled={isPending}
+                className={`h-11 cursor-pointer appearance-none rounded-xl border border-border bg-card py-2 pl-3 pr-9 text-sm font-medium transition-opacity focus-visible:outline-none ${isPending ? 'opacity-50' : ''}`}
+                aria-label="年を選択"
+              >
+                {availableYears.map((availableYear) => (
+                  <option key={availableYear} value={availableYear}>
+                    {availableYear}年
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                aria-hidden="true"
+                className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+            </div>
           </div>
-          {/* pill型セレクター */}
-          <select
-            value={year}
-            onChange={(e) => startTransition(() => router.push(`/${e.target.value}`))}
-            disabled={isPending}
-            className={`rounded-lg border border-border px-3 py-1.5 text-sm font-medium bg-transparent appearance-none cursor-pointer transition-opacity ${isPending ? 'opacity-50' : ''}`}
-            aria-label="年を選択"
-            style={{ backgroundImage: 'none' }}
-          >
-            {availableYears.map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-          <span className="text-sm text-muted-foreground">▾</span>
         </div>
-        <p className="text-[13px] text-muted-foreground mt-2">
+        <p className="text-sm text-muted-foreground">
           {recordedCount > 0
             ? `${recordedCount}ヶ月分の記録があります`
-            : 'この年の記録はまだありません'}
+            : '記録なし'}
         </p>
       </div>
 
-      {/* Year-to-Date カード */}
-      {recordedCount > 0 && (
-        <div className="rounded-[16px] shadow-soft p-5">
-          <div className="text-[10px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
-            Year-to-Date / 年間収支
-          </div>
-          <div className="mt-1">
-            <span
-              className={`font-mono text-[28px] font-bold ${
-                isBalancePositive ? 'text-accent' : 'text-destructive'
-              }`}
-            >
-              {formatCurrency(balanceYTD, { signed: true })}
-            </span>
-          </div>
-          <div className="flex items-center gap-3 mt-1">
-            <span className="font-mono text-[11px] font-medium text-sub-text">
-              Income {formatCurrency(incomeYTD)}
-            </span>
-            <span className="font-mono text-[11px] font-medium text-sub-text">
-              Expense {formatCurrency(expenseYTD)}
-            </span>
+      <div className="grid gap-6 lg:grid-cols-[minmax(18rem,0.9fr)_minmax(0,1.3fr)] lg:items-start lg:gap-8">
+        <aside aria-label="年間要約" className="space-y-3">
+          {recordedCount > 0 ? (
+            <div className="app-glass-heavy rounded-[24px] p-5">
+              <p className="text-xs font-semibold text-muted-foreground">
+                年間収支
+              </p>
+              <p
+                className={`mt-1 font-mono text-3xl font-bold font-tabular ${
+                  isBalancePositive ? 'text-accent' : 'text-destructive'
+                }`}
+              >
+                {formatCurrency(balanceYTD, { signed: true })}
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                <span>収入 {formatCurrency(incomeYTD)}</span>
+                <span>支出 {formatCurrency(expenseYTD)}</span>
+              </div>
+
+              <div className="mt-5">
+                <YearlyBarChart summaries={yearSummaries} year={year} />
+              </div>
+            </div>
+          ) : (
+            <div className="app-glass-heavy flex flex-col items-center rounded-[24px] px-5 py-10 text-center">
+              <div
+                role="img"
+                aria-label={`${year}年の記録なし`}
+                className="flex size-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground"
+              >
+                <CalendarDays aria-hidden="true" className="size-6" />
+              </div>
+              <p className="mt-4 font-semibold">
+                {year}年の記録はまだありません
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                収入や支出を記録すると、年間の推移を確認できます。
+              </p>
+              <Link
+                href={monthToPath(currentMonth)}
+                className="mt-5 inline-flex min-h-11 cursor-pointer items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none"
+              >
+                今月の画面を開く
+              </Link>
+            </div>
+          )}
+
+          <p className="px-1 text-xs text-muted-foreground">
+            ※各月の収支は繰越に回す前の金額です
+          </p>
+        </aside>
+
+        <section
+          aria-label="12か月一覧"
+          className="app-solid-panel overflow-hidden rounded-[24px] px-4 sm:px-5"
+        >
+          <div className="flex items-baseline justify-between border-b border-border py-4">
+            <h2 className="text-xs font-semibold tracking-[0.08em] text-muted-foreground">
+              月別
+            </h2>
+            <span className="text-xs text-muted-foreground">12ヶ月</span>
           </div>
 
-          {/* 年間バーチャート */}
-          <div className="mt-4">
-            <YearlyBarChart summaries={yearSummaries} year={year} />
+          <div className="flex flex-col">
+            {allMonths.map((item) => (
+              <MonthRow
+                key={item.month}
+                month={item.month}
+                index={item.index}
+                summary={item.summary}
+                isCurrentMonth={item.month === currentMonth}
+                maxBalance={maxBalance}
+              />
+            ))}
           </div>
-        </div>
-      )}
-
-      {/* 注記 */}
-      <p className="text-xs text-muted-foreground py-3">
-        ※各月の収支は繰越に回す前の金額です
-      </p>
-
-      {/* BY MONTH ヘッダー */}
-      <div className="flex items-baseline justify-between py-2">
-        <span className="text-[11px] font-medium tracking-[0.5px] text-muted-foreground uppercase">
-          By Month / 月別
-        </span>
-        <span className="text-[11px] text-muted-foreground">
-          12ヶ月
-        </span>
-      </div>
-
-      {/* 月リスト */}
-      <div className="flex flex-col">
-        {allMonths.map((m) => (
-          <MonthRow
-            key={m.month}
-            month={m.month}
-            index={m.index}
-            summary={m.summary}
-            isCurrentMonth={m.month === currentMonth}
-            maxBalance={maxBalance}
-          />
-        ))}
+        </section>
       </div>
     </section>
   )

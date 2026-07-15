@@ -125,7 +125,7 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
           </DrawerHeader>
 
           <div
-            className="flex h-11 gap-1 mx-4 mb-3 bg-muted rounded-[12px] p-[3px]"
+            className="mx-4 mb-3 flex gap-1 rounded-[12px] bg-muted p-[3px]"
             role="radiogroup"
             aria-label="項目種別"
           >
@@ -143,7 +143,7 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
                     setIsCleared(false)
                   }}
                   className={cn(
-                    'flex-1 rounded-lg text-[13px] text-center transition-colors',
+                    'min-h-11 flex-1 rounded-lg text-center text-[13px] transition-colors',
                     active
                       ? 'bg-accent text-accent-foreground font-semibold'
                       : 'text-muted-foreground'

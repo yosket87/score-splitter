@@ -21,4 +21,11 @@ describe('viewport export', () => {
       ])
     )
   })
+
+  it('themeColorをアプリのアンビエント背景色に揃える', () => {
+    expect(viewport.themeColor).toEqual([
+      { media: '(prefers-color-scheme: light)', color: '#F4F7FC' },
+      { media: '(prefers-color-scheme: dark)', color: '#0B0E14' },
+    ])
+  })
 })

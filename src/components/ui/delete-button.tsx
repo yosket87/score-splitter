@@ -65,7 +65,7 @@ export function DeleteButton({
           <Trash2 className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="app-modal-surface">
         <DialogHeader>
           <DialogTitle>「{itemName}」を削除しますか？</DialogTitle>
           <DialogDescription>{confirmDescription}</DialogDescription>

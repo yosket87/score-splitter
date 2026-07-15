@@ -82,6 +82,14 @@ describe('IncomeSection', () => {
     expect(wifeElements.length).toBeGreaterThanOrEqual(1)
   })
 
+  it('一覧の担当者バッジは担当者別の前景トークンを使う', () => {
+    render(<IncomeSection incomes={mockIncomes} month="202601" />)
+
+    const [husbandRow, wifeRow] = screen.getAllByTestId('item-row')
+    expect(husbandRow.firstElementChild).toHaveClass('text-husband-solid-foreground')
+    expect(wifeRow.firstElementChild).toHaveClass('text-wife-solid-foreground')
+  })
+
   it('削除ボタンにaria-labelが設定されている', () => {
     render(<IncomeSection incomes={mockIncomes} month="202601" />)
 

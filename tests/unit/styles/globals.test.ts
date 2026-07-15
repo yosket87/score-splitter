@@ -106,6 +106,56 @@ describe('globals.css', () => {
     expect(ratio).toBeGreaterThanOrEqual(4.5)
   })
 
+  it.each([
+    ['ライト', '夫', ':root', '--brand-husband', '--husband-solid-foreground'],
+    ['ライト', '妻', ':root', '--brand-wife', '--wife-solid-foreground'],
+    ['ダーク', '夫', '.dark', '--brand-husband', '--husband-solid-foreground'],
+    ['ダーク', '妻', '.dark', '--brand-wife', '--wife-solid-foreground'],
+  ])('%sモードの%sソリッドバッジは4.5:1以上のコントラストを持つ', (_, _person, selector, background, foreground) => {
+    const mode = getCssBlock(readCss(), selector)
+    const ratio = contrastRatio(
+      getCustomProperty(mode, foreground),
+      getCustomProperty(mode, background)
+    )
+
+    expect(ratio).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it.each([':root', '.dark'])('%sで収入・支出・担当者・破壊操作を別の意味色にする', (selector) => {
+    const mode = getCssBlock(readCss(), selector)
+    const income = getCustomProperty(mode, '--income')
+    const expense = getCustomProperty(mode, '--expense')
+    const husband = getCustomProperty(mode, '--brand-husband')
+    const wife = getCustomProperty(mode, '--brand-wife')
+    const destructive = getCustomProperty(mode, '--app-destructive')
+
+    expect(income).not.toBe(husband)
+    expect(expense).not.toBe(wife)
+    expect(expense).not.toBe(destructive)
+    expect(income).not.toBe(expense)
+  })
+
+  it('担当者前景と収支の意味トークンをTailwind色ユーティリティへ公開する', () => {
+    const theme = getCssBlock(readCss(), '@theme inline')
+
+    expect(getCustomProperty(theme, '--color-husband-solid-foreground')).toBe(
+      'var(--husband-solid-foreground)'
+    )
+    expect(getCustomProperty(theme, '--color-wife-solid-foreground')).toBe(
+      'var(--wife-solid-foreground)'
+    )
+    expect(getCustomProperty(theme, '--color-income')).toBe('var(--income)')
+    expect(getCustomProperty(theme, '--color-expense')).toBe('var(--expense)')
+  })
+
+  it('Portal化されたアプリのモーダル面へapp-destructiveを明示的に適用する', () => {
+    const modalSurface = getCssBlock(readCss(), '.app-modal-surface')
+
+    expect(getCustomProperty(modalSurface, '--destructive')).toBe(
+      'var(--app-destructive)'
+    )
+  })
+
   it('アプリ専用のアンビエント背景と選択的なサーフェスを提供する', () => {
     const css = readCss()
 

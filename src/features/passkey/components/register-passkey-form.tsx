@@ -7,6 +7,7 @@ import {
 } from '@simplewebauthn/browser'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { PersonSelector } from '@/components/ui/person-selector'
 import {
   generateRegistrationOptions,
   verifyRegistration,
@@ -77,38 +78,11 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
         >
           登録する人
         </label>
-        <div
-          className="flex gap-2"
-          role="radiogroup"
-          aria-labelledby={`${formId}-person-label`}
-        >
-          <button
-            type="button"
-            role="radio"
-            aria-checked={person === 'husband'}
-            onClick={() => setPerson('husband')}
-            className={`h-11 flex-1 rounded-[10px] text-[13px] font-semibold transition-colors ${
-              person === 'husband'
-                ? 'bg-accent text-accent-foreground'
-                : 'bg-muted text-muted-foreground'
-            }`}
-          >
-            夫
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={person === 'wife'}
-            onClick={() => setPerson('wife')}
-            className={`h-11 flex-1 rounded-[10px] text-[13px] font-semibold transition-colors ${
-              person === 'wife'
-                ? 'bg-accent text-accent-foreground'
-                : 'bg-muted text-muted-foreground'
-            }`}
-          >
-            妻
-          </button>
-        </div>
+        <PersonSelector
+          value={person}
+          onChange={setPerson}
+          ariaLabelledBy={`${formId}-person-label`}
+        />
       </div>
 
       {/* デバイス名 */}

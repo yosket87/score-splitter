@@ -92,6 +92,40 @@ describe('passkey settings', () => {
     expect(screen.queryByPlaceholderText('例: iPhone, 1Password')).not.toBeInTheDocument()
   })
 
+  it('パスキー登録の担当者選択は夫を青、妻をローズで表示する', async () => {
+    const user = userEvent.setup()
+    render(<RegisterPasskeyForm onRegistered={vi.fn()} />)
+
+    const husband = screen.getByRole('radio', { name: '夫' })
+    const wife = screen.getByRole('radio', { name: '妻' })
+
+    expect(husband).toHaveClass('bg-husband-light', 'text-husband', 'border-husband')
+    expect(wife).not.toHaveClass('bg-wife-light')
+
+    await user.click(wife)
+
+    expect(wife).toHaveClass('bg-wife-light', 'text-wife', 'border-wife')
+    expect(wife).not.toHaveClass('bg-accent', 'text-accent-foreground')
+    expect(husband).toHaveTextContent('夫')
+    expect(wife).toHaveTextContent('妻')
+  })
+
+  it('妻を選んだパスキー登録は妻として登録オプションを取得する', async () => {
+    const user = userEvent.setup()
+    vi.mocked(generateRegistrationOptions).mockResolvedValueOnce({
+      success: false,
+      error: '登録オプションの取得に失敗しました',
+    })
+    render(<RegisterPasskeyForm onRegistered={vi.fn()} />)
+
+    await user.click(screen.getByRole('radio', { name: '妻' }))
+    await user.click(screen.getByRole('button', { name: 'パスキーを登録' }))
+
+    await waitFor(() => {
+      expect(generateRegistrationOptions).toHaveBeenCalledWith('wife')
+    })
+  })
+
   it('パスキー一覧取得失敗時は空状態ではなくエラー状態を表示する', async () => {
     vi.mocked(listPasskeys).mockResolvedValueOnce({
       success: false,

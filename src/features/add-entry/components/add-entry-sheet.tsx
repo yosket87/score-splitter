@@ -100,7 +100,7 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="app-solid-panel rounded-t-[22px] pb-safe">
+      <DrawerContent className="app-modal-surface app-solid-panel rounded-t-[22px] pb-safe">
         <form
           id="add-entry-form"
           ref={formRef}

@@ -41,11 +41,11 @@ export function TrendCard({ summaries, currentMonth }: TrendCardProps) {
 
       <div className="flex items-center justify-center gap-3 mt-2">
         <div className="flex items-center gap-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-husband" />
+          <div className="w-1.5 h-1.5 rounded-full bg-income" />
           <span className="text-[9px] text-sub-text">収入</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-wife" />
+          <div className="w-1.5 h-1.5 rounded-full bg-expense" />
           <span className="text-[9px] text-sub-text">支出</span>
         </div>
       </div>
@@ -60,13 +60,13 @@ export function TrendCard({ summaries, currentMonth }: TrendCardProps) {
             <div key={s.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
               <div className="flex items-end gap-[3px] h-[84px] w-full justify-center">
                 <motion.div
-                  className={`w-2 rounded-t-[3px] ${isCurrent ? 'bg-accent' : 'bg-husband'}`}
+                  className="w-2 rounded-t-[3px] bg-income"
                   initial={reduced ? false : { height: 0 }}
                   animate={{ height: `${incomeH}%` }}
                   transition={reduced ? { duration: 0 } : barSpring}
                 />
                 <motion.div
-                  className="w-2 rounded-t-[3px] bg-wife"
+                  className="w-2 rounded-t-[3px] bg-expense"
                   initial={reduced ? false : { height: 0 }}
                   animate={{ height: `${expenseH}%` }}
                   transition={reduced ? { duration: 0 } : barSpring}

@@ -74,6 +74,7 @@ describe('UX polish', () => {
 
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveAttribute('data-slot', 'dialog-content')
+    expect(dialog).toHaveClass('app-modal-surface')
     expect(dialog).toHaveAccessibleDescription('設定内容を確認します。')
   })
 
@@ -94,6 +95,7 @@ describe('UX polish', () => {
 
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveAttribute('data-slot', 'drawer-content')
+    expect(dialog).toHaveClass('app-modal-surface')
     expect(dialog).toHaveAccessibleDescription('設定内容を確認します。')
   })
 
@@ -115,6 +117,7 @@ describe('UX polish', () => {
     expect(screen.getByRole('dialog')).toHaveAccessibleDescription(
       'この操作は取り消せません。削除してよろしいですか？'
     )
+    expect(screen.getByRole('dialog')).toHaveClass('app-modal-surface')
     expect(screen.getByRole('button', { name: '閉じる' })).toHaveClass('size-11')
     expect(screen.getByRole('button', { name: 'キャンセル' })).toHaveClass('min-h-11')
     expect(screen.getByRole('button', { name: '削除する' })).toHaveClass('min-h-11')
@@ -161,5 +164,23 @@ describe('UX polish', () => {
     expect(
       screen.getByRole('img', { name: '直近2ヶ月の収入と支出の推移グラフ' })
     ).toBeInTheDocument()
+  })
+
+  it('トレンドカードは担当者色を流用せず収入・支出の意味色を使う', () => {
+    const summaries: MonthlySummary[] = [
+      { month: '202601', incomeTotal: 100000, expenseTotal: -80000, balance: 20000 },
+      { month: '202602', incomeTotal: 120000, expenseTotal: -90000, balance: 30000 },
+    ]
+
+    render(<TrendCard summaries={summaries} currentMonth="202602" />)
+
+    const chart = screen.getByRole('img', {
+      name: '直近2ヶ月の収入と支出の推移グラフ',
+    })
+    expect(chart.getElementsByClassName('bg-income').length).toBeGreaterThan(0)
+    expect(chart.getElementsByClassName('bg-expense').length).toBeGreaterThan(0)
+    expect(chart.getElementsByClassName('bg-husband')).toHaveLength(0)
+    expect(chart.getElementsByClassName('bg-wife')).toHaveLength(0)
+    expect(chart.getElementsByClassName('bg-destructive')).toHaveLength(0)
   })
 })

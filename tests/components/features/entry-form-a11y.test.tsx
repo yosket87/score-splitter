@@ -114,6 +114,7 @@ describe('entry form a11y', () => {
       />
     )
 
+    expect(screen.getByRole('dialog')).toHaveClass('app-modal-surface')
     expect(screen.getByRole('dialog')).toHaveAccessibleDescription(
       '収入・支出・繰越の内容と担当者を入力します。'
     )

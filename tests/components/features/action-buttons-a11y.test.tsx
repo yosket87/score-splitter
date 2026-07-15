@@ -44,4 +44,19 @@ describe('月次アクションボタンのアクセシビリティ', () => {
       'CSV出力'
     )
   })
+
+  it('CSV出力ボタンは768px相当でも44px以上の高さを保つ', () => {
+    render(
+      <ExportCsvButton
+        currentMonth="202604"
+        incomes={[]}
+        expenses={[]}
+        carryovers={[]}
+      />
+    )
+
+    const button = screen.getByRole('button', { name: 'CSV出力' })
+    expect(button).toHaveClass('h-11')
+    expect(button).not.toHaveClass('sm:h-8')
+  })
 })

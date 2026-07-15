@@ -8,7 +8,7 @@ export function getWebAuthnConfig() {
 
   return {
     rpID,
-    rpName: process.env.WEBAUTHN_RP_NAME ?? 'Score Splitter',
+    rpName: process.env.WEBAUTHN_RP_NAME ?? 'ヤマワケ',
     origin,
   }
 }

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="8" fill="#F7F9FC" />
+  <path d="M4 6 C10 6 12 26 28 26" fill="none" stroke="var(--brand-husband, #2563EB)" stroke-width="4" stroke-linecap="round" />
+  <path d="M4 26 C10 26 12 6 28 6" fill="none" stroke="var(--brand-wife, #C43B5C)" stroke-width="4" stroke-linecap="round" />
+</svg>

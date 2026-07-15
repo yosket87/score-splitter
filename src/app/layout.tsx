@@ -5,7 +5,8 @@ import { MotionProvider } from '@/components/animations/motion-provider'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Score Splitter',
+  title: 'ヤマワケ',
+  applicationName: 'ヤマワケ',
   description: '夫婦間で家計を公平に管理・精算するためのウェブアプリケーション',
 }
 

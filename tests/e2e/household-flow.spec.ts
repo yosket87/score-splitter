@@ -34,6 +34,27 @@ test.describe('ログインページ', () => {
     await page.goto('/login')
   })
 
+  test('スマホ幅で横スクロールせずにフォーム全体を表示する', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.reload()
+
+    const viewportWidth = await page.evaluate(() =>
+      document.documentElement.clientWidth
+    )
+    const contentWidth = await page.evaluate(() =>
+      document.documentElement.scrollWidth
+    )
+
+    expect(contentWidth).toBe(viewportWidth)
+    await expect(page.getByPlaceholder('パスワード')).toBeInViewport()
+    await expect(
+      page.getByRole('button', { name: 'ログイン', exact: true })
+    ).toBeInViewport()
+    await expect(
+      page.getByRole('button', { name: 'パスキーでログイン' })
+    ).toBeInViewport()
+  })
+
   test('ログインフォームが表示される', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'ヤマワケ' })).toBeVisible()
     await expect(page.getByPlaceholder('パスワード')).toBeVisible()

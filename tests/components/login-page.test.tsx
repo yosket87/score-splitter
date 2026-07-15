@@ -54,6 +54,14 @@ describe('LoginPage', () => {
     expect(screen.getByRole('button', { name: 'テーマを切り替え' })).toHaveClass('size-11')
   })
 
+  it('パスワード入力欄をカード幅まで縮小できる', async () => {
+    vi.mocked(isAuthenticated).mockResolvedValue(false)
+
+    render(await LoginPage())
+
+    expect(screen.getByPlaceholderText('パスワード')).toHaveClass('min-w-0')
+  })
+
   it('認証済みの場合はトップページへリダイレクトする', async () => {
     vi.mocked(isAuthenticated).mockResolvedValue(true)
 

@@ -58,7 +58,7 @@ export function LoginForm() {
                   placeholder="パスワード"
                   required
                   autoFocus
-                  className="flex-1 text-[20px] font-semibold tracking-[0.30em] bg-transparent border-none outline-none font-tabular placeholder:text-muted-foreground/40 placeholder:tracking-normal placeholder:text-base"
+                  className="min-w-0 flex-1 text-[20px] font-semibold tracking-[0.30em] bg-transparent border-none outline-none font-tabular placeholder:text-muted-foreground/40 placeholder:tracking-normal placeholder:text-base"
                 />
                 <button
                   type="button"

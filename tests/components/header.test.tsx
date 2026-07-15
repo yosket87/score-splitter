@@ -59,6 +59,14 @@ describe('Header', () => {
     expect(header).toHaveClass('app-sticky-glass')
     expect(header).not.toHaveAttribute('style')
   })
+
+  it('本文と同じ最大幅でヘッダー内容を配置する', () => {
+    const { container } = render(<Header />)
+    const headerInner = container.querySelector('header > div')
+
+    expect(headerInner).toHaveClass('max-w-6xl')
+    expect(headerInner).not.toHaveClass('max-w-4xl')
+  })
 })
 
 describe('アプリメタデータ', () => {

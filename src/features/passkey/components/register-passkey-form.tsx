@@ -87,7 +87,7 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
             role="radio"
             aria-checked={person === 'husband'}
             onClick={() => setPerson('husband')}
-            className={`flex-1 h-10 rounded-[10px] text-[13px] font-semibold transition-colors ${
+            className={`h-11 flex-1 rounded-[10px] text-[13px] font-semibold transition-colors ${
               person === 'husband'
                 ? 'bg-accent text-accent-foreground'
                 : 'bg-muted text-muted-foreground'
@@ -100,7 +100,7 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
             role="radio"
             aria-checked={person === 'wife'}
             onClick={() => setPerson('wife')}
-            className={`flex-1 h-10 rounded-[10px] text-[13px] font-semibold transition-colors ${
+            className={`h-11 flex-1 rounded-[10px] text-[13px] font-semibold transition-colors ${
               person === 'wife'
                 ? 'bg-accent text-accent-foreground'
                 : 'bg-muted text-muted-foreground'
@@ -124,8 +124,8 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
           type="text"
           value={deviceName}
           onChange={(e) => setDeviceName(e.target.value)}
-          placeholder="例: iPhone, 1Password"
-          className="w-full h-10 rounded-[10px] bg-muted px-3 text-[13px] border-none outline-none placeholder:text-muted-foreground/50"
+          placeholder="例：自分のスマートフォン"
+          className="h-11 w-full rounded-[10px] border-none bg-muted px-3 text-[13px] outline-none placeholder:text-muted-foreground/50"
         />
       </div>
 

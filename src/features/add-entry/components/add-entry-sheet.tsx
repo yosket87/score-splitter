@@ -5,6 +5,7 @@ import { useFormStatus } from 'react-dom'
 import {
   Drawer,
   DrawerContent,
+  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
   DrawerClose,
@@ -99,23 +100,28 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="rounded-t-[22px] pb-safe">
+      <DrawerContent className="app-solid-panel rounded-t-[22px] pb-safe">
         <form
           id="add-entry-form"
           ref={formRef}
           action={handleSubmit}
           className="flex flex-col"
         >
-          <DrawerHeader className="flex flex-row items-center justify-between px-4 py-2">
-            <DrawerClose className="min-h-11 px-2 text-sm font-semibold text-sub-text">
-              キャンセル
-            </DrawerClose>
-            <DrawerTitle className="text-base font-bold">
-              項目を追加
-            </DrawerTitle>
-            <SheetSubmitButton className="min-h-11 px-2 text-sm font-bold text-accent">
-              保存
-            </SheetSubmitButton>
+          <DrawerHeader className="px-4 pb-3 pt-2">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center">
+              <DrawerClose className="min-h-11 justify-self-start px-2 text-sm font-semibold text-sub-text">
+                キャンセル
+              </DrawerClose>
+              <DrawerTitle className="text-base font-bold">
+                項目を追加
+              </DrawerTitle>
+              <SheetSubmitButton className="min-h-11 justify-self-end px-2 text-sm font-bold text-accent">
+                保存
+              </SheetSubmitButton>
+            </div>
+            <DrawerDescription>
+              収入・支出・繰越の内容と担当者を入力します。
+            </DrawerDescription>
           </DrawerHeader>
 
           <div

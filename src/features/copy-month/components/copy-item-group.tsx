@@ -31,7 +31,7 @@ export function CopyItemGroup({
 
   return (
     <div key={type} className="space-y-2">
-      <label className="flex cursor-pointer items-center gap-2">
+      <label className="flex min-h-11 cursor-pointer items-center gap-2">
         <input
           type="checkbox"
           checked={allSelected}
@@ -52,20 +52,22 @@ export function CopyItemGroup({
           return (
             <div
               key={item.id}
-              className="flex items-center gap-2 rounded px-2 py-1 hover:bg-muted/50"
+              className="flex min-h-11 items-center gap-2 rounded px-2 hover:bg-muted/50"
             >
-              <input
-                type="checkbox"
-                checked={isSelected}
-                onChange={() =>
-                  onSelectionChange(
-                    item.id,
-                    isSelected ? 'none' : 'withAmount'
-                  )
-                }
-                aria-label={`${item.label}を選択`}
-                className="h-4 w-4 rounded border-input focus-visible:ring-2 focus-visible:ring-ring/50"
-              />
+              <label className="-ml-3 grid size-11 shrink-0 cursor-pointer place-items-center">
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() =>
+                    onSelectionChange(
+                      item.id,
+                      isSelected ? 'none' : 'withAmount'
+                    )
+                  }
+                  aria-label={`${item.label}を選択`}
+                  className="h-4 w-4 rounded border-input focus-visible:ring-2 focus-visible:ring-ring/50"
+                />
+              </label>
               <span className="flex-1 text-sm">{item.label}</span>
               <span className="text-xs text-muted-foreground">
                 {PERSON_LABELS[item.person]}
@@ -80,7 +82,7 @@ export function CopyItemGroup({
                     onSelectionChange(item.id, e.target.value as ItemSelection)
                   }
                   aria-label={`${item.label}のコピーモード`}
-                  className="text-xs border border-input rounded px-2 py-1 bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  className="min-h-11 rounded border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
                   <option value="withAmount">金額込み</option>
                   <option value="labelOnly">項目名のみ</option>

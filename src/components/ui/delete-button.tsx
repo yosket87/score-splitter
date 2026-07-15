@@ -72,13 +72,14 @@ export function DeleteButton({
         </DialogHeader>
         <DialogFooter>
           <DialogClose asChild>
-            <Button type="button" variant="outline" disabled={pending}>
+            <Button type="button" variant="outline" className="min-h-11" disabled={pending}>
               キャンセル
             </Button>
           </DialogClose>
           <Button
             type="button"
             variant="destructive"
+            className="min-h-11"
             onClick={handleDelete}
             disabled={pending}
           >

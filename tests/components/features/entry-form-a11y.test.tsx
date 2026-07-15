@@ -1,7 +1,8 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AddEntryForm } from '@/features/add-entry/components/add-entry-form'
+import { AddEntryModal } from '@/features/add-entry/components/add-entry-modal'
 import { AddEntrySheet } from '@/features/add-entry/components/add-entry-sheet'
 import { EditModal } from '@/features/edit-entry'
 import { createIncome } from '@/app/actions/income'
@@ -31,6 +32,10 @@ beforeAll(() => {
   if (!Element.prototype.releasePointerCapture) {
     Element.prototype.releasePointerCapture = () => {}
   }
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
 })
 
 describe('entry form a11y', () => {
@@ -69,6 +74,45 @@ describe('entry form a11y', () => {
     expect(screen.getByRole('button', { name: '保存' })).toHaveClass('min-h-11')
   })
 
+  it('追加シートは説明を関連付け、Missing Description警告を出さない', () => {
+    const consoleError = vi.spyOn(console, 'error')
+    const consoleWarn = vi.spyOn(console, 'warn')
+
+    render(
+      <AddEntrySheet
+        open
+        onOpenChange={() => {}}
+        month="202601"
+      />
+    )
+
+    expect(screen.getByRole('dialog')).toHaveAccessibleDescription(
+      '収入・支出・繰越の内容と担当者を入力します。'
+    )
+    expect([...consoleError.mock.calls, ...consoleWarn.mock.calls].flat().join(' ')).not.toMatch(
+      /Missing `Description`|aria-describedby/
+    )
+  })
+
+  it('追加モーダルは説明と44pxの起動操作を持つ', async () => {
+    const user = userEvent.setup()
+    const consoleError = vi.spyOn(console, 'error')
+    const consoleWarn = vi.spyOn(console, 'warn')
+
+    render(<AddEntryModal type="income" month="202601" />)
+
+    const trigger = screen.getByRole('button', { name: '項目を追加' })
+    expect(trigger).toHaveClass('min-h-11')
+    await user.click(trigger)
+
+    expect(screen.getByRole('dialog')).toHaveAccessibleDescription(
+      '収入の内容と担当者を入力します。'
+    )
+    expect([...consoleError.mock.calls, ...consoleWarn.mock.calls].flat().join(' ')).not.toMatch(
+      /Missing `Description`|aria-describedby/
+    )
+  })
+
   it('編集フォームの項目名・金額入力がlabelで取得できる', async () => {
     const user = userEvent.setup()
 
@@ -89,6 +133,38 @@ describe('entry form a11y', () => {
     expect(screen.getByLabelText('項目名')).toHaveAttribute('name', 'label')
     expect(screen.getByLabelText('金額')).toHaveAttribute('name', 'amount')
     expect(screen.getByRole('radiogroup', { name: '担当者' })).toBeInTheDocument()
+  })
+
+  it('編集モーダルは説明を関連付け、Escape後に起動操作へフォーカスを戻す', async () => {
+    const user = userEvent.setup()
+    const consoleError = vi.spyOn(console, 'error')
+    const consoleWarn = vi.spyOn(console, 'warn')
+
+    render(
+      <EditModal
+        id="income-1"
+        month="202601"
+        label="給料"
+        amount={300000}
+        person="husband"
+        type="income"
+        onUpdate={vi.fn()}
+      />
+    )
+
+    const trigger = screen.getByRole('button', { name: '給料を編集' })
+    await user.click(trigger)
+
+    expect(screen.getByRole('dialog')).toHaveAccessibleDescription(
+      '収入の内容と担当者を編集します。'
+    )
+    expect(screen.getByRole('button', { name: '閉じる' })).toHaveClass('size-11')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+    expect([...consoleError.mock.calls, ...consoleWarn.mock.calls].flat().join(' ')).not.toMatch(
+      /Missing `Description`|aria-describedby/
+    )
   })
 
   it('追加シートは送信成功後に種別と担当者を初期状態へ戻す', async () => {

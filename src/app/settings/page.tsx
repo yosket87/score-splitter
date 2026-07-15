@@ -1,35 +1,29 @@
-import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
 import { PasskeySettings } from '@/features/passkey'
-import { HeaderActions } from '@/components/layout/header-actions'
+import { Header } from '@/components/layout/header'
 import { requireAuth } from '@/lib/webauthn/session'
 
 export default async function SettingsPage() {
   await requireAuth()
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-        <div className="flex items-center gap-2">
-          <Link
-            href="/"
-            className="text-sub-text hover:text-accent transition-colors"
-            aria-label="戻る"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-          <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-sub-text">
-            設定
-          </span>
-        </div>
-        <HeaderActions />
-      </header>
-
-      <main id="main" tabIndex={-1} className="flex-1 px-5 pt-6 pb-8 max-w-md mx-auto w-full">
-        <h1 className="text-[18px] font-bold tracking-[-0.02em] mb-6">
-          パスキー管理
-        </h1>
-        <PasskeySettings />
+    <div className="app-shell flex min-h-screen flex-col">
+      <Header backHref="/" backLabel="トップへ戻る" />
+      <main
+        id="main"
+        tabIndex={-1}
+        className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 sm:px-5 lg:py-8"
+      >
+        <section className="app-solid-panel mx-auto max-w-2xl rounded-[24px] p-5 sm:p-7">
+          <div className="mb-6">
+            <p className="text-[11px] font-bold tracking-[0.14em] text-sub-text">
+              設定
+            </p>
+            <h1 className="mt-2 text-[22px] font-bold tracking-[-0.02em]">
+              パスキー管理
+            </h1>
+          </div>
+          <PasskeySettings />
+        </section>
       </main>
     </div>
   )

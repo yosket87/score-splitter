@@ -82,6 +82,16 @@ describe('passkey settings', () => {
     consoleError.mockRestore()
   })
 
+  it('デバイス名の入力例を日本語で表示する', () => {
+    render(<RegisterPasskeyForm onRegistered={vi.fn()} />)
+
+    expect(screen.getByLabelText('デバイス名（任意）')).toHaveAttribute(
+      'placeholder',
+      '例：自分のスマートフォン'
+    )
+    expect(screen.queryByPlaceholderText('例: iPhone, 1Password')).not.toBeInTheDocument()
+  })
+
   it('パスキー一覧取得失敗時は空状態ではなくエラー状態を表示する', async () => {
     vi.mocked(listPasskeys).mockResolvedValueOnce({
       success: false,

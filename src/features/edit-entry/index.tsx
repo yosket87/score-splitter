@@ -124,6 +124,7 @@ export function EditModal({
       onOpenChange={handleOpenChange}
       trigger={trigger}
       title={title}
+      description={`${TYPE_LABELS[type]}の内容と担当者を編集します。`}
     >
       {form}
     </ResponsiveModal>

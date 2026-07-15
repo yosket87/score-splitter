@@ -90,6 +90,14 @@ describe('IncomeSection', () => {
     expect(screen.getByRole('button', { name: 'ボーナスを削除' })).toBeInTheDocument()
   })
 
+  it('削除ボタンは競合クラスなしで44px以上のタッチ領域を持つ', () => {
+    render(<IncomeSection incomes={mockIncomes} month="202601" />)
+
+    const deleteButton = screen.getByRole('button', { name: '給料を削除' })
+    expect(deleteButton).toHaveClass('size-11')
+    expect(deleteButton).not.toHaveClass('h-9', 'w-9')
+  })
+
   it('編集ボタンにaria-labelが設定されている', () => {
     render(<IncomeSection incomes={mockIncomes} month="202601" />)
 

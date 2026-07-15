@@ -161,6 +161,14 @@ describe('CarryoverSection', () => {
     )
   })
 
+  it('削除ボタンは競合クラスなしで44px以上のタッチ領域を持つ', () => {
+    render(<CarryoverSection carryovers={mockCarryovers} month="202601" />)
+
+    const deleteButton = screen.getByRole('button', { name: '前月繰越を削除' })
+    expect(deleteButton).toHaveClass('size-11')
+    expect(deleteButton).not.toHaveClass('h-9', 'w-9')
+  })
+
   it('清算トグルに44px以上のタッチ領域がある', () => {
     render(<CarryoverSection carryovers={mockCarryovers} month="202601" />)
 

@@ -82,4 +82,21 @@ describe('アプリアイコン', () => {
     expect(widths).toHaveLength(2)
     expect(new Set(widths).size).toBe(1)
   })
+
+  it('BrandMarkと同じ曲線ジオメトリを使う', () => {
+    const icon = readFileSync(join(process.cwd(), 'src/app/icon.svg'), 'utf-8')
+    const iconDocument = new DOMParser().parseFromString(icon, 'image/svg+xml')
+    const { container } = render(<BrandMark />)
+
+    for (const person of ['husband', 'wife']) {
+      const markPath = container.querySelector(`[data-person="${person}"]`)
+      const iconPath = iconDocument.querySelector(`path:nth-of-type(${person === 'husband' ? 1 : 2})`)
+
+      expect(iconPath).not.toBeNull()
+      expect(iconPath?.getAttribute('d')).toBe(markPath?.getAttribute('d'))
+      expect(iconPath?.getAttribute('fill')).toBe(markPath?.getAttribute('fill'))
+      expect(iconPath?.getAttribute('stroke-width')).toBe(markPath?.getAttribute('stroke-width'))
+      expect(iconPath?.getAttribute('stroke-linecap')).toBe(markPath?.getAttribute('stroke-linecap'))
+    }
+  })
 })

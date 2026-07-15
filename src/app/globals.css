@@ -93,7 +93,8 @@
   --accent-foreground: #FFFFFF;
 
   /* デストラクティブ */
-  --destructive: #B42318;
+  --destructive: #E2483D;
+  --app-destructive: #B42318;
 
   /* ボーダー・入力 */
   --border: #E5E7EB;
@@ -108,9 +109,9 @@
   --brand-husband: #2563EB;
   --brand-wife: #C43B5C;
   --husband: var(--brand-husband);
-  --husband-light: #DBEAFE;
+  --husband-light: #EFF6FF;
   --wife: var(--brand-wife);
-  --wife-light: #FBE7EC;
+  --wife-light: #FFF1F3;
 
   /* アプリ専用サーフェス */
   --app-ambient-base: #F4F7FC;
@@ -202,7 +203,8 @@
   --accent-foreground: #0F1117;
 
   /* デストラクティブ */
-  --destructive: #FF8A75;
+  --destructive: #F87171;
+  --app-destructive: #FF8A75;
 
   /* ボーダー・入力 */
   --border: #ffffff14;
@@ -298,6 +300,7 @@
 
 /* ===== 認証後アプリ専用 Apple Glass 基盤 ===== */
 .app-shell {
+  --destructive: var(--app-destructive);
   min-height: 100vh;
   min-height: 100dvh;
   background-color: var(--app-ambient-base);

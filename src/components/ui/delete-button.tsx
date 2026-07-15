@@ -60,7 +60,7 @@ export function DeleteButton({
           variant="ghost"
           size="icon"
           aria-label={accessibleLabel}
-          className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
         >
           <Trash2 className="h-4 w-4" />
         </Button>

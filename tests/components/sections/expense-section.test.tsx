@@ -164,6 +164,14 @@ describe('ExpenseSection', () => {
     )
   })
 
+  it('削除ボタンは競合クラスなしで44px以上のタッチ領域を持つ', () => {
+    render(<ExpenseSection expenses={mockExpenses} month="202601" />)
+
+    const deleteButton = screen.getByRole('button', { name: '食費を削除' })
+    expect(deleteButton).toHaveClass('size-11')
+    expect(deleteButton).not.toHaveClass('h-9', 'w-9')
+  })
+
   it('繰越トグルに44px以上のタッチ領域がある', () => {
     render(<ExpenseSection expenses={mockExpenses} month="202601" />)
 

@@ -26,6 +26,14 @@ describe('PasskeyList', () => {
     },
   ]
 
+  it('削除ボタンは競合クラスなしで44px以上のタッチ領域を持つ', () => {
+    render(<PasskeyList passkeys={passkeys} onDeleted={vi.fn()} />)
+
+    const deleteButton = screen.getByRole('button', { name: 'MacBookを削除' })
+    expect(deleteButton).toHaveClass('size-11')
+    expect(deleteButton).not.toHaveClass('h-9', 'w-9')
+  })
+
   it('削除前に確認し、失敗時はエラーtoastを表示する', async () => {
     const user = userEvent.setup()
     const onDeleted = vi.fn()

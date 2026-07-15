@@ -56,7 +56,7 @@ export function MonthRow({
           <span className="text-base font-semibold">{index}月</span>
           {isCurrentMonth && (
             <span className="bg-accent/10 text-accent text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
-              Now
+              今月
             </span>
           )}
         </div>
@@ -82,7 +82,7 @@ export function MonthRow({
           {formatCurrency(summary.balance, { signed: true })}
         </span>
         <span className="text-[10px] font-medium text-accent">
-          View &gt;
+          詳細 &gt;
         </span>
       </div>
     </Link>

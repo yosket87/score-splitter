@@ -60,25 +60,26 @@ export function DeleteButton({
           variant="ghost"
           size="icon"
           aria-label={accessibleLabel}
-          className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
         >
           <Trash2 className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="app-modal-surface">
         <DialogHeader>
           <DialogTitle>「{itemName}」を削除しますか？</DialogTitle>
           <DialogDescription>{confirmDescription}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <DialogClose asChild>
-            <Button type="button" variant="outline" disabled={pending}>
+            <Button type="button" variant="outline" className="min-h-11" disabled={pending}>
               キャンセル
             </Button>
           </DialogClose>
           <Button
             type="button"
             variant="destructive"
+            className="min-h-11"
             onClick={handleDelete}
             disabled={pending}
           >

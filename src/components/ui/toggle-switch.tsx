@@ -25,17 +25,23 @@ export function ToggleSwitch({
       <button
         type="button"
         role="switch"
+        aria-label={label}
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className="relative w-11 h-[26px] rounded-full transition-colors shrink-0 ml-3"
-        style={{
-          background: checked ? 'var(--accent)' : 'var(--input)',
-        }}
+        className="ml-3 flex size-11 shrink-0 items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       >
         <span
-          className="absolute top-[2px] w-[22px] h-[22px] rounded-full bg-white shadow-sm transition-[left]"
-          style={{ left: checked ? 20 : 2 }}
-        />
+          aria-hidden="true"
+          className="relative block h-[26px] w-11 rounded-full transition-colors"
+          style={{
+            background: checked ? 'var(--accent)' : 'var(--input)',
+          }}
+        >
+          <span
+            className="absolute top-[2px] h-[22px] w-[22px] rounded-full bg-white shadow-sm transition-[left]"
+            style={{ left: checked ? 20 : 2 }}
+          />
+        </span>
       </button>
     </div>
   )

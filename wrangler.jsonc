@@ -29,7 +29,7 @@
     // RP IDはregistrable domainにする（app.yamawake.appのoriginで有効。将来サブドメインを変えてもパスキーが生き残る）
     "WEBAUTHN_RP_ID": "yamawake.app",
     "WEBAUTHN_RP_ORIGIN": "https://app.yamawake.app",
-    "WEBAUTHN_RP_NAME": "Score Splitter",
+    "WEBAUTHN_RP_NAME": "ヤマワケ",
     // LP（/lp）のmetadataBase用。静的プリレンダリングされるためWorkers Buildsのビルド変数にも同値を設定すること
     "NEXT_PUBLIC_SITE_URL": "https://yamawake.app"
   }

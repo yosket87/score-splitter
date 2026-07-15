@@ -76,6 +76,18 @@ export const handlers = [
     })
   }),
 
+  http.get(`${WORKER_API_URL}/passkeys`, ({ request }) => {
+    if (!isAuthorized(request)) return unauthorized()
+    const person = new URL(request.url).searchParams.get('person')
+    const rows = person
+      ? applyFilters([...getTable('passkey_credentials')], { person: `eq.${person}` })
+      : [...getTable('passkey_credentials')]
+
+    return HttpResponse.json({
+      data: applyOrder(rows, 'created_at.asc').map(toApiPasskey),
+    })
+  }),
+
   http.get(`${WORKER_API_URL}/:table`, ({ params, request }) => {
     if (!isAuthorized(request)) return unauthorized()
     const table = params.table as string
@@ -215,6 +227,21 @@ function toApiRecord(table: string, row: Row) {
     return { ...base, isCleared: row.is_cleared ?? false }
   }
   return base
+}
+
+function toApiPasskey(row: Row) {
+  return {
+    id: row.id,
+    person: row.person,
+    publicKeyBase64: row.public_key_base64,
+    counter: row.counter,
+    deviceName: row.device_name ?? null,
+    transports:
+      typeof row.transports === 'string'
+        ? (JSON.parse(row.transports) as string[])
+        : (row.transports ?? []),
+    createdAt: row.created_at,
+  }
 }
 
 function toDbRecord(table: string, row: Row) {

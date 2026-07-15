@@ -5,6 +5,7 @@ import { useFormStatus } from 'react-dom'
 import {
   Drawer,
   DrawerContent,
+  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
   DrawerClose,
@@ -99,27 +100,32 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="rounded-t-[22px] pb-safe">
+      <DrawerContent className="app-modal-surface app-solid-panel rounded-t-[22px] pb-safe">
         <form
           id="add-entry-form"
           ref={formRef}
           action={handleSubmit}
           className="flex flex-col"
         >
-          <DrawerHeader className="flex flex-row items-center justify-between px-4 py-2">
-            <DrawerClose className="min-h-11 px-2 text-sm font-semibold text-sub-text">
-              キャンセル
-            </DrawerClose>
-            <DrawerTitle className="text-base font-bold">
-              項目を追加
-            </DrawerTitle>
-            <SheetSubmitButton className="min-h-11 px-2 text-sm font-bold text-accent">
-              保存
-            </SheetSubmitButton>
+          <DrawerHeader className="px-4 pb-3 pt-2">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center">
+              <DrawerClose className="min-h-11 justify-self-start px-2 text-sm font-semibold text-sub-text">
+                キャンセル
+              </DrawerClose>
+              <DrawerTitle className="text-base font-bold">
+                項目を追加
+              </DrawerTitle>
+              <SheetSubmitButton className="min-h-11 justify-self-end px-2 text-sm font-bold text-accent">
+                保存
+              </SheetSubmitButton>
+            </div>
+            <DrawerDescription>
+              収入・支出・繰越の内容と担当者を入力します。
+            </DrawerDescription>
           </DrawerHeader>
 
           <div
-            className="flex h-11 gap-1 mx-4 mb-3 bg-muted rounded-[12px] p-[3px]"
+            className="mx-4 mb-3 flex gap-1 rounded-[12px] bg-muted p-[3px]"
             role="radiogroup"
             aria-label="項目種別"
           >
@@ -137,7 +143,7 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
                     setIsCleared(false)
                   }}
                   className={cn(
-                    'flex-1 rounded-lg text-[13px] text-center transition-colors',
+                    'min-h-11 flex-1 rounded-lg text-center text-[13px] transition-colors',
                     active
                       ? 'bg-accent text-accent-foreground font-semibold'
                       : 'text-muted-foreground'

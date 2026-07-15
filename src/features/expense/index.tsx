@@ -22,7 +22,7 @@ export function ExpenseSection({ expenses, month }: ExpenseSectionProps) {
   return (
     <SectionShell
       dataSection="expense"
-      title="Expense / 支出"
+      title="支出"
       meta={`${expenses.length}件${carryoverExpenses.length > 0 ? ` — 繰越 ${carryoverExpenses.length}件` : ''}`}
       isEmpty={expenses.length === 0}
       emptyLabel="支出がありません"
@@ -30,7 +30,7 @@ export function ExpenseSection({ expenses, month }: ExpenseSectionProps) {
       totalSlot={
         <div className="flex items-baseline justify-between px-3.5 py-3 border-t border-border bg-[var(--surface-total)]">
           <span className="text-[11px] text-muted-foreground font-semibold tracking-[0.8px] uppercase">
-            Total
+            合計
           </span>
           <span className="font-mono text-[15px] font-bold text-destructive">
             {formatCurrency(actualTotal)}

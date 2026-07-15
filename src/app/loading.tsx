@@ -1,15 +1,16 @@
+import { BrandLogo } from '@/components/brand/brand-logo'
 import { Skeleton } from '@/components/ui/skeleton'
 
 export default function Loading() {
   return (
-    <div className="min-h-screen bg-background">
-      {/* ヘッダー */}
-      <header className="sticky top-0 z-50 bg-background border-b border-border">
-        <div className="container mx-auto px-4 py-3.5 flex items-center justify-between max-w-4xl">
-          <Skeleton className="h-4 w-28" />
-          <div className="flex items-center gap-1">
-            <Skeleton className="h-7 w-7 rounded-lg" />
-            <Skeleton className="h-7 w-7 rounded-lg" />
+    <div className="app-shell min-h-screen">
+      <header className="app-sticky-glass">
+        <div className="mx-auto flex min-h-16 max-w-6xl items-center justify-between px-4 sm:px-5">
+          <BrandLogo />
+          <div className="flex items-center gap-1" aria-hidden="true">
+            <Skeleton className="size-11 rounded-full" />
+            <Skeleton className="size-11 rounded-full" />
+            <Skeleton className="size-11 rounded-full" />
           </div>
         </div>
       </header>
@@ -17,55 +18,52 @@ export default function Loading() {
       <main
         id="main"
         tabIndex={-1}
-        className="container mx-auto px-4 py-4 space-y-0 max-w-4xl animate-fade-in"
+        className="mx-auto grid max-w-6xl gap-6 px-4 py-5 sm:px-5 lg:grid-cols-[minmax(19rem,0.9fr)_minmax(0,1.4fr)] lg:items-start lg:gap-8 lg:py-8"
       >
-        {/* タイトルバー */}
-        <div className="pb-4">
-          <Skeleton className="h-2.5 w-24" />
-          <Skeleton className="h-8 w-16 mt-2" />
-          <Skeleton className="h-3 w-36 mt-2" />
-        </div>
+        <p className="sr-only" aria-live="polite">
+          読み込み中…
+        </p>
 
-        {/* ヒーロー / サマリー */}
-        <div className="rounded-[22px] shadow-soft-lg p-5">
-          <Skeleton className="h-2.5 w-32" />
-          <Skeleton className="h-10 w-48 mt-3" />
-          <Skeleton className="h-3 w-56 mt-3" />
-          <div className="grid grid-cols-2 mt-4 gap-3">
-            <div className="rounded-[18px] shadow-soft p-4">
-              <Skeleton className="h-2 w-12" />
-              <Skeleton className="h-5 w-24 mt-2" />
+        <aside className="app-glass-heavy rounded-[28px] p-5 lg:sticky lg:top-20">
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="mt-4 h-11 w-48" />
+          <Skeleton className="mt-3 h-4 w-56" />
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="app-solid-panel rounded-2xl p-4">
+              <Skeleton className="h-3 w-12" />
+              <Skeleton className="mt-2 h-6 w-24" />
             </div>
-            <div className="rounded-[18px] shadow-soft p-4">
-              <Skeleton className="h-2 w-12" />
-              <Skeleton className="h-5 w-24 mt-2" />
+            <div className="app-solid-panel rounded-2xl p-4">
+              <Skeleton className="h-3 w-12" />
+              <Skeleton className="mt-2 h-6 w-24" />
             </div>
           </div>
-        </div>
+        </aside>
 
-        {/* リストヘッダー */}
-        <div className="flex items-baseline justify-between py-3">
-          <Skeleton className="h-3 w-28" />
-          <Skeleton className="h-2.5 w-14" />
-        </div>
-
-        {/* リスト行 */}
-        <div className="rounded-[18px] shadow-soft overflow-hidden">
-          {Array.from({ length: 6 }, (_, i) => (
-            <div
-              key={i}
-              className="grid grid-cols-[32px_1fr_auto] items-center gap-3 px-3.5 py-3 border-b border-border last:border-b-0"
+        <div className="min-w-0 space-y-4">
+          {Array.from({ length: 3 }, (_, sectionIndex) => (
+            <section
+              key={sectionIndex}
+              className="app-solid-panel overflow-hidden rounded-[24px] px-4 sm:px-5"
+              aria-hidden="true"
             >
-              <Skeleton className="h-3 w-5" />
-              <div className="space-y-1.5">
-                <Skeleton className="h-5 w-10" />
-                <Skeleton className="h-2.5 w-36" />
+              <div className="flex min-h-14 items-center justify-between border-b border-border">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-16" />
               </div>
-              <div className="text-right space-y-1.5">
-                <Skeleton className="h-5 w-20 ml-auto" />
-                <Skeleton className="h-2.5 w-10 ml-auto" />
-              </div>
-            </div>
+              {Array.from({ length: 2 }, (_, rowIndex) => (
+                <div
+                  key={rowIndex}
+                  className="grid min-h-16 grid-cols-[1fr_auto] items-center gap-3 border-b border-border last:border-b-0"
+                >
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-3 w-16" />
+                  </div>
+                  <Skeleton className="h-6 w-24" />
+                </div>
+              ))}
+            </section>
           ))}
         </div>
       </main>

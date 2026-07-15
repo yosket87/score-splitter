@@ -10,7 +10,7 @@ test.beforeEach(async ({ request }) => {
 async function login(page: Page) {
   await page.goto('/login')
   await page.getByPlaceholder('パスワード').fill(MOCK_PASSWORD)
-  await page.getByRole('button', { name: 'ログイン →' }).click()
+  await page.getByRole('button', { name: 'ログイン', exact: true }).click()
   await page.waitForURL(/\/\d{4}\/\d{2}/)
 }
 
@@ -35,14 +35,16 @@ test.describe('ログインページ', () => {
   })
 
   test('ログインフォームが表示される', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: 'Score Splitter' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'ヤマワケ' })).toBeVisible()
     await expect(page.getByPlaceholder('パスワード')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'ログイン →' })).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'ログイン', exact: true })
+    ).toBeVisible()
   })
 
   test('不正なパスワードでエラーが表示される', async ({ page }) => {
     await page.getByPlaceholder('パスワード').fill('wrong-password')
-    await page.getByRole('button', { name: 'ログイン →' }).click()
+    await page.getByRole('button', { name: 'ログイン', exact: true }).click()
 
     await expect(
       page.getByText(/パスワードが正しくありません/)
@@ -51,10 +53,10 @@ test.describe('ログインページ', () => {
 
   test('正しいパスワードで月詳細に遷移する', async ({ page }) => {
     await page.getByPlaceholder('パスワード').fill(MOCK_PASSWORD)
-    await page.getByRole('button', { name: 'ログイン →' }).click()
+    await page.getByRole('button', { name: 'ログイン', exact: true }).click()
     await page.waitForURL(/\/\d{4}\/\d{2}/)
 
-    await expect(page.getByText(/Balance/)).toBeVisible()
+    await expect(page.getByText('月収支').first()).toBeVisible()
   })
 })
 
@@ -86,7 +88,7 @@ test.describe('月一覧ページ', () => {
   test('月カードをクリックすると月詳細に遷移する', async ({ page }) => {
     await page.getByRole('link', { name: /2026年2月の詳細を開く/ }).click()
     await expect(page).toHaveURL(/\/2026\/02/)
-    await expect(page.getByText(/Settlement/)).toBeVisible()
+    await expect(page.getByText('精算額').first()).toBeVisible()
   })
 
   test('月詳細の「一覧へ」リンクで年別一覧に戻れる', async ({ page }) => {
@@ -121,7 +123,7 @@ test.describe('月詳細ページ', () => {
   })
 
   test('ヘッダーが表示される', async ({ page }) => {
-    await expect(page.getByText('SPLITTER')).toBeVisible()
+    await expect(page.getByRole('img', { name: 'ヤマワケ' })).toBeVisible()
   })
 
   test('全セクションが表示される', async ({ page }) => {
@@ -130,7 +132,7 @@ test.describe('月詳細ページ', () => {
     const expenseSection = getExpenseSection(page)
     await expect(expenseSection).toBeVisible()
     await expect(page.getByTestId('carryover-title')).toBeVisible()
-    await expect(page.getByText(/Settlement/)).toBeVisible()
+    await expect(page.getByText('精算額').first()).toBeVisible()
   })
 
   test('シードデータの収入が表示される', async ({ page }) => {
@@ -159,9 +161,9 @@ test.describe('月詳細ページ', () => {
   test('精算額とお小遣いが表示される', async ({ page }) => {
     await page.goto('/2026/02')
 
-    await expect(page.getByText(/Settlement/)).toBeVisible()
-    await expect(page.getByText(/Allowance/)).toBeVisible()
-    await expect(page.getByText(/Balance/)).toBeVisible()
+    await expect(page.getByText('精算額').first()).toBeVisible()
+    await expect(page.getByText('お小遣い')).toBeVisible()
+    await expect(page.getByText('月収支').first()).toBeVisible()
   })
 
   test('精算額の計算結果が正しい', async ({ page }) => {
@@ -176,6 +178,15 @@ test.describe('月詳細ページ', () => {
     await expect(page.getByText('¥15,500').first()).toBeVisible()
     await expect(page.getByText('夫').first()).toBeVisible()
     await expect(page.getByText('妻').first()).toBeVisible()
+  })
+
+  test('月次データをCSVで出力できる', async ({ page }) => {
+    const downloadPromise = page.waitForEvent('download')
+
+    await page.getByRole('button', { name: 'CSV出力' }).click()
+
+    const download = await downloadPromise
+    expect(download.suggestedFilename()).toBe('家計データ_2026年2月.csv')
   })
 })
 

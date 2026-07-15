@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -13,6 +14,7 @@ import {
 import {
   Drawer,
   DrawerContent,
+  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
@@ -23,6 +25,7 @@ interface ResponsiveModalProps {
   onOpenChange: (open: boolean) => void
   trigger: ReactNode
   title: string
+  description: string
   children: ReactNode
   dialogContentClassName?: string
   drawerContentClassName?: string
@@ -34,6 +37,7 @@ export function ResponsiveModal({
   onOpenChange,
   trigger,
   title,
+  description,
   children,
   dialogContentClassName,
   drawerContentClassName,
@@ -45,9 +49,10 @@ export function ResponsiveModal({
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerTrigger asChild>{trigger}</DrawerTrigger>
-        <DrawerContent className={cn('px-4 pb-safe', drawerContentClassName)}>
+        <DrawerContent className={cn('app-modal-surface app-solid-panel px-4 pb-safe', drawerContentClassName)}>
           <DrawerHeader>
             <DrawerTitle>{title}</DrawerTitle>
+            <DrawerDescription>{description}</DrawerDescription>
           </DrawerHeader>
           <div className={cn('pb-4', drawerBodyClassName)}>
             {children}
@@ -60,9 +65,10 @@ export function ResponsiveModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className={dialogContentClassName}>
+      <DialogContent className={cn('app-modal-surface app-solid-panel', dialogContentClassName)}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         {children}
       </DialogContent>

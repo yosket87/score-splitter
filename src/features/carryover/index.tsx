@@ -23,7 +23,7 @@ export function CarryoverSection({ carryovers, month }: CarryoverSectionProps) {
     <SectionShell
       as="section"
       dataSection="carryover"
-      title="Carryover / 繰越"
+      title="繰越"
       titleTestId="carryover-title"
       meta={`合計 ${formatCurrency(total)}${clearedCarryovers.length > 0 ? ` / 清算済み ${clearedCarryovers.length}件` : ''}`}
       isEmpty={carryovers.length === 0}

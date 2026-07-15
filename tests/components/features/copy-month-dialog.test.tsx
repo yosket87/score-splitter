@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { toast } from 'sonner'
@@ -50,7 +50,51 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
 describe('CopyMonthDialog', () => {
+  it('説明を関連付け、44px操作とEscape後のフォーカス復帰を維持する', async () => {
+    const user = userEvent.setup()
+    const consoleError = vi.spyOn(console, 'error')
+    const consoleWarn = vi.spyOn(console, 'warn')
+    vi.mocked(getCopyMonthPreview).mockResolvedValueOnce({
+      success: true,
+      data: {
+        sourceMonth: '202603',
+        targetMonth: '202604',
+        existingCount: 0,
+        carryoverCount: 0,
+        items: [],
+      },
+    })
+
+    render(
+      <CopyMonthDialog
+        currentMonth="202604"
+        previousMonth="202603"
+      />
+    )
+
+    const trigger = screen.getByRole('button', { name: '前月からコピー' })
+    await user.click(trigger)
+
+    expect(await screen.findByRole('dialog')).toHaveAccessibleDescription(
+      'コピー元と対象を確認し、コピーする項目を選択します。'
+    )
+    expect(screen.getByRole('button', { name: '閉じる' })).toHaveClass('size-11')
+    expect(screen.getByRole('button', { name: 'キャンセル' })).toHaveClass('min-h-11')
+    expect(screen.getByRole('button', { name: 'コピーする (0件)' })).toHaveClass('min-h-11')
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+    expect([...consoleError.mock.calls, ...consoleWarn.mock.calls].flat().join(' ')).not.toMatch(
+      /Missing `Description`|aria-describedby/
+    )
+  })
+
   it('ダイアログを開くと全項目がデフォルト選択済みで件数が表示される', async () => {
     const user = userEvent.setup()
     vi.mocked(getCopyMonthPreview).mockResolvedValueOnce({

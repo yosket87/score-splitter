@@ -19,7 +19,7 @@ export function AddEntryModal({ type, month }: AddEntryModalProps) {
   const title = `${TYPE_LABELS[type]}を追加`
 
   const trigger = (
-    <Button variant="outline" size="sm" className="mt-2 w-full">
+    <Button variant="outline" size="sm" className="mt-2 min-h-11 w-full">
       <Plus className="size-3.5" />
       項目を追加
     </Button>
@@ -40,6 +40,7 @@ export function AddEntryModal({ type, month }: AddEntryModalProps) {
       onOpenChange={setOpen}
       trigger={trigger}
       title={title}
+      description={`${TYPE_LABELS[type]}の内容と担当者を入力します。`}
     >
       {form}
     </ResponsiveModal>

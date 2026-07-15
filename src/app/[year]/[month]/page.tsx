@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
-import { HeroSection } from '@/features/monthly-overview'
-import { TrendCard } from '@/components/charts/trend-card'
+import { Header } from '@/components/layout/header'
+import { MonthlyOverview } from '@/features/monthly-overview'
 import { IncomeSection } from '@/features/income'
 import { ExpenseSection } from '@/features/expense'
 import { CarryoverSection } from '@/features/carryover'
@@ -46,19 +46,26 @@ export default async function MonthPage({ params }: MonthPageProps) {
   const recentSummaries = allSummaries.slice(0, 6)
 
   return (
-    <div className="min-h-screen bg-background">
-      <HeroSection
-        currentMonth={month}
-        incomes={incomes}
-        expenses={expenses}
-        carryovers={carryovers}
+    <div className="app-shell">
+      <Header backHref={`/${year}`} backLabel="月の一覧へ戻る" />
+      <main
+        id="main"
+        tabIndex={-1}
+        className="mx-auto grid max-w-6xl gap-6 px-4 py-5 sm:px-5 lg:grid-cols-[minmax(19rem,0.9fr)_minmax(0,1.4fr)] lg:items-start lg:gap-8 lg:py-8"
       >
-        <TrendCard summaries={recentSummaries} currentMonth={month} />
-      </HeroSection>
-      <main id="main" tabIndex={-1} className="px-5 pt-2 pb-8 space-y-4 max-w-4xl mx-auto">
-        <IncomeSection incomes={incomes} month={month} />
-        <ExpenseSection expenses={expenses} month={month} />
-        <CarryoverSection carryovers={carryovers} month={month} />
+        <aside className="min-w-0 lg:sticky lg:top-20">
+          <MonthlyOverview
+            year={Number(year)}
+            month={Number(monthParam)}
+            summary={{ incomes, expenses, carryovers }}
+            summaries={recentSummaries}
+          />
+        </aside>
+        <div className="min-w-0 space-y-4">
+          <IncomeSection incomes={incomes} month={month} />
+          <ExpenseSection expenses={expenses} month={month} />
+          <CarryoverSection carryovers={carryovers} month={month} />
+        </div>
       </main>
       <AddEntryFab month={month} />
     </div>

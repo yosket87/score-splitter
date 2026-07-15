@@ -68,8 +68,7 @@ describe('IncomeSection', () => {
   it('タイトル「収入」を表示する', () => {
     render(<IncomeSection incomes={mockIncomes} month="202601" />)
 
-    // タイトルは "Income / 収入" 形式
-    expect(screen.getByText('Income / 収入')).toBeInTheDocument()
+    expect(screen.getByText('収入')).toBeInTheDocument()
   })
 
   it('担当者バッジを表示する', () => {
@@ -83,6 +82,14 @@ describe('IncomeSection', () => {
     expect(wifeElements.length).toBeGreaterThanOrEqual(1)
   })
 
+  it('一覧の担当者バッジは担当者別の前景トークンを使う', () => {
+    render(<IncomeSection incomes={mockIncomes} month="202601" />)
+
+    const [husbandRow, wifeRow] = screen.getAllByTestId('item-row')
+    expect(husbandRow.firstElementChild).toHaveClass('text-husband-solid-foreground')
+    expect(wifeRow.firstElementChild).toHaveClass('text-wife-solid-foreground')
+  })
+
   it('削除ボタンにaria-labelが設定されている', () => {
     render(<IncomeSection incomes={mockIncomes} month="202601" />)
 
@@ -90,11 +97,27 @@ describe('IncomeSection', () => {
     expect(screen.getByRole('button', { name: 'ボーナスを削除' })).toBeInTheDocument()
   })
 
+  it('削除ボタンは競合クラスなしで44px以上のタッチ領域を持つ', () => {
+    render(<IncomeSection incomes={mockIncomes} month="202601" />)
+
+    const deleteButton = screen.getByRole('button', { name: '給料を削除' })
+    expect(deleteButton).toHaveClass('size-11')
+    expect(deleteButton).not.toHaveClass('h-9', 'w-9')
+  })
+
   it('編集ボタンにaria-labelが設定されている', () => {
     render(<IncomeSection incomes={mockIncomes} month="202601" />)
 
     expect(screen.getByRole('button', { name: '給料を編集' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'ボーナスを編集' })).toBeInTheDocument()
+  })
+
+  it('編集ボタンは競合クラスなしで44px以上のタッチ領域を持つ', () => {
+    render(<IncomeSection incomes={mockIncomes} month="202601" />)
+
+    const editButton = screen.getByRole('button', { name: '給料を編集' })
+    expect(editButton).toHaveClass('size-11')
+    expect(editButton).not.toHaveClass('h-9', 'w-9')
   })
 
   it('行アクションはキーボードフォーカス時にも可視化される', () => {

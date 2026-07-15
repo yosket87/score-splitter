@@ -2,15 +2,13 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { AnimatedYen } from '@/components/animations/animated-number'
+import { useMotionPrefs } from '@/components/animations/use-motion-prefs'
+import { TrendCard } from '@/components/charts/trend-card'
 import { CopyMonthDialog } from '@/features/copy-month'
 import { ExportCsvButton } from '@/features/export-csv'
-import { HeaderActions } from '@/components/layout/header-actions'
-import { useTheme } from 'next-themes'
-import { labelSlide, motionDuration, motionEase } from '@/components/animations/tokens'
 import {
   calculateSettlement,
   getSettlementDirectionLabel,
@@ -20,59 +18,83 @@ import {
   addMonths,
   formatCurrency,
   formatMonth,
-  formatMonthDot,
   getDaysInMonth,
   getPreviousMonth,
-  parseMonth,
   monthToPath,
+  parseMonth,
 } from '@/lib/utils/format'
-import type { Income, Expense, Carryover } from '@/types'
+import type { Carryover, Expense, Income, MonthlySummary } from '@/types'
 
-interface HeroSectionProps {
-  currentMonth: string
+export interface MonthlyOverviewSummary {
   incomes: Income[]
   expenses: Expense[]
   carryovers: Carryover[]
-  children?: React.ReactNode
 }
 
-function useMonthDirection(currentMonth: string) {
-  const [state, setState] = useState({ prev: currentMonth, direction: 0 })
-  if (state.prev !== currentMonth) {
+interface MonthlyOverviewProps {
+  year: number
+  month: number
+  summary: MonthlyOverviewSummary
+  summaries: MonthlySummary[]
+}
+
+function toCurrentMonth(year: number, month: number): string {
+  return `${year}${String(month).padStart(2, '0')}`
+}
+
+function useMonthDirection(currentMonth: string): number {
+  const [state, setState] = useState({
+    currentMonth,
+    direction: 0,
+  })
+
+  if (state.currentMonth !== currentMonth) {
     setState({
-      prev: currentMonth,
-      direction: currentMonth > state.prev ? 1 : -1,
+      currentMonth,
+      direction: currentMonth > state.currentMonth ? 1 : -1,
     })
   }
+
   return state.direction
 }
 
-const monthLabelVariants = {
-  enter: (d: number) => ({ x: d * labelSlide, opacity: 0 }),
-  center: { x: 0, opacity: 1 },
-  exit: (d: number) => ({ x: d * -labelSlide, opacity: 0 }),
-}
-
-export function HeroSection({
-  currentMonth,
-  incomes,
-  expenses,
-  carryovers,
-  children,
-}: HeroSectionProps) {
+export function MonthlyOverview({
+  year,
+  month,
+  summary,
+  summaries,
+}: MonthlyOverviewProps) {
   const router = useRouter()
-  const { resolvedTheme } = useTheme()
-  const isDark = resolvedTheme === 'dark'
+  const { reduced } = useMotionPrefs()
+  const currentMonth = toCurrentMonth(year, month)
   const direction = useMonthDirection(currentMonth)
   const previousMonth = getPreviousMonth(currentMonth)
+  const { incomes, expenses, carryovers } = summary
 
   const result = calculateSettlement(incomes, expenses, carryovers)
-  const { expenseTotal: allExpenseTotal, balance: monthlyBalance } =
-    calculateMonthBalance(incomes, expenses)
+  const { expenseTotal, balance } = calculateMonthBalance(incomes, expenses)
+  const settlementDirection = getSettlementDirectionLabel(result.settlement)
+  const settlementLabel =
+    result.settlement === 0
+      ? '精算額 精算なし'
+      : `精算額 ${formatCurrency(result.settlement, { absolute: true })} ${settlementDirection}`
+  const transactionCount = incomes.length + expenses.length
 
-  const totalItems = incomes.length + expenses.length
-  const days = getDaysInMonth(currentMonth)
-  const m = parseInt(currentMonth.slice(4, 6), 10)
+  const monthVariants = reduced
+    ? {
+        enter: { x: 0, opacity: 1 },
+        center: { x: 0, opacity: 1 },
+        exit: { x: 0, opacity: 1 },
+      }
+    : {
+        enter: (value: number) => ({ x: value * 14, opacity: 0 }),
+        center: { x: 0, opacity: 1 },
+        exit: (value: number) => ({ x: value * -14, opacity: 0 }),
+      }
+
+  const monthTransition = reduced
+    ? { duration: 0 }
+    : { type: 'spring' as const, duration: 0.28, bounce: 0 }
 
   function navigateMonth(offset: number) {
     router.push(monthToPath(addMonths(currentMonth, offset)))
@@ -83,81 +105,37 @@ export function HeroSection({
   }
 
   return (
-    <section
-      className="relative overflow-hidden"
-      style={{
-        background: isDark
-          ? `
-            linear-gradient(to bottom, transparent 65%, #0F1117AA 85%, #0F1117 100%),
-            radial-gradient(at 0% 0%, #1E2A6E 0%, transparent 50%),
-            radial-gradient(at 50% 0%, #2A1F6E 0%, transparent 50%),
-            radial-gradient(at 100% 0%, #1E3A8A 0%, transparent 50%),
-            radial-gradient(at 0% 50%, #312E81 0%, transparent 50%),
-            radial-gradient(at 50% 50%, #2E4A8E 0%, transparent 50%),
-            radial-gradient(at 100% 50%, #1E5A8A 0%, transparent 50%),
-            radial-gradient(at 0% 100%, #1E1B4B 0%, transparent 50%),
-            radial-gradient(at 50% 100%, #172554 0%, transparent 50%),
-            radial-gradient(at 100% 100%, #164E63 0%, transparent 50%)
-          `
-          : `
-            linear-gradient(to bottom, transparent 65%, #FAFBFCAA 85%, #FAFBFC 100%),
-            radial-gradient(at 0% 0%, #3454D1 0%, transparent 50%),
-            radial-gradient(at 50% 0%, #4C3BCF 0%, transparent 50%),
-            radial-gradient(at 100% 0%, #3B82F6 0%, transparent 50%),
-            radial-gradient(at 0% 50%, #6366F1 0%, transparent 50%),
-            radial-gradient(at 50% 50%, #5B8DEF 0%, transparent 50%),
-            radial-gradient(at 100% 50%, #38BDF8 0%, transparent 50%),
-            radial-gradient(at 0% 100%, #C7D2FE 0%, transparent 50%),
-            radial-gradient(at 50% 100%, #DBEAFE 0%, transparent 50%),
-            radial-gradient(at 100% 100%, #BAE6FD 0%, transparent 50%)
-          `,
-      }}
-    >
-      <div className="relative flex flex-col gap-3 pt-[calc(env(safe-area-inset-top)+16px)] px-5 pb-7">
-        {/* Header — 月一覧と同じ */}
-        <div className="flex items-center justify-between">
-          <span className="text-[12px] font-bold tracking-[1px] text-white uppercase">
-            Score Splitter
-          </span>
-          <HeaderActions variant="hero" />
-        </div>
-
-        {/* Nav — 一覧へ戻る + 月ナビ */}
-        <div className="flex items-center justify-between">
-          <Link
-            href={`/${currentMonth.slice(0, 4)}`}
-            aria-label="月の一覧へ戻る"
-            className="inline-flex items-center gap-1 text-white/70 text-xs hover:text-white transition-colors shrink-0"
+    <section aria-label="月次要約" className="space-y-4">
+      <div className="app-glass-heavy overflow-hidden rounded-[28px] p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <nav
+            className="flex items-center gap-1"
+            aria-label="月ナビゲーション"
           >
-            <span>←</span>
-            <span>一覧へ</span>
-          </Link>
-
-          <nav className="flex items-center gap-1" aria-label="月ナビゲーション">
             <button
               type="button"
               aria-label="前月に移動"
               onClick={() => navigateMonth(-1)}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-white/80 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              className="inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="size-5" />
             </button>
             <button
               type="button"
               onClick={goToCurrentMonth}
               aria-label="今月に移動"
               aria-live="polite"
-              className="inline-flex h-11 min-w-[88px] items-center justify-center overflow-hidden rounded-full text-center text-[13px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              className="inline-flex h-11 min-w-[104px] cursor-pointer items-center justify-center overflow-hidden rounded-full px-2 text-center text-sm font-semibold focus-visible:outline-none"
             >
-              <AnimatePresence mode="wait" initial={false} custom={direction}>
+              <AnimatePresence mode="popLayout" initial={false} custom={direction}>
                 <motion.span
                   key={currentMonth}
                   custom={direction}
-                  variants={monthLabelVariants}
+                  variants={monthVariants}
                   initial="enter"
                   animate="center"
                   exit="exit"
-                  transition={{ duration: motionDuration.fast, ease: motionEase.out }}
+                  transition={monthTransition}
                   className="inline-block"
                 >
                   {formatMonth(currentMonth)}
@@ -168,13 +146,13 @@ export function HeroSection({
               type="button"
               aria-label="翌月に移動"
               onClick={() => navigateMonth(1)}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-white/80 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              className="inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none"
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="size-5" />
             </button>
           </nav>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2">
             <CopyMonthDialog
               currentMonth={currentMonth}
               previousMonth={previousMonth}
@@ -188,73 +166,85 @@ export function HeroSection({
           </div>
         </div>
 
+        <div className="my-4 h-px bg-border" />
 
-        {/* 区切り線 */}
-        <div className="h-px bg-white/10 w-full" />
-
-        {/* Balance */}
-        <div className="flex flex-col items-center gap-1.5 py-3">
-          <span className="text-[10px] font-semibold tracking-[0.8px] text-white/70 uppercase">
-            Balance / 月の収支
-          </span>
-          <span className="text-sm font-medium font-mono text-white/50">
-            {formatMonthDot(currentMonth)}
-          </span>
-          <AnimatedYen
-            value={monthlyBalance}
-            className="text-4xl font-bold font-mono text-white tracking-tight"
-          />
-          <span className="text-[11px] text-white/70">
-            収入 {formatCurrency(result.totalIncome)} − 支出 {formatCurrency(allExpenseTotal, { absolute: true })}
-          </span>
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/10 text-[10px] text-white/80">
-            {m}月1日 — {days}日間 / {totalItems}件の取引
-          </span>
-        </div>
-
-        {/* Mini Cards */}
-        <div className="flex gap-2.5">
-          {/* Allowance */}
-          <div className="flex-1 rounded-[12px] bg-card shadow-sm p-3">
-            <span className="text-[9px] font-medium tracking-[0.5px] text-muted-foreground uppercase block">
-              Allowance / お小遣い
-            </span>
-            <AnimatedYen
-              value={result.allowance}
-              className="text-lg font-bold font-mono text-foreground mt-1 block"
-            />
-          </div>
-
-          {/* Settlement */}
-          <div className="flex-1 rounded-[12px] bg-card shadow-sm p-3">
-            <span className="text-[9px] font-medium tracking-[0.5px] text-muted-foreground uppercase block">
-              Settlement / 精算額
-            </span>
-            {result.settlement !== 0 ? (
-              <div className="flex items-center gap-2 mt-1">
+        <div className="flex flex-col items-center py-3 text-center">
+          <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground">
+            精算額
+          </p>
+          <h1
+            aria-label={settlementLabel}
+            className="mt-2 flex flex-col items-center gap-2"
+          >
+            {result.settlement === 0 ? (
+              <span className="font-mono text-4xl font-bold tracking-tight text-muted-foreground">
+                精算なし
+              </span>
+            ) : (
+              <>
                 <AnimatedYen
                   value={result.settlement}
                   absolute
-                  className="text-lg font-bold font-mono text-foreground"
+                  className="font-mono text-4xl font-bold tracking-tight text-foreground sm:text-5xl"
                 />
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded-lg bg-accent/10 text-[8px] font-semibold text-accent">
-                  {getSettlementDirectionLabel(result.settlement)}
+                <span className="inline-flex rounded-full bg-accent/10 px-3 py-1 text-sm font-semibold text-accent">
+                  {settlementDirection}
                 </span>
-              </div>
-            ) : (
-              <span className="text-lg font-bold font-mono text-muted-foreground mt-1 block">
-                精算なし
-              </span>
+              </>
             )}
-          </div>
+          </h1>
         </div>
 
-        {children && (
-          <div className="pt-2 pb-4">
-            {children}
-          </div>
-        )}
+        <div className="mt-4 grid gap-3">
+          <section
+            aria-labelledby="monthly-balance-label"
+            className="app-solid-panel rounded-2xl p-4"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2
+                  id="monthly-balance-label"
+                  className="text-xs font-semibold text-muted-foreground"
+                >
+                  月収支
+                </h2>
+                <AnimatedYen
+                  value={balance}
+                  className="mt-1 block font-mono text-2xl font-bold font-tabular"
+                />
+              </div>
+              <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+                {getDaysInMonth(currentMonth)}日間・{transactionCount}件
+              </span>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              収入 {formatCurrency(result.totalIncome)} − 支出{' '}
+              {formatCurrency(expenseTotal, { absolute: true })}
+            </p>
+          </section>
+
+          <section
+            aria-labelledby="allowance-label"
+            className="app-solid-panel rounded-2xl p-4"
+          >
+            <h2
+              id="allowance-label"
+              className="text-xs font-semibold text-muted-foreground"
+            >
+              お小遣い
+            </h2>
+            <AnimatedYen
+              value={result.allowance}
+              className="mt-1 block font-mono text-2xl font-bold font-tabular"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">1人あたり</p>
+          </section>
+        </div>
       </div>
+
+      <TrendCard summaries={summaries} currentMonth={currentMonth} />
     </section>
   )
 }
+
+export type { MonthlyOverviewProps }

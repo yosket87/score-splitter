@@ -82,7 +82,7 @@ export function EditModal({
       variant="ghost"
       size="icon"
       aria-label={`${label}を編集`}
-      className="h-9 w-9 text-muted-foreground hover:text-accent hover:bg-accent/10 transition-colors"
+      className="text-muted-foreground hover:text-accent hover:bg-accent/10 transition-colors"
     >
       <Pencil className="h-4 w-4" />
     </Button>
@@ -124,6 +124,7 @@ export function EditModal({
       onOpenChange={handleOpenChange}
       trigger={trigger}
       title={title}
+      description={`${TYPE_LABELS[type]}の内容と担当者を編集します。`}
     >
       {form}
     </ResponsiveModal>

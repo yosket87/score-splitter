@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import { getWebAuthnConfig } from '@/lib/webauthn/config'
 
 describe('getWebAuthnConfig', () => {
@@ -28,7 +30,13 @@ describe('getWebAuthnConfig', () => {
 
     const config = getWebAuthnConfig()
 
-    expect(config.rpName).toBe('Score Splitter')
+    expect(config.rpName).toBe('ヤマワケ')
+  })
+
+  it('モック環境でもブランド名を使用する', () => {
+    const envMock = readFileSync(join(process.cwd(), '.env.mock'), 'utf-8')
+
+    expect(envMock).toContain('WEBAUTHN_RP_NAME=ヤマワケ')
   })
 
   it('RP_IDが未設定の場合エラーをスローする', () => {

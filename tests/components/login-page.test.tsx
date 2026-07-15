@@ -32,12 +32,26 @@ describe('LoginPage', () => {
   it('未認証の場合はログインフォームを表示する', async () => {
     vi.mocked(isAuthenticated).mockResolvedValue(false)
 
-    render(await LoginPage())
+    const { container } = render(await LoginPage())
 
-    expect(screen.getByRole('heading', { name: 'Score Splitter' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'ヤマワケ' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'ヤマワケ' })).toBeInTheDocument()
+    expect(container.firstElementChild).toHaveClass('app-shell')
+    expect(container.querySelector('.app-glass-heavy')).toBeInTheDocument()
+    expect(screen.queryByText('Score Splitter')).not.toBeInTheDocument()
     expect(screen.queryByText('家計計算アプリ')).not.toBeInTheDocument()
     expect(screen.getByText('パスワードの表示状態: 非表示')).toBeInTheDocument()
     expect(screen.queryByText('Help ›')).not.toBeInTheDocument()
+  })
+
+  it('ログイン操作を44px以上の領域で表示する', async () => {
+    vi.mocked(isAuthenticated).mockResolvedValue(false)
+
+    render(await LoginPage())
+
+    expect(screen.getByRole('button', { name: '表示' })).toHaveClass('min-h-11')
+    expect(screen.getByRole('button', { name: 'ログイン', exact: true })).toHaveClass('h-12')
+    expect(screen.getByRole('button', { name: 'テーマを切り替え' })).toHaveClass('size-11')
   })
 
   it('認証済みの場合はトップページへリダイレクトする', async () => {

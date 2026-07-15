@@ -119,8 +119,10 @@ export function EntryRow({
     >
       <span
         className={cn(
-          'w-[22px] h-[22px] rounded-full text-white text-[8px] font-bold inline-flex items-center justify-center shrink-0',
-          person === 'husband' ? 'bg-husband' : 'bg-wife',
+          'w-[22px] h-[22px] rounded-full text-[8px] font-bold inline-flex items-center justify-center shrink-0',
+          person === 'husband'
+            ? 'bg-husband text-husband-solid-foreground'
+            : 'bg-wife text-wife-solid-foreground',
           personBadgeClassName
         )}
       >

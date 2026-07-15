@@ -50,13 +50,19 @@
   --color-neon-cyan: var(--neon-cyan);
   --color-husband: var(--husband);
   --color-husband-light: var(--husband-light);
+  --color-husband-solid-foreground: var(--husband-solid-foreground);
   --color-wife: var(--wife);
   --color-wife-light: var(--wife-light);
+  --color-wife-solid-foreground: var(--wife-solid-foreground);
+  --color-income: var(--income);
+  --color-expense: var(--expense);
   --color-neon-red-light: var(--neon-red-light);
   --color-neon-cyan-light: var(--neon-cyan-light);
   --color-chart-bar-muted: var(--chart-bar-muted);
   --color-warning: var(--warning);
   --color-sub-text: var(--sub-text);
+  --color-brand-husband: var(--brand-husband);
+  --color-brand-wife: var(--brand-wife);
 }
 
 /* ===== ライトモード（デフォルト） ===== */
@@ -92,6 +98,7 @@
 
   /* デストラクティブ */
   --destructive: #E2483D;
+  --app-destructive: #B42318;
 
   /* ボーダー・入力 */
   --border: #E5E7EB;
@@ -99,14 +106,34 @@
   --ring: #2563EB;
 
   /* ドメインカラー */
-  --neon-red: #E2483D;
+  --neon-red: #B42318;
   --neon-cyan: #2563EB;
 
-  /* 担当者カラー */
-  --husband: #3B82F6;
-  --husband-light: #DBEAFE;
-  --wife: #EF4444;
-  --wife-light: #FEE2E2;
+  /* ブランド・担当者カラー */
+  --brand-husband: #2563EB;
+  --brand-wife: #C43B5C;
+  --husband: var(--brand-husband);
+  --husband-light: #EFF6FF;
+  --husband-solid-foreground: #FFFFFF;
+  --wife: var(--brand-wife);
+  --wife-light: #FFF1F3;
+  --wife-solid-foreground: #FFFFFF;
+
+  /* 収支の意味色 */
+  --income: #0F766E;
+  --expense: #B45309;
+
+  /* アプリ専用サーフェス */
+  --app-ambient-base: #F4F7FC;
+  --app-ambient-husband: #2563EB1F;
+  --app-ambient-wife: #C43B5C14;
+  --app-glass-heavy-background: #FFFFFFB8;
+  --app-glass-sticky-background: #FFFFFFD6;
+  --app-solid-panel-background: #FFFFFF;
+  --app-surface-border: #FFFFFFCC;
+  --app-surface-highlight: inset 0 1px 0 #FFFFFFE6;
+  --app-surface-shadow: 0 18px 48px #1D35631A, 0 2px 8px #1D35630D;
+  --app-sticky-shadow: 0 1px 0 #A9B9D633, 0 8px 24px #1D35630D;
 
   /* シャドウ効果 */
   --glow-accent: #2563EB;
@@ -132,8 +159,8 @@
   --neon-cyan-light: #EFF6FF;
 
   /* 担当者カラー（ソリッド） */
-  --gradient-husband: #3B82F6;
-  --gradient-wife: #EF4444;
+  --gradient-husband: var(--brand-husband);
+  --gradient-wife: var(--brand-wife);
 
   /* チャートバー（非カレント） */
   --chart-bar-muted: #E5E7EB;
@@ -145,8 +172,8 @@
   --chart-1: #2563EB;
   --chart-2: #3B82F6;
   --chart-3: #2563EB;
-  --chart-4: #EF4444;
-  --chart-5: #E2483D;
+  --chart-4: #C43B5C;
+  --chart-5: #B42318;
 
   /* サイドバー（互換性のため） */
   --sidebar: #F3F4F6;
@@ -187,6 +214,7 @@
 
   /* デストラクティブ */
   --destructive: #F87171;
+  --app-destructive: #FF8A75;
 
   /* ボーダー・入力 */
   --border: #ffffff14;
@@ -197,14 +225,34 @@
   --sub-text: #9CA3AF;
 
   /* ドメインカラー */
-  --neon-red: #F87171;
+  --neon-red: #FF8A75;
   --neon-cyan: #60A5FA;
 
-  /* 担当者カラー */
-  --husband: #60A5FA;
+  /* ブランド・担当者カラー */
+  --brand-husband: #73AEFF;
+  --brand-wife: #FF7D9C;
+  --husband: var(--brand-husband);
   --husband-light: #60A5FA26;
-  --wife: #FB7185;
-  --wife-light: #FB718526;
+  --husband-solid-foreground: #0F1117;
+  --wife: var(--brand-wife);
+  --wife-light: #FF7D9C26;
+  --wife-solid-foreground: #0F1117;
+
+  /* 収支の意味色 */
+  --income: #5EEAD4;
+  --expense: #FBBF24;
+
+  /* アプリ専用サーフェス */
+  --app-ambient-base: #0B0E14;
+  --app-ambient-husband: #2563EB2E;
+  --app-ambient-wife: #C43B5C24;
+  --app-glass-heavy-background: #181D29B8;
+  --app-glass-sticky-background: #111620D9;
+  --app-solid-panel-background: #181D29;
+  --app-surface-border: #FFFFFF1F;
+  --app-surface-highlight: inset 0 1px 0 #FFFFFF14;
+  --app-surface-shadow: 0 24px 56px #00000052, 0 2px 10px #00000033;
+  --app-sticky-shadow: 0 1px 0 #FFFFFF14, 0 10px 28px #00000029;
 
   /* グロー効果（ダーク用） */
   --glow-accent: #60A5FA;
@@ -230,8 +278,8 @@
   --neon-cyan-light: #60A5FA26;
 
   /* 担当者カラー（ダーク版） */
-  --gradient-husband: #60A5FA;
-  --gradient-wife: #FB7185;
+  --gradient-husband: var(--brand-husband);
+  --gradient-wife: var(--brand-wife);
 
   /* チャートバー（非カレント・ダーク版） */
   --chart-bar-muted: #374151;
@@ -243,8 +291,8 @@
   --chart-1: #60A5FA;
   --chart-2: #34D399;
   --chart-3: #60A5FA;
-  --chart-4: #FB7185;
-  --chart-5: #F87171;
+  --chart-4: #FF7D9C;
+  --chart-5: #FF8A75;
 
   /* サイドバー（互換性のため） */
   --sidebar: #1A1D27;
@@ -263,6 +311,85 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+  }
+}
+
+/* ===== 認証後アプリ専用 Apple Glass 基盤 ===== */
+.app-shell {
+  --destructive: var(--app-destructive);
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: var(--app-ambient-base);
+  background-image:
+    radial-gradient(circle at 8% -8%, var(--app-ambient-husband), transparent 38%),
+    radial-gradient(circle at 94% 12%, var(--app-ambient-wife), transparent 34%);
+}
+
+.app-modal-surface {
+  --destructive: var(--app-destructive);
+}
+
+.app-glass-heavy {
+  border: 1px solid var(--app-surface-border);
+  background-color: var(--app-glass-heavy-background);
+  box-shadow: var(--app-surface-highlight), var(--app-surface-shadow);
+  -webkit-backdrop-filter: blur(28px) saturate(145%);
+  backdrop-filter: blur(28px) saturate(145%);
+}
+
+.app-sticky-glass {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  border-bottom: 1px solid var(--app-surface-border);
+  background-color: var(--app-glass-sticky-background);
+  box-shadow: var(--app-sticky-shadow);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  backdrop-filter: blur(18px) saturate(135%);
+}
+
+.app-solid-panel {
+  border: 1px solid var(--app-surface-border);
+  background-color: var(--app-solid-panel-background);
+  box-shadow: var(--app-surface-highlight), var(--shadow-soft);
+}
+
+.app-shell :focus-visible,
+.app-sticky-glass :focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 3px;
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .app-glass-heavy,
+  .app-sticky-glass {
+    background-color: var(--app-solid-panel-background);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .app-glass-heavy,
+  .app-sticky-glass {
+    background-color: var(--app-solid-panel-background);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .app-glass-heavy,
+  .app-sticky-glass,
+  .app-solid-panel {
+    border-color: currentColor;
+    background-color: var(--app-solid-panel-background);
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .app-shell :focus-visible,
+  .app-sticky-glass :focus-visible {
+    outline-width: 4px;
   }
 }
 

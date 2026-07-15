@@ -75,8 +75,7 @@ describe('ExpenseSection', () => {
   it('タイトル「支出」を表示する', () => {
     render(<ExpenseSection expenses={mockExpenses} month="202601" />)
 
-    // タイトルは "Expense / 支出" 形式
-    expect(screen.getByText('Expense / 支出')).toBeInTheDocument()
+    expect(screen.getByText('支出')).toBeInTheDocument()
   })
 
   it('担当者バッジを表示する', () => {
@@ -162,6 +161,14 @@ describe('ExpenseSection', () => {
     expect(screen.getByRole('button', { name: '食費を削除' }).parentElement).toHaveClass(
       'md:group-focus-within:opacity-100'
     )
+  })
+
+  it('削除ボタンは競合クラスなしで44px以上のタッチ領域を持つ', () => {
+    render(<ExpenseSection expenses={mockExpenses} month="202601" />)
+
+    const deleteButton = screen.getByRole('button', { name: '食費を削除' })
+    expect(deleteButton).toHaveClass('size-11')
+    expect(deleteButton).not.toHaveClass('h-9', 'w-9')
   })
 
   it('繰越トグルに44px以上のタッチ領域がある', () => {

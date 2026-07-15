@@ -5,15 +5,16 @@ import { MotionProvider } from '@/components/animations/motion-provider'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Score Splitter',
+  title: 'ヤマワケ',
+  applicationName: 'ヤマワケ',
   description: '夫婦間で家計を公平に管理・精算するためのウェブアプリケーション',
 }
 
 export const viewport: Viewport = {
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#4C3BCF' },
-    { media: '(prefers-color-scheme: dark)', color: '#0F1117' },
+    { media: '(prefers-color-scheme: light)', color: '#F4F7FC' },
+    { media: '(prefers-color-scheme: dark)', color: '#0B0E14' },
   ],
 }
 

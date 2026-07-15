@@ -47,8 +47,7 @@ describe('CarryoverSection', () => {
   it('タイトル「繰越」を表示する', () => {
     render(<CarryoverSection carryovers={mockCarryovers} month="202601" />)
 
-    // タイトルは "Carryover / 繰越" 形式
-    expect(screen.getByText('Carryover / 繰越')).toBeInTheDocument()
+    expect(screen.getByText('繰越')).toBeInTheDocument()
   })
 
   it('合計金額を表示する', () => {
@@ -159,6 +158,14 @@ describe('CarryoverSection', () => {
     expect(screen.getByRole('button', { name: '前月繰越を削除' }).parentElement).toHaveClass(
       'md:group-focus-within:opacity-100'
     )
+  })
+
+  it('削除ボタンは競合クラスなしで44px以上のタッチ領域を持つ', () => {
+    render(<CarryoverSection carryovers={mockCarryovers} month="202601" />)
+
+    const deleteButton = screen.getByRole('button', { name: '前月繰越を削除' })
+    expect(deleteButton).toHaveClass('size-11')
+    expect(deleteButton).not.toHaveClass('h-9', 'w-9')
   })
 
   it('清算トグルに44px以上のタッチ領域がある', () => {

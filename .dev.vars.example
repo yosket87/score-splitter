@@ -7,3 +7,4 @@ CLOUDFLARE_WORKER_API_TOKEN=<worker-api-token>
 APP_PASSWORD_HASH_BASE64=<bcryptハッシュのBase64>
 WEBAUTHN_RP_ID=localhost
 WEBAUTHN_RP_ORIGIN=http://localhost:8787
+WEBAUTHN_RP_NAME=ヤマワケ

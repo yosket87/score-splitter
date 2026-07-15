@@ -83,7 +83,9 @@ export const handlers = [
       ? applyFilters([...getTable('passkey_credentials')], { person: `eq.${person}` })
       : [...getTable('passkey_credentials')]
 
-    return HttpResponse.json({ data: rows.map(toApiPasskey) })
+    return HttpResponse.json({
+      data: applyOrder(rows, 'created_at.asc').map(toApiPasskey),
+    })
   }),
 
   http.get(`${WORKER_API_URL}/:table`, ({ params, request }) => {

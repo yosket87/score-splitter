@@ -14,6 +14,7 @@ describe('ブランド整合性', () => {
     'docs/README.md',
     '.interface-design/system.md',
     '.env.mock',
+    '.dev.vars.example',
     'wrangler.jsonc',
     'cloudflare-env.d.ts',
   ])('%s でヤマワケをブランド名として使用する', (path) => {
@@ -21,6 +22,10 @@ describe('ブランド整合性', () => {
 
     expect(content).toContain('ヤマワケ')
     expect(content).not.toContain('Score Splitter')
+  })
+
+  it('preview用WebAuthn RP名をヤマワケに固定する', () => {
+    expect(readProjectFile('.dev.vars.example')).toMatch(/^WEBAUTHN_RP_NAME=ヤマワケ$/m)
   })
 
   it('新しいSVGアイコンだけをアプリアイコンとして使用する', () => {

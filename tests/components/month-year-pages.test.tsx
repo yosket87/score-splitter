@@ -121,6 +121,7 @@ describe('MonthPage', () => {
     expect(screen.getByTestId('carryover-section')).toHaveAttribute('data-count', '1')
     expect(screen.getByTestId('add-entry')).toHaveAttribute('data-month', '202602')
     expect(container.querySelector('main#main')).toHaveAttribute('tabindex', '-1')
+    expect(container.querySelector('main#main > aside')).toHaveClass('min-w-0')
   })
 
   it('データ未設定とサマリー取得失敗を空配列として扱う', async () => {

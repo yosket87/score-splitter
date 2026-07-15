@@ -53,7 +53,7 @@ export default async function MonthPage({ params }: MonthPageProps) {
         tabIndex={-1}
         className="mx-auto grid max-w-6xl gap-6 px-4 py-5 sm:px-5 lg:grid-cols-[minmax(19rem,0.9fr)_minmax(0,1.4fr)] lg:items-start lg:gap-8 lg:py-8"
       >
-        <aside className="lg:sticky lg:top-20">
+        <aside className="min-w-0 lg:sticky lg:top-20">
           <MonthlyOverview
             year={Number(year)}
             month={Number(monthParam)}

@@ -25,6 +25,7 @@ export function ToggleSwitch({
       <button
         type="button"
         role="switch"
+        aria-label={label}
         aria-checked={checked}
         onClick={() => onChange(!checked)}
         className="ml-3 flex size-11 shrink-0 items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/50"

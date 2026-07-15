@@ -20,12 +20,11 @@ export default defineConfig({
         'src/app/**/loading.tsx',
         'src/instrumentation.ts',
       ],
-      // 最終目標は80%。現状に合わせた下限から始め、テスト追加に合わせて段階的に引き上げる。
       thresholds: {
-        statements: 50,
-        branches: 45,
-        functions: 45,
-        lines: 50,
+        statements: 80,
+        branches: 80,
+        functions: 80,
+        lines: 80,
       },
     },
   },

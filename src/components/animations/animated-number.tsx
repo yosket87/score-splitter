@@ -23,7 +23,7 @@ export function AnimatedYen({
 }: AnimatedYenProps) {
   const target = absolute ? Math.abs(value) : value
   const mv = useMotionValue(initialValue)
-  const formatted = useTransform(mv, (v) => formatCurrency(Math.round(v)))
+  const formatted = useTransform(mv, (v) => formatCurrency(v))
   const { reduced } = useMotionPrefs()
 
   useEffect(() => {

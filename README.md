@@ -1,10 +1,10 @@
-# Score Splitter
+# ヤマワケ
 
-夫婦間の家計を公平に管理・精算するためのWebアプリケーションです。
+ふたりの家計を公平に管理・精算するためのWebアプリケーションです。
 
 ## 概要
 
-毎月の収入・支出・繰越を記録し、精算金額（誰から誰へ、いくら支払うか）を自動計算します。
+毎月の収入・支出・繰越を記録し、残ったお金をふたりで山分けするための精算金額を自動計算します。
 
 ## 主な機能
 
@@ -38,6 +38,9 @@ npm install
 CLOUDFLARE_WORKER_API_URL=your_worker_api_url
 CLOUDFLARE_WORKER_API_TOKEN=your_worker_api_token
 APP_PASSWORD_HASH_BASE64=your_password_hash_base64
+WEBAUTHN_RP_ID=localhost
+WEBAUTHN_RP_ORIGIN=http://localhost:3000
+WEBAUTHN_RP_NAME=ヤマワケ
 ```
 
 ### 開発サーバーの起動

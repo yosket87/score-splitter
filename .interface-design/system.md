@@ -1,4 +1,4 @@
-# Design System — Score Splitter（家計計算アプリ）
+# Design System — ヤマワケ（家計精算アプリ）
 
 ## Direction
 

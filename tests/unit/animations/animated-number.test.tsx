@@ -39,6 +39,13 @@ describe('AnimatedYen', () => {
     })
   })
 
+  it('小数の金額を共通フォーマットと同じく切り捨てる', async () => {
+    const { container } = render(<AnimatedYen value={499999999.5} />)
+    await waitFor(() => {
+      expect(container.textContent).toBe('¥499,999,999')
+    })
+  })
+
   it('value変更後に最終値に到達する', async () => {
     const { container, rerender } = render(<AnimatedYen value={100} />)
     await waitFor(() => {

@@ -105,6 +105,14 @@ describe('IncomeSection', () => {
     expect(screen.getByRole('button', { name: 'ボーナスを編集' })).toBeInTheDocument()
   })
 
+  it('編集ボタンは競合クラスなしで44px以上のタッチ領域を持つ', () => {
+    render(<IncomeSection incomes={mockIncomes} month="202601" />)
+
+    const editButton = screen.getByRole('button', { name: '給料を編集' })
+    expect(editButton).toHaveClass('size-11')
+    expect(editButton).not.toHaveClass('h-9', 'w-9')
+  })
+
   it('行アクションはキーボードフォーカス時にも可視化される', () => {
     render(<IncomeSection incomes={mockIncomes} month="202601" />)
 

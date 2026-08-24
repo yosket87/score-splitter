@@ -13,21 +13,13 @@ import {
 import { EntryFields } from '@/components/entry-fields'
 import { TYPE_LABELS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
-import { createIncome } from '@/app/actions/income'
-import { createExpense } from '@/app/actions/expense'
-import { createCarryover } from '@/app/actions/carryover'
+import { createActions } from '../actions-map'
 import type { EntryType, Person } from '@/types'
 
 interface AddEntrySheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   month: string
-}
-
-const createActions = {
-  income: createIncome,
-  expense: createExpense,
-  carryover: createCarryover,
 }
 
 interface SheetSubmitButtonProps {

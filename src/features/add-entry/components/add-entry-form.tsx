@@ -5,9 +5,7 @@ import { TYPE_LABELS } from '@/lib/constants'
 import { EntryFields } from '@/components/entry-fields'
 import { Button } from '@/components/ui/button'
 import { SubmitButton } from '@/components/ui/submit-button'
-import { createIncome } from '@/app/actions/income'
-import { createExpense } from '@/app/actions/expense'
-import { createCarryover } from '@/app/actions/carryover'
+import { createActions } from '../actions-map'
 import type { EntryType, Person } from '@/types'
 
 interface AddEntryFormProps {
@@ -16,14 +14,6 @@ interface AddEntryFormProps {
   onSuccess: () => void
   onCancel: () => void
 }
-
-
-const createActions = {
-  income: createIncome,
-  expense: createExpense,
-  carryover: createCarryover,
-}
-
 export function AddEntryForm({ type, month, onSuccess, onCancel }: AddEntryFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [person, setPerson] = useState<Person>('husband')

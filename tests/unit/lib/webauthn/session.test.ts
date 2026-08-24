@@ -9,7 +9,6 @@ import {
   createSession,
   deleteSession,
   getSession,
-  getSessionPerson,
   isAuthenticated,
 } from '@/lib/webauthn/session'
 
@@ -104,22 +103,6 @@ describe('session module', () => {
       expect(session).toBeNull()
       expect(mockSessionsApi.deleteSession).toHaveBeenCalledWith('expired-token')
       expect(mockCookies.delete).toHaveBeenCalledWith('household_session')
-    })
-  })
-
-  describe('getSessionPerson', () => {
-    it('セッションからpersonを返す', async () => {
-      mockCookies.get.mockReturnValueOnce({ value: 'token' })
-      mockSessionsApi.getSession.mockResolvedValueOnce({
-        token: 'token',
-        person: 'wife',
-        authMethod: 'passkey',
-        expiresAt: new Date(Date.now() + 86400000).toISOString(),
-      })
-
-      const person = await getSessionPerson()
-
-      expect(person).toBe('wife')
     })
   })
 

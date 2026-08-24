@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { CarryoverSection } from '@/features/carryover'
 import { PersonSelector } from '@/components/ui/person-selector'
-import { PersonBadge } from '@/components/ui/person-badge'
 import type { Carryover } from '@/types'
 
 vi.mock('@/app/actions/carryover', () => ({
@@ -58,15 +57,5 @@ describe('CarryoverSection a11y', () => {
       'aria-checked',
       'false'
     )
-  })
-
-  it('担当者のソリッドバッジは担当者別の前景トークンを使う', () => {
-    const { rerender } = render(<PersonBadge person="husband" />)
-
-    expect(screen.getByText('夫')).toHaveClass('text-husband-solid-foreground')
-
-    rerender(<PersonBadge person="wife" />)
-
-    expect(screen.getByText('妻')).toHaveClass('text-wife-solid-foreground')
   })
 })

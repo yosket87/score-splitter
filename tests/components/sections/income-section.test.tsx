@@ -74,7 +74,7 @@ describe('IncomeSection', () => {
   it('担当者バッジを表示する', () => {
     render(<IncomeSection incomes={mockIncomes} month="202601" />)
 
-    // PersonBadgeコンポーネントがレンダリングされることを確認
+    // 担当者が表示されることを確認
     // バッジとSelectオプションの両方に「夫」「妻」が存在するのでgetAllByTextを使用
     const husbandElements = screen.getAllByText('夫')
     const wifeElements = screen.getAllByText('妻')

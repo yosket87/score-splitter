@@ -18,6 +18,8 @@ import {
   updateIncome,
 } from '@/lib/api/records'
 import { copyMonthData, getCopyMonthPreview } from '@/lib/api/copy-month'
+import { ApiError } from '@/lib/api/client'
+import { createSession, getSession } from '@/lib/api/sessions'
 import type { CopyMonthOptions } from '@/types'
 
 const WORKER_URL = 'https://worker.example.test'
@@ -518,6 +520,46 @@ describe('lib/api copy-month contract', () => {
         contentType: 'application/json',
         body: options,
       })
+    )
+  })
+})
+
+describe('lib/api sessions contract', () => {
+  it('セッションレスポンスを検証し、未検出のnullを許可する', async () => {
+    server.use(
+      http.post(`${WORKER_URL}/sessions`, () =>
+        HttpResponse.json({
+          data: {
+            token: 'session-token',
+            person: 'husband',
+            authMethod: 'passkey',
+            expiresAt: '2026-03-01T00:00:00.000Z',
+          },
+        })
+      ),
+      http.get(`${WORKER_URL}/sessions/:token`, () => HttpResponse.json({ data: null }))
+    )
+
+    await expect(
+      createSession({
+        token: 'session-token',
+        person: 'husband',
+        authMethod: 'passkey',
+        expiresAt: '2026-03-01T00:00:00.000Z',
+      })
+    ).resolves.toEqual(expect.objectContaining({ token: 'session-token', person: 'husband' }))
+    await expect(getSession('missing-token')).resolves.toBeNull()
+  })
+
+  it('セッションレスポンスが契約外なら502を返す', async () => {
+    server.use(
+      http.get(`${WORKER_URL}/sessions/:token`, () =>
+        HttpResponse.json({ data: { token: 'broken-session' } })
+      )
+    )
+
+    await expect(getSession('broken-session')).rejects.toEqual(
+      new ApiError('Worker APIレスポンスの形式が不正です', 502)
     )
   })
 })

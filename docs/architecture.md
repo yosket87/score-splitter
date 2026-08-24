@@ -11,7 +11,10 @@ score-splitter/
 │   │   │   ├── income.ts         # 収入CRUD
 │   │   │   ├── expense.ts        # 支出CRUD
 │   │   │   ├── carryover.ts      # 繰越CRUD
-│   │   │   └── copy-month.ts     # 月コピー機能
+│   │   │   ├── copy-month.ts     # 月コピー機能
+│   │   │   ├── monthly-summary.ts # 月次集計
+│   │   │   ├── passkeys.ts       # パスキー認証
+│   │   │   └── waitlist.ts       # ウェイトリスト登録
 │   │   ├── login/                # ログインページ
 │   │   ├── layout.tsx            # ルートレイアウト
 │   │   ├── page.tsx              # ホームページ
@@ -31,12 +34,22 @@ score-splitter/
 │   │   ├── carryover/            # 繰越セクション
 │   │   ├── add-entry/            # エントリ追加
 │   │   ├── edit-entry/           # エントリ編集
-│   │   └── copy-month/           # 月コピー機能
+│   │   ├── copy-month/           # 月コピー機能
+│   │   ├── monthly-overview/     # 月次精算額の概要
+│   │   ├── monthly-list/         # 年別の月一覧
+│   │   ├── export-csv/           # CSVエクスポート
+│   │   ├── passkey/              # パスキー設定・ログイン
+│   │   └── waitlist-lp/          # 需要検証用LP
 │   │
 │   ├── lib/
 │   │   ├── api/                  # Worker APIクライアント
 │   │   │   ├── client.ts         # HTTPクライアント
-│   │   │   └── records.ts        # 収支データAPI
+│   │   │   ├── records.ts        # 収支データAPI
+│   │   │   ├── sessions.ts       # セッションAPI
+│   │   │   ├── passkeys.ts       # パスキーAPI
+│   │   │   ├── copy-month.ts     # 月コピーAPI
+│   │   │   ├── monthly-summary.ts # 月次集計API
+│   │   │   └── login-attempts.ts # ログイン試行API
 │   │   ├── utils/                # ユーティリティ
 │   │   │   ├── calculation.ts    # 計算ロジック
 │   │   │   └── format.ts         # フォーマット関数

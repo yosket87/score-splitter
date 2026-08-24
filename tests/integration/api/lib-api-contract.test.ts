@@ -529,6 +529,24 @@ describe('lib/api copy-month contract', () => {
       })
     )
   })
+
+  it('コピー結果が契約外なら502を返す', async () => {
+    server.use(
+      http.post(`${WORKER_URL}/copy-month`, () =>
+        HttpResponse.json({ success: true, copied: {}, skipped: {} })
+      )
+    )
+
+    await expect(
+      copyMonthData({
+        sourceMonth: '202602',
+        targetMonth: '202603',
+        mode: 'add',
+        includeCarryover: false,
+        selectedItems: [],
+      })
+    ).rejects.toEqual(new ApiError('Worker APIレスポンスの形式が不正です', 502))
+  })
 })
 
 describe('lib/api sessions contract', () => {

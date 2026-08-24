@@ -12,6 +12,7 @@
     "deploy:worker": "wrangler deploy --config cloudflare/worker/wrangler.jsonc",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv --include-runtime=false cloudflare-env.d.ts",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "migrate:supabase-to-d1": "node scripts/supabase-to-d1.mjs",
     "test": "vitest",
     "test:run": "vitest run",

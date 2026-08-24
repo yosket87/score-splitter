@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     // Cloudflare (OpenNext) の生成物
     ".open-next/**",
     "cloudflare-env.d.ts",
+    // ローカルのClaude Code設定・worktree生成物
+    ".claude/**",
   ]),
 ]);
 

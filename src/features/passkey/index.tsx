@@ -6,6 +6,8 @@ import { PasskeyList } from './components/passkey-list'
 import { RegisterPasskeyForm } from './components/register-passkey-form'
 import type { PasskeyInfo } from './types'
 
+export { PasskeyLoginButton } from './components/passkey-login-button'
+
 export function PasskeySettings() {
   const [passkeys, setPasskeys] = useState<PasskeyInfo[]>([])
   const [loadError, setLoadError] = useState(false)

@@ -24,7 +24,7 @@ vi.mock('next/navigation', () => ({
   }),
 }))
 
-vi.mock('@/features/passkey/components/passkey-login-button', () => ({
+vi.mock('@/features/passkey', () => ({
   PasskeyLoginButton: () => <button type="button">パスキーでログイン</button>,
 }))
 

@@ -11,13 +11,9 @@ shadcn/uiベースの再利用可能なUIコンポーネント群。
 | Button | `button.tsx` | ボタン |
 | Card | `card.tsx` | カードコンテナ |
 | Dialog | `dialog.tsx` | モーダルダイアログ |
-| Form | `form.tsx` | フォームコンテキスト（RHF連携） |
 | Input | `input.tsx` | テキスト入力 |
 | Label | `label.tsx` | フォームラベル |
 | Select | `select.tsx` | セレクトボックス |
-| Table | `table.tsx` | テーブル |
-| Collapsible | `collapsible.tsx` | 折りたたみ可能コンテナ |
-| PersonBadge | `person-badge.tsx` | 担当者バッジ（夫/妻表示） |
 | Sonner | `sonner.tsx` | トースト通知 |
 
 ### レイアウトコンポーネント (`src/components/layout/`)
@@ -25,7 +21,6 @@ shadcn/uiベースの再利用可能なUIコンポーネント群。
 | コンポーネント | ファイル | 説明 |
 |--------------|---------|------|
 | Header | `header.tsx` | ページヘッダー（ロゴ、ログアウトボタン） |
-| MonthSelector | `month-selector.tsx` | 月選択ナビゲーション |
 
 ### 共有コンポーネント (`src/components/`)
 
@@ -51,11 +46,6 @@ app/layout.tsx
 └── app/page.tsx
     ├── Header
     │   └── ログアウトボタン
-    ├── MonthSelector
-    │   ├── 前月ボタン
-    │   ├── 月表示
-    │   ├── 次月ボタン
-    │   └── CopyMonthDialog
     ├── IncomeSection
     │   ├── SectionShell
     │   └── EntryRow

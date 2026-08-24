@@ -24,8 +24,7 @@ score-splitter/
 │   │   ├── entry-fields.tsx      # 収入/支出/繰越フォーム共通フィールド
 │   │   ├── entry-section.tsx     # 収入/支出/繰越セクション共通UI
 │   │   ├── layout/               # レイアウトコンポーネント
-│   │   │   ├── header.tsx
-│   │   │   └── month-selector.tsx
+│   │   │   └── header.tsx
 │   │   └── ui/                   # UIコンポーネント（shadcn/ui）
 │   │
 │   ├── features/                 # ドメイン機能

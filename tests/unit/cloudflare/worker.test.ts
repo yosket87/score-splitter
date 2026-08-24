@@ -248,7 +248,7 @@ class FakeD1Database implements D1DatabaseLike {
         month: params[1] as string,
         label: params[2] as string,
         amount: params[3] as number,
-        person: params[4] as string,
+        person: params[4] as 'husband' | 'wife',
         created_at: params[5] as string,
         updated_at: params[6] as string,
       })

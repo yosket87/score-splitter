@@ -77,7 +77,6 @@
   "deploy:worker": "wrangler deploy --config cloudflare/worker/wrangler.jsonc",  // Worker APIをデプロイ
   "cf-typegen": "wrangler types --env-interface CloudflareEnv --include-runtime=false cloudflare-env.d.ts",  // 環境変数の型生成
   "lint": "eslint",                     // ESLintチェック
-  "migrate:supabase-to-d1": "node scripts/supabase-to-d1.mjs",
   "test": "vitest",                     // Vitestウォッチモード
   "test:run": "vitest run",             // Vitestシングルラン
   "test:coverage": "vitest run --coverage",  // カバレッジ付きテスト

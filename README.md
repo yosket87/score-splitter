@@ -61,7 +61,6 @@ npm run dev
 | `npm run deploy` | フロントエンドをCloudflare Workersへデプロイ |
 | `npm run deploy:worker` | Worker APIをデプロイ |
 | `npm run lint` | ESLint実行 |
-| `npm run migrate:supabase-to-d1` | 旧データをD1投入SQLへ変換 |
 | `npm run test` | テスト（ウォッチモード） |
 | `npm run test:run` | テスト（単発実行） |
 | `npm run test:coverage` | カバレッジ測定 |
@@ -71,7 +70,7 @@ npm run dev
 
 フロントエンド・APIともCloudflare Workersにホストしています。デプロイ構成は [docs/deployment.md](./docs/deployment.md) を参照してください。
 
-D1スキーマとWorker APIは `cloudflare/worker/` にあります。旧データの移行手順は [docs/cloudflare-migration.md](./docs/cloudflare-migration.md) を参照してください。
+D1スキーマとWorker APIは `cloudflare/worker/` にあります。
 
 ## ドキュメント
 
@@ -85,7 +84,6 @@ D1スキーマとWorker APIは `cloudflare/worker/` にあります。旧デー�
 | [docs/components.md](./docs/components.md) | コンポーネント構造 |
 | [docs/features.md](./docs/features.md) | 主要機能の詳細 |
 | [docs/database.md](./docs/database.md) | データベース設計 |
-| [docs/cloudflare-migration.md](./docs/cloudflare-migration.md) | D1移行手順 |
 | [docs/deployment.md](./docs/deployment.md) | デプロイ構成・手順 |
 | [docs/testing.md](./docs/testing.md) | テスト構成 |
 | [docs/configuration.md](./docs/configuration.md) | 設定ファイル |

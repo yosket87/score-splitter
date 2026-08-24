@@ -28,6 +28,10 @@ import {
   listPasskeys,
 } from '@/lib/api/passkeys'
 import { getMonthlyAmounts } from '@/lib/api/monthly-summary'
+import {
+  checkLoginRateLimit,
+  recordFailedLoginAttempt,
+} from '@/lib/api/login-attempts'
 import type { CopyMonthOptions } from '@/types'
 
 const WORKER_URL = 'https://worker.example.test'
@@ -686,6 +690,37 @@ describe('lib/api monthly-summary contract', () => {
     )
 
     await expect(getMonthlyAmounts()).rejects.toEqual(
+      new ApiError('Worker APIレスポンスの形式が不正です', 502)
+    )
+  })
+})
+
+describe('lib/api login-attempts contract', () => {
+  it('ログイン試行レスポンスのオプショナルな待機秒数を検証する', async () => {
+    server.use(
+      http.post(`${WORKER_URL}/login-attempts/check`, () =>
+        HttpResponse.json({ data: { allowed: true } })
+      ),
+      http.post(`${WORKER_URL}/login-attempts/failure`, () =>
+        HttpResponse.json({ data: { allowed: false, retryAfterSeconds: 60 } })
+      )
+    )
+
+    await expect(checkLoginRateLimit('login-key')).resolves.toEqual({ allowed: true })
+    await expect(recordFailedLoginAttempt('login-key')).resolves.toEqual({
+      allowed: false,
+      retryAfterSeconds: 60,
+    })
+  })
+
+  it('ログイン試行レスポンスが契約外なら502を返す', async () => {
+    server.use(
+      http.post(`${WORKER_URL}/login-attempts/check`, () =>
+        HttpResponse.json({ data: { allowed: 'yes' } })
+      )
+    )
+
+    await expect(checkLoginRateLimit('login-key')).rejects.toEqual(
       new ApiError('Worker APIレスポンスの形式が不正です', 502)
     )
   })

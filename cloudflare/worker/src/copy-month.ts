@@ -198,7 +198,7 @@ async function buildCarryoverStatements(
   ])
 
   const existingKeys =
-    mode === 'skip'
+    mode !== 'replace'
       ? new Set(
           (
             await db

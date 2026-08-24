@@ -666,6 +666,166 @@ describe('Cloudflare Worker API', () => {
     ])
   })
 
+  it('addモードはコピー先と重複する繰越だけをスキップして他項目をコピーする', async () => {
+    const db = new FakeD1Database({
+      carryovers: [
+        {
+          id: 'source-duplicate',
+          month: '202601',
+          label: '重複繰越',
+          amount: -10000,
+          person: 'husband',
+          is_cleared: 0,
+          created_at: '2026-01-03T00:00:00.000Z',
+          updated_at: '2026-01-03T00:00:00.000Z',
+        },
+        {
+          id: 'source-unique',
+          month: '202601',
+          label: '新規繰越',
+          amount: -20000,
+          person: 'wife',
+          is_cleared: 0,
+          created_at: '2026-01-04T00:00:00.000Z',
+          updated_at: '2026-01-04T00:00:00.000Z',
+        },
+        {
+          id: 'target-duplicate',
+          month: '202602',
+          label: '重複繰越',
+          amount: -10000,
+          person: 'husband',
+          is_cleared: 0,
+          created_at: '2026-02-01T00:00:00.000Z',
+          updated_at: '2026-02-01T00:00:00.000Z',
+        },
+      ],
+    })
+
+    const response = await handleRequest(
+      createRequest('/copy-month', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          sourceMonth: '202601',
+          targetMonth: '202602',
+          mode: 'add',
+          includeCarryover: true,
+          selectedItems: [
+            {
+              id: 'income-1',
+              label: '給料',
+              amount: 300000,
+              person: 'husband',
+              type: 'income',
+              itemCopyMode: 'withAmount',
+            },
+            {
+              id: 'expense-1',
+              label: '家賃',
+              amount: -120000,
+              person: 'wife',
+              type: 'expense',
+              itemCopyMode: 'withAmount',
+            },
+          ],
+        }),
+      }),
+      createEnv(db),
+      {
+        randomUUID: vi.fn()
+          .mockReturnValueOnce('copied-income-id')
+          .mockReturnValueOnce('copied-expense-id')
+          .mockReturnValueOnce('copied-carryover-id'),
+        now: vi.fn(() => new Date('2026-02-03T04:05:06.000Z')),
+      }
+    )
+
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      copied: { incomes: 1, expenses: 1, carryovers: 1 },
+      skipped: { incomes: 0, expenses: 0, carryovers: 1 },
+    })
+    const carryoverInserts = db.batched[0].filter((item) =>
+      item.query.startsWith('INSERT INTO carryovers')
+    )
+    expect(carryoverInserts).toHaveLength(1)
+    expect(carryoverInserts[0].params).toContain('新規繰越')
+  })
+
+  it.each(['skip', 'replace'] as const)(
+    '%sモードの既存繰越処理を維持する',
+    async (mode) => {
+      const db = new FakeD1Database({
+        carryovers: [
+          {
+            id: 'source-carryover',
+            month: '202601',
+            label: '前月繰越',
+            amount: -10000,
+            person: 'husband',
+            is_cleared: 0,
+            created_at: '2026-01-03T00:00:00.000Z',
+            updated_at: '2026-01-03T00:00:00.000Z',
+          },
+          {
+            id: 'target-carryover',
+            month: '202602',
+            label: '前月繰越',
+            amount: -10000,
+            person: 'husband',
+            is_cleared: 0,
+            created_at: '2026-02-01T00:00:00.000Z',
+            updated_at: '2026-02-01T00:00:00.000Z',
+          },
+        ],
+      })
+
+      const response = await handleRequest(
+        createRequest('/copy-month', {
+          method: 'POST',
+          headers: {
+            authorization: 'Bearer secret-token',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            sourceMonth: '202601',
+            targetMonth: '202602',
+            mode,
+            includeCarryover: true,
+            selectedItems: [],
+          }),
+        }),
+        createEnv(db),
+        {
+          randomUUID: vi.fn(() => 'copied-carryover-id'),
+          now: vi.fn(() => new Date('2026-02-03T04:05:06.000Z')),
+        }
+      )
+
+      await expect(response.json()).resolves.toMatchObject(
+        mode === 'skip'
+          ? {
+              copied: { carryovers: 0 },
+              skipped: { carryovers: 1 },
+            }
+          : {
+              copied: { carryovers: 1 },
+              skipped: { carryovers: 0 },
+            }
+      )
+      if (mode === 'replace') {
+        expect(db.batched[0].map((item) => item.query)).toEqual([
+          'DELETE FROM carryovers WHERE month = ?',
+          expect.stringContaining('INSERT INTO carryovers'),
+        ])
+      }
+    }
+  )
+
   it('ログイン失敗回数を記録して状態取得できる', async () => {
     const db = new FakeD1Database()
     const now = vi.fn(() => new Date('2026-02-03T04:05:06.000Z'))

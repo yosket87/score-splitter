@@ -27,6 +27,7 @@ import {
   getPasskey,
   listPasskeys,
 } from '@/lib/api/passkeys'
+import { getMonthlyAmounts } from '@/lib/api/monthly-summary'
 import type { CopyMonthOptions } from '@/types'
 
 const WORKER_URL = 'https://worker.example.test'
@@ -653,6 +654,38 @@ describe('lib/api passkeys contract', () => {
     )
 
     await expect(listPasskeys()).rejects.toEqual(
+      new ApiError('Worker APIレスポンスの形式が不正です', 502)
+    )
+  })
+})
+
+describe('lib/api monthly-summary contract', () => {
+  it('月別金額レスポンスを検証する', async () => {
+    server.use(
+      http.get(`${WORKER_URL}/monthly-amounts`, () =>
+        HttpResponse.json({
+          data: {
+            incomes: [{ month: '202603', amount: 300000 }],
+            expenses: [{ month: '202603', amount: -120000 }],
+          },
+        })
+      )
+    )
+
+    await expect(getMonthlyAmounts()).resolves.toEqual({
+      incomes: [{ month: '202603', amount: 300000 }],
+      expenses: [{ month: '202603', amount: -120000 }],
+    })
+  })
+
+  it('月別金額レスポンスが契約外なら502を返す', async () => {
+    server.use(
+      http.get(`${WORKER_URL}/monthly-amounts`, () =>
+        HttpResponse.json({ data: { incomes: [], expenses: [{ month: '202603' }] } })
+      )
+    )
+
+    await expect(getMonthlyAmounts()).rejects.toEqual(
       new ApiError('Worker APIレスポンスの形式が不正です', 502)
     )
   })

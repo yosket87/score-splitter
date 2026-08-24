@@ -266,7 +266,7 @@ describe('passkey actions', () => {
 
     expect(result).toEqual({
       success: false,
-      error: 'origin mismatch',
+      error: '登録の検証に失敗しました',
     })
     expect(mockPasskeysApi.createPasskey).not.toHaveBeenCalled()
   })
@@ -355,17 +355,17 @@ describe('passkey actions', () => {
     expect(mockPasskeysApi.deleteExpiredChallenges).toHaveBeenCalledWith(expect.any(String))
   })
 
-  it.each([
-    [new Error('登録生成エラー'), '登録生成エラー'],
-    ['unknown', '登録オプションの生成に失敗しました'],
-  ])('登録オプション生成例外をActionResultへ変換する', async (error, message) => {
+  it.each([new Error('登録生成エラー'), 'unknown'])(
+    '登録オプション生成例外を固定文言のActionResultへ変換する',
+    async (error) => {
     mockPasskeysApi.listPasskeys.mockRejectedValueOnce(error)
 
     await expect(generateRegistrationOptions('husband')).resolves.toEqual({
       success: false,
-      error: message,
+      error: '登録オプションの生成に失敗しました',
     })
-  })
+    }
+  )
 
   it('認証オプションを生成してチャレンジを保存する', async () => {
     simpleWebAuthnMocks.generateAuthenticationOptions.mockResolvedValueOnce({
@@ -388,17 +388,17 @@ describe('passkey actions', () => {
     expect(mockPasskeysApi.deleteExpiredChallenges).toHaveBeenCalledWith(expect.any(String))
   })
 
-  it.each([
-    [new Error('認証生成エラー'), '認証生成エラー'],
-    ['unknown', '認証オプションの生成に失敗しました'],
-  ])('認証オプション生成例外をActionResultへ変換する', async (error, message) => {
+  it.each([new Error('認証生成エラー'), 'unknown'])(
+    '認証オプション生成例外を固定文言のActionResultへ変換する',
+    async (error) => {
     simpleWebAuthnMocks.generateAuthenticationOptions.mockRejectedValueOnce(error)
 
     await expect(generateAuthenticationOptions()).resolves.toEqual({
       success: false,
-      error: message,
+      error: '認証オプションの生成に失敗しました',
     })
-  })
+    }
+  )
 
   it('未認証では登録検証を行わない', async () => {
     sessionMocks.isAuthenticated.mockResolvedValueOnce(false)
@@ -562,29 +562,29 @@ describe('passkey actions', () => {
     expect(sessionMocks.createSession).not.toHaveBeenCalled()
   })
 
-  it.each([
-    [new Error('認証検証エラー'), '認証検証エラー'],
-    ['unknown', '認証の検証に失敗しました'],
-  ])('認証検証例外をActionResultへ変換する', async (error, message) => {
+  it.each([new Error('認証検証エラー'), 'unknown'])(
+    '認証検証例外を固定文言のActionResultへ変換する',
+    async (error) => {
     mockPasskeysApi.getPasskey.mockRejectedValueOnce(error)
 
     await expect(verifyAuthentication(authenticationCredential)).resolves.toEqual({
       success: false,
-      error: message,
+      error: '認証の検証に失敗しました',
     })
-  })
+    }
+  )
 
-  it.each([
-    [new Error('一覧エラー'), '一覧エラー'],
-    ['unknown', '不明なエラー'],
-  ])('一覧取得例外をActionResultへ変換する', async (error, message) => {
+  it.each([new Error('一覧エラー'), 'unknown'])(
+    '一覧取得例外を固定文言のActionResultへ変換する',
+    async (error) => {
     mockPasskeysApi.listPasskeys.mockRejectedValueOnce(error)
 
     await expect(listPasskeys()).resolves.toEqual({
       success: false,
-      error: `パスキー一覧の取得に失敗しました: ${message}`,
+      error: 'パスキー一覧の取得に失敗しました',
     })
-  })
+    }
+  )
 
   it('パスキーを削除する', async () => {
     const result = await deletePasskey('credential-1')
@@ -593,15 +593,15 @@ describe('passkey actions', () => {
     expect(mockPasskeysApi.deletePasskey).toHaveBeenCalledWith('credential-1')
   })
 
-  it.each([
-    [new Error('削除エラー'), '削除エラー'],
-    ['unknown', '不明なエラー'],
-  ])('削除例外をActionResultへ変換する', async (error, message) => {
+  it.each([new Error('削除エラー'), 'unknown'])(
+    '削除例外を固定文言のActionResultへ変換する',
+    async (error) => {
     mockPasskeysApi.deletePasskey.mockRejectedValueOnce(error)
 
     await expect(deletePasskey('credential-1')).resolves.toEqual({
       success: false,
-      error: `パスキーの削除に失敗しました: ${message}`,
+      error: 'パスキーの削除に失敗しました',
     })
-  })
+    }
+  )
 })

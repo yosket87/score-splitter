@@ -1,4 +1,5 @@
 import type { D1DatabaseLike, Runtime } from './d1'
+import { HttpError } from './http'
 import { assertObject } from './validation'
 
 export type AuthMethod = 'password' | 'passkey'
@@ -51,28 +52,28 @@ export async function deleteSession(db: D1DatabaseLike, token: string) {
 
 function parseToken(value: unknown): string {
   if (typeof value !== 'string' || !/^[a-f0-9]{64}$/.test(value)) {
-    throw new Error('tokenが不正です')
+    throw new HttpError('tokenが不正です', 400)
   }
   return value
 }
 
 function parsePerson(value: unknown): 'husband' | 'wife' {
   if (value !== 'husband' && value !== 'wife') {
-    throw new Error('personが不正です')
+    throw new HttpError('personが不正です', 400)
   }
   return value
 }
 
 function parseAuthMethod(value: unknown): AuthMethod {
   if (value !== 'password' && value !== 'passkey') {
-    throw new Error('authMethodが不正です')
+    throw new HttpError('authMethodが不正です', 400)
   }
   return value
 }
 
 function parseDate(value: unknown, name: string): string {
   if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
-    throw new Error(`${name}が不正です`)
+    throw new HttpError(`${name}が不正です`, 400)
   }
   return value
 }

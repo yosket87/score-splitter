@@ -435,6 +435,122 @@ describe('Cloudflare Worker API', () => {
     expect(db.executed.some((item) => item.query.startsWith('INSERT INTO incomes'))).toBe(true)
   })
 
+  it.each([
+    ['token', { token: 'invalid' }, 'tokenが不正です'],
+    ['person', { person: 'partner' }, 'personが不正です'],
+    ['authMethod', { authMethod: 'magic-link' }, 'authMethodが不正です'],
+    ['expiresAt', { expiresAt: 'invalid-date' }, 'expiresAtが不正です'],
+  ])('セッションの%sが不正なら400を返す', async (_name, override, error) => {
+    const response = await handleRequest(
+      createRequest('/sessions', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          token: 'a'.repeat(64),
+          person: 'wife',
+          authMethod: 'passkey',
+          expiresAt: '2026-02-10T04:05:06.000Z',
+          ...override,
+        }),
+      }),
+      createEnv()
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({ error })
+  })
+
+  it.each([
+    ['type', { type: 'invalid' }, 'typeが不正です'],
+    ['expiresAt', { expiresAt: 'invalid-date' }, 'expiresAtが不正です'],
+  ])('WebAuthnチャレンジの%sが不正なら400を返す', async (_name, override, error) => {
+    const response = await handleRequest(
+      createRequest('/webauthn-challenges', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          challenge: 'challenge',
+          type: 'registration',
+          person: 'husband',
+          expiresAt: '2026-02-10T04:05:06.000Z',
+          ...override,
+        }),
+      }),
+      createEnv()
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({ error })
+  })
+
+  it.each([
+    ['mode', { mode: 'invalid' }],
+    ['selectedItems', { selectedItems: null }],
+  ])('月コピーの%sが不正なら400を返す', async (_name, override) => {
+    const response = await handleRequest(
+      createRequest('/copy-month', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          sourceMonth: '202601',
+          targetMonth: '202602',
+          mode: 'add',
+          includeCarryover: false,
+          selectedItems: [],
+          ...override,
+        }),
+      }),
+      createEnv()
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({ error: `${_name}が不正です` })
+  })
+
+  it.each([
+    ['income', -1],
+    ['expense', 1],
+  ] as const)('月コピーの%sに不正な符号の金額を指定すると400を返す', async (type, amount) => {
+    const response = await handleRequest(
+      createRequest('/copy-month', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          sourceMonth: '202601',
+          targetMonth: '202602',
+          mode: 'add',
+          includeCarryover: false,
+          selectedItems: [
+            {
+              id: `${type}-1`,
+              label: '不正金額',
+              amount,
+              person: 'husband',
+              type,
+              itemCopyMode: 'withAmount',
+            },
+          ],
+        }),
+      }),
+      createEnv()
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({ error: 'amountが不正です' })
+  })
+
   it('月コピーのreplaceをD1 batchで実行する', async () => {
     const db = new FakeD1Database()
     const response = await handleRequest(

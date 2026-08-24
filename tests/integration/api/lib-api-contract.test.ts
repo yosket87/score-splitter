@@ -20,6 +20,13 @@ import {
 import { copyMonthData, getCopyMonthPreview } from '@/lib/api/copy-month'
 import { ApiError } from '@/lib/api/client'
 import { createSession, getSession } from '@/lib/api/sessions'
+import {
+  createChallenge,
+  createPasskey,
+  getLatestChallenge,
+  getPasskey,
+  listPasskeys,
+} from '@/lib/api/passkeys'
 import type { CopyMonthOptions } from '@/types'
 
 const WORKER_URL = 'https://worker.example.test'
@@ -559,6 +566,75 @@ describe('lib/api sessions contract', () => {
     )
 
     await expect(getSession('broken-session')).rejects.toEqual(
+      new ApiError('Worker APIレスポンスの形式が不正です', 502)
+    )
+  })
+})
+
+describe('lib/api passkeys contract', () => {
+  it('パスキーとチャレンジのレスポンスを検証し、未検出のnullを許可する', async () => {
+    const passkey = {
+      id: 'credential-1',
+      person: 'wife' as const,
+      publicKeyBase64: 'public-key',
+      counter: 1,
+      deviceName: null,
+      transports: ['internal'],
+      createdAt: '2026-03-01T00:00:00.000Z',
+    }
+    const challenge = {
+      id: 'challenge-1',
+      challenge: 'challenge-value',
+      type: 'registration' as const,
+      person: 'wife' as const,
+      expiresAt: '2026-03-01T00:05:00.000Z',
+      createdAt: '2026-03-01T00:00:00.000Z',
+    }
+    server.use(
+      http.get(`${WORKER_URL}/passkeys`, () => HttpResponse.json({ data: [passkey] })),
+      http.post(`${WORKER_URL}/passkeys`, () => HttpResponse.json({ data: passkey })),
+      http.get(`${WORKER_URL}/passkeys/:id`, () => HttpResponse.json({ data: null })),
+      http.post(`${WORKER_URL}/webauthn-challenges`, () =>
+        HttpResponse.json({ data: challenge })
+      ),
+      http.get(`${WORKER_URL}/webauthn-challenges/latest`, () =>
+        HttpResponse.json({ data: null })
+      )
+    )
+
+    await expect(listPasskeys('wife')).resolves.toEqual([passkey])
+    await expect(
+      createPasskey({
+        id: passkey.id,
+        person: passkey.person,
+        publicKeyBase64: passkey.publicKeyBase64,
+        counter: passkey.counter,
+        deviceName: passkey.deviceName,
+        transports: passkey.transports,
+      })
+    ).resolves.toEqual(passkey)
+    await expect(getPasskey('missing')).resolves.toBeNull()
+    await expect(
+      createChallenge({
+        challenge: challenge.challenge,
+        type: challenge.type,
+        person: challenge.person,
+        expiresAt: challenge.expiresAt,
+      })
+    ).resolves.toEqual(challenge)
+    await expect(
+      getLatestChallenge({ type: 'authentication', person: null })
+    ).resolves.toBeNull()
+  })
+
+  it('パスキー一覧の要素が契約外なら502を返す', async () => {
+    server.use(
+      http.get(`${WORKER_URL}/passkeys`, () =>
+        HttpResponse.json({ data: [{ id: 'broken-passkey' }] })
+      )
+    )
+
+    await expect(listPasskeys()).rejects.toEqual(
       new ApiError('Worker APIレスポンスの形式が不正です', 502)
     )
   })

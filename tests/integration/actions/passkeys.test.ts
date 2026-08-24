@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '../../../tests/mocks/next'
 import {
   clearApiMocks,
@@ -57,10 +57,14 @@ describe('passkey actions', () => {
   beforeEach(() => {
     clearApiMocks()
     vi.clearAllMocks()
-    process.env.WEBAUTHN_RP_ID = 'localhost'
-    process.env.WEBAUTHN_RP_ORIGIN = 'http://localhost:3000'
-    process.env.WEBAUTHN_RP_NAME = 'ヤマワケ'
+    vi.stubEnv('WEBAUTHN_RP_ID', 'localhost')
+    vi.stubEnv('WEBAUTHN_RP_ORIGIN', 'http://localhost:3000')
+    vi.stubEnv('WEBAUTHN_RP_NAME', 'ヤマワケ')
     sessionMocks.isAuthenticated.mockResolvedValue(true)
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('登録オプション生成時に既存パスキーをAPIから取得しチャレンジを保存する', async () => {

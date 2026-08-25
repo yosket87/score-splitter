@@ -140,7 +140,7 @@ Playwrightによるブラウザテスト。
     baseURL: 'http://localhost:3000',
   },
   webServer: {
-    command: 'npm run dev',
+    command: 'npm run dev:mock',
   },
   projects: [
     { name: 'chromium' }

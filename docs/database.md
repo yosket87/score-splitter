@@ -56,17 +56,55 @@ LP（`/lp`）経由の需要検証用ウェイトリスト登録を保存しま�
 | simulator_used | INTEGER | シミュレーター利用フラグ（0/1、デフォルト0） |
 | created_at | TEXT | 作成日時（ISO文字列） |
 
-### sessions
+### sessions（セッションテーブル）
 
 Cookieにはトークンのみを保存し、期限・認証方式・personはD1に保存します。
 
-### passkey_credentials
+| カラム | 型 | 説明 |
+|-------|---|------|
+| token | TEXT | 主キー（64文字のセッショントークン） |
+| person | TEXT | 担当者（'husband' / 'wife'、パスワード認証時はNULL） |
+| auth_method | TEXT | 認証方式（'password' / 'passkey'） |
+| expires_at | TEXT | 有効期限（ISO文字列） |
+| created_at | TEXT | 作成日時（ISO文字列） |
+
+### passkey_credentials（パスキークレデンシャルテーブル）
 
 WebAuthnの公開鍵はJSON APIで扱いやすいように`public_key_base64`へBase64文字列として保存します。
 
-### webauthn_challenges
+| カラム | 型 | 説明 |
+|-------|---|------|
+| id | TEXT | 主キー（クレデンシャルID） |
+| person | TEXT | 担当者（'husband' / 'wife'） |
+| public_key_base64 | TEXT | Base64形式の公開鍵 |
+| counter | INTEGER | 署名カウンター（デフォルト0） |
+| device_name | TEXT | 任意のデバイス名（NULL可） |
+| transports | TEXT | transport一覧のJSON文字列（デフォルト'[]'） |
+| created_at | TEXT | 作成日時（ISO文字列） |
+
+### webauthn_challenges（WebAuthnチャレンジテーブル）
 
 パスキー登録・認証用の短命チャレンジを保存します。期限切れデータはWorker API側で削除します。
+
+| カラム | 型 | 説明 |
+|-------|---|------|
+| id | TEXT | 主キー（Workerで生成） |
+| challenge | TEXT | WebAuthnチャレンジ |
+| type | TEXT | 種別（'registration' / 'authentication'） |
+| person | TEXT | 担当者（'husband' / 'wife'、認証時はNULL可） |
+| expires_at | TEXT | 有効期限（ISO文字列） |
+| created_at | TEXT | 作成日時（ISO文字列） |
+
+### login_attempts（ログイン試行テーブル）
+
+パスワード認証のレート制限に使用する試行回数と時間窓を保存します。
+
+| カラム | 型 | 説明 |
+|-------|---|------|
+| attempt_key | TEXT | 主キー（クライアント識別キー） |
+| count | INTEGER | 時間窓内の失敗回数（0以上） |
+| window_start | TEXT | 時間窓の開始日時（ISO文字列） |
+| updated_at | TEXT | 更新日時（ISO文字列） |
 
 ## 設計上の注意点
 

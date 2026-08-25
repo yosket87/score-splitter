@@ -80,7 +80,7 @@ export async function generateRegistrationOptions(
     console.error('[generateRegistrationOptions]', err)
     return {
       success: false,
-      error: err instanceof Error ? err.message : '登録オプションの生成に失敗しました',
+      error: '登録オプションの生成に失敗しました',
     }
   }
 }
@@ -140,7 +140,7 @@ export async function verifyRegistration(
     console.error('[verifyRegistration]', err)
     return {
       success: false,
-      error: err instanceof Error ? err.message : '登録の検証に失敗しました',
+      error: '登録の検証に失敗しました',
     }
   }
 }
@@ -170,7 +170,7 @@ export async function generateAuthenticationOptions(): Promise<
     console.error('[generateAuthenticationOptions]', err)
     return {
       success: false,
-      error: err instanceof Error ? err.message : '認証オプションの生成に失敗しました',
+      error: '認証オプションの生成に失敗しました',
     }
   }
 }
@@ -232,7 +232,7 @@ export async function verifyAuthentication(
     console.error('[verifyAuthentication]', err)
     return {
       success: false,
-      error: err instanceof Error ? err.message : '認証の検証に失敗しました',
+      error: '認証の検証に失敗しました',
     }
   }
 }
@@ -256,11 +256,10 @@ export async function listPasskeys(): Promise<ActionResult<PasskeyInfo[]>> {
       })),
     }
   } catch (error) {
+    console.error('[listPasskeys]', error)
     return {
       success: false,
-      error: `パスキー一覧の取得に失敗しました: ${
-        error instanceof Error ? error.message : '不明なエラー'
-      }`,
+      error: 'パスキー一覧の取得に失敗しました',
     }
   }
 }
@@ -276,11 +275,10 @@ export async function deletePasskey(
     await deletePasskeyByApi(credentialId)
     return { success: true }
   } catch (error) {
+    console.error('[deletePasskey]', error)
     return {
       success: false,
-      error: `パスキーの削除に失敗しました: ${
-        error instanceof Error ? error.message : '不明なエラー'
-      }`,
+      error: 'パスキーの削除に失敗しました',
     }
   }
 }

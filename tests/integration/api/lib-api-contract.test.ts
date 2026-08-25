@@ -18,6 +18,20 @@ import {
   updateIncome,
 } from '@/lib/api/records'
 import { copyMonthData, getCopyMonthPreview } from '@/lib/api/copy-month'
+import { ApiError } from '@/lib/api/client'
+import { createSession, getSession } from '@/lib/api/sessions'
+import {
+  createChallenge,
+  createPasskey,
+  getLatestChallenge,
+  getPasskey,
+  listPasskeys,
+} from '@/lib/api/passkeys'
+import { getMonthlyAmounts } from '@/lib/api/monthly-summary'
+import {
+  checkLoginRateLimit,
+  recordFailedLoginAttempt,
+} from '@/lib/api/login-attempts'
 import type { CopyMonthOptions } from '@/types'
 
 const WORKER_URL = 'https://worker.example.test'
@@ -518,6 +532,196 @@ describe('lib/api copy-month contract', () => {
         contentType: 'application/json',
         body: options,
       })
+    )
+  })
+
+  it('コピー結果が契約外なら502を返す', async () => {
+    server.use(
+      http.post(`${WORKER_URL}/copy-month`, () =>
+        HttpResponse.json({ success: true, copied: {}, skipped: {} })
+      )
+    )
+
+    await expect(
+      copyMonthData({
+        sourceMonth: '202602',
+        targetMonth: '202603',
+        mode: 'add',
+        includeCarryover: false,
+        selectedItems: [],
+      })
+    ).rejects.toEqual(new ApiError('Worker APIレスポンスの形式が不正です', 502))
+  })
+})
+
+describe('lib/api sessions contract', () => {
+  it('セッションレスポンスを検証し、未検出のnullを許可する', async () => {
+    server.use(
+      http.post(`${WORKER_URL}/sessions`, () =>
+        HttpResponse.json({
+          data: {
+            token: 'session-token',
+            person: 'husband',
+            authMethod: 'passkey',
+            expiresAt: '2026-03-01T00:00:00.000Z',
+          },
+        })
+      ),
+      http.get(`${WORKER_URL}/sessions/:token`, () => HttpResponse.json({ data: null }))
+    )
+
+    await expect(
+      createSession({
+        token: 'session-token',
+        person: 'husband',
+        authMethod: 'passkey',
+        expiresAt: '2026-03-01T00:00:00.000Z',
+      })
+    ).resolves.toEqual(expect.objectContaining({ token: 'session-token', person: 'husband' }))
+    await expect(getSession('missing-token')).resolves.toBeNull()
+  })
+
+  it('セッションレスポンスが契約外なら502を返す', async () => {
+    server.use(
+      http.get(`${WORKER_URL}/sessions/:token`, () =>
+        HttpResponse.json({ data: { token: 'broken-session' } })
+      )
+    )
+
+    await expect(getSession('broken-session')).rejects.toEqual(
+      new ApiError('Worker APIレスポンスの形式が不正です', 502)
+    )
+  })
+})
+
+describe('lib/api passkeys contract', () => {
+  it('パスキーとチャレンジのレスポンスを検証し、未検出のnullを許可する', async () => {
+    const passkey = {
+      id: 'credential-1',
+      person: 'wife' as const,
+      publicKeyBase64: 'public-key',
+      counter: 1,
+      deviceName: null,
+      transports: ['internal'],
+      createdAt: '2026-03-01T00:00:00.000Z',
+    }
+    const challenge = {
+      id: 'challenge-1',
+      challenge: 'challenge-value',
+      type: 'registration' as const,
+      person: 'wife' as const,
+      expiresAt: '2026-03-01T00:05:00.000Z',
+      createdAt: '2026-03-01T00:00:00.000Z',
+    }
+    server.use(
+      http.get(`${WORKER_URL}/passkeys`, () => HttpResponse.json({ data: [passkey] })),
+      http.post(`${WORKER_URL}/passkeys`, () => HttpResponse.json({ data: passkey })),
+      http.get(`${WORKER_URL}/passkeys/:id`, () => HttpResponse.json({ data: null })),
+      http.post(`${WORKER_URL}/webauthn-challenges`, () =>
+        HttpResponse.json({ data: challenge })
+      ),
+      http.get(`${WORKER_URL}/webauthn-challenges/latest`, () =>
+        HttpResponse.json({ data: null })
+      )
+    )
+
+    await expect(listPasskeys('wife')).resolves.toEqual([passkey])
+    await expect(
+      createPasskey({
+        id: passkey.id,
+        person: passkey.person,
+        publicKeyBase64: passkey.publicKeyBase64,
+        counter: passkey.counter,
+        deviceName: passkey.deviceName,
+        transports: passkey.transports,
+      })
+    ).resolves.toEqual(passkey)
+    await expect(getPasskey('missing')).resolves.toBeNull()
+    await expect(
+      createChallenge({
+        challenge: challenge.challenge,
+        type: challenge.type,
+        person: challenge.person,
+        expiresAt: challenge.expiresAt,
+      })
+    ).resolves.toEqual(challenge)
+    await expect(
+      getLatestChallenge({ type: 'authentication', person: null })
+    ).resolves.toBeNull()
+  })
+
+  it('パスキー一覧の要素が契約外なら502を返す', async () => {
+    server.use(
+      http.get(`${WORKER_URL}/passkeys`, () =>
+        HttpResponse.json({ data: [{ id: 'broken-passkey' }] })
+      )
+    )
+
+    await expect(listPasskeys()).rejects.toEqual(
+      new ApiError('Worker APIレスポンスの形式が不正です', 502)
+    )
+  })
+})
+
+describe('lib/api monthly-summary contract', () => {
+  it('月別金額レスポンスを検証する', async () => {
+    server.use(
+      http.get(`${WORKER_URL}/monthly-amounts`, () =>
+        HttpResponse.json({
+          data: {
+            incomes: [{ month: '202603', amount: 300000 }],
+            expenses: [{ month: '202603', amount: -120000 }],
+          },
+        })
+      )
+    )
+
+    await expect(getMonthlyAmounts()).resolves.toEqual({
+      incomes: [{ month: '202603', amount: 300000 }],
+      expenses: [{ month: '202603', amount: -120000 }],
+    })
+  })
+
+  it('月別金額レスポンスが契約外なら502を返す', async () => {
+    server.use(
+      http.get(`${WORKER_URL}/monthly-amounts`, () =>
+        HttpResponse.json({ data: { incomes: [], expenses: [{ month: '202603' }] } })
+      )
+    )
+
+    await expect(getMonthlyAmounts()).rejects.toEqual(
+      new ApiError('Worker APIレスポンスの形式が不正です', 502)
+    )
+  })
+})
+
+describe('lib/api login-attempts contract', () => {
+  it('ログイン試行レスポンスのオプショナルな待機秒数を検証する', async () => {
+    server.use(
+      http.post(`${WORKER_URL}/login-attempts/check`, () =>
+        HttpResponse.json({ data: { allowed: true } })
+      ),
+      http.post(`${WORKER_URL}/login-attempts/failure`, () =>
+        HttpResponse.json({ data: { allowed: false, retryAfterSeconds: 60 } })
+      )
+    )
+
+    await expect(checkLoginRateLimit('login-key')).resolves.toEqual({ allowed: true })
+    await expect(recordFailedLoginAttempt('login-key')).resolves.toEqual({
+      allowed: false,
+      retryAfterSeconds: 60,
+    })
+  })
+
+  it('ログイン試行レスポンスが契約外なら502を返す', async () => {
+    server.use(
+      http.post(`${WORKER_URL}/login-attempts/check`, () =>
+        HttpResponse.json({ data: { allowed: 'yes' } })
+      )
+    )
+
+    await expect(checkLoginRateLimit('login-key')).rejects.toEqual(
+      new ApiError('Worker APIレスポンスの形式が不正です', 502)
     )
   })
 })

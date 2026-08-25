@@ -24,7 +24,7 @@ vi.mock('next/navigation', () => ({
   }),
 }))
 
-vi.mock('@/features/passkey/components/passkey-login-button', () => ({
+vi.mock('@/features/passkey', () => ({
   PasskeyLoginButton: () => <button type="button">パスキーでログイン</button>,
 }))
 
@@ -50,7 +50,7 @@ describe('LoginPage', () => {
     render(await LoginPage())
 
     expect(screen.getByRole('button', { name: '表示' })).toHaveClass('min-h-11')
-    expect(screen.getByRole('button', { name: 'ログイン', exact: true })).toHaveClass('h-12')
+    expect(screen.getByRole('button', { name: 'ログイン' })).toHaveClass('h-12')
     expect(screen.getByRole('button', { name: 'テーマを切り替え' })).toHaveClass('size-11')
   })
 

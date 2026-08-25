@@ -35,7 +35,7 @@ describe('passkey settings', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.mocked(generateAuthenticationOptions).mockResolvedValueOnce({
       success: true,
-      data: {},
+      data: { challenge: 'authentication-challenge' },
     })
     vi.mocked(startAuthentication).mockRejectedValueOnce(
       Object.assign(new Error('credential secret'), { name: 'SecurityError' })
@@ -61,7 +61,12 @@ describe('passkey settings', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.mocked(generateRegistrationOptions).mockResolvedValueOnce({
       success: true,
-      data: {},
+      data: {
+        challenge: 'registration-challenge',
+        pubKeyCredParams: [{ alg: -7, type: 'public-key' }],
+        rp: { id: 'localhost', name: 'ヤマワケ' },
+        user: { id: 'user-id', name: 'husband', displayName: '夫' },
+      },
     })
     vi.mocked(startRegistration).mockRejectedValueOnce(
       Object.assign(new Error('attestation secret'), { name: 'SecurityError' })

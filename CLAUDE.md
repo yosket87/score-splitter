@@ -108,7 +108,7 @@ type Person = 'husband' | 'wife'
 
 ## データベース
 
-4つのテーブル: `incomes`, `expenses`, `carryovers`, `waitlist_entries`
+8つのテーブル: `incomes`, `expenses`, `carryovers`, `sessions`, `passkey_credentials`, `webauthn_challenges`, `login_attempts`, `waitlist_entries`
 
 詳細: [docs/database.md](docs/database.md)
 

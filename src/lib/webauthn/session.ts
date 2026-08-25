@@ -77,11 +77,6 @@ export async function getSession(): Promise<SessionInfo | null> {
   }
 }
 
-export async function getSessionPerson(): Promise<Person | null> {
-  const session = await getSession()
-  return session?.person ?? null
-}
-
 export async function deleteSession(): Promise<void> {
   const cookieStore = await cookies()
   const cookie = cookieStore.get(SESSION_COOKIE_NAME)

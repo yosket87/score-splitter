@@ -1,4 +1,5 @@
 import type { D1DatabaseLike, Runtime } from './d1'
+import { HttpError } from './http'
 import { assertObject, parseNullablePerson, parseString } from './validation'
 
 type ChallengeType = 'registration' | 'authentication'
@@ -70,14 +71,14 @@ export async function deleteExpiredChallenges(db: D1DatabaseLike, before: string
 
 export function parseChallengeType(value: unknown): ChallengeType {
   if (value !== 'registration' && value !== 'authentication') {
-    throw new Error('typeが不正です')
+    throw new HttpError('typeが不正です', 400)
   }
   return value
 }
 
 function parseDate(value: unknown): string {
   if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
-    throw new Error('expiresAtが不正です')
+    throw new HttpError('expiresAtが不正です', 400)
   }
   return value
 }

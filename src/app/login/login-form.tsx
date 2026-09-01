@@ -4,7 +4,7 @@ import { useActionState, useState } from 'react'
 import { login } from '@/app/actions/auth'
 import { BrandLogo } from '@/components/brand/brand-logo'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
-import { PasskeyLoginButton } from '@/features/passkey/components/passkey-login-button'
+import { PasskeyLoginButton } from '@/features/passkey'
 
 export function LoginForm() {
   const [state, formAction, isPending] = useActionState(login, {})

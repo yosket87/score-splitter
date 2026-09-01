@@ -221,7 +221,7 @@ describe('Cloudflare Worker レコード操作', () => {
         amount: 2000,
         person: 'wife',
       })
-    ).rejects.toEqual(expect.objectContaining<HttpError>({ status: 404 }))
+    ).rejects.toEqual(expect.objectContaining<Partial<HttpError>>({ status: 404 }))
   })
 
   it.each([

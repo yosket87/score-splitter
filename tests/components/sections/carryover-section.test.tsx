@@ -74,7 +74,7 @@ describe('CarryoverSection', () => {
   it('担当者テキストを表示する', () => {
     render(<CarryoverSection carryovers={mockCarryovers} month="202601" />)
 
-    // PersonBadge廃止、spanで夫/妻テキスト表示
+    // spanで夫/妻テキスト表示
     const husbandElements = screen.getAllByText('夫')
     const wifeElements = screen.getAllByText('妻')
     expect(husbandElements.length).toBeGreaterThanOrEqual(1)

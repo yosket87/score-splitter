@@ -1,5 +1,7 @@
 import type { D1DatabaseLike, D1PreparedStatementLike, Runtime } from './d1'
+import { HttpError } from './http'
 import {
+  assertRecordAmount,
   assertObject,
   parseBoolean,
   parseInteger,
@@ -196,7 +198,7 @@ async function buildCarryoverStatements(
   ])
 
   const existingKeys =
-    mode === 'skip'
+    mode !== 'replace'
       ? new Set(
           (
             await db
@@ -236,14 +238,14 @@ async function buildCarryoverStatements(
 
 function parseCopyMode(value: unknown): CopyMode {
   if (value !== 'add' && value !== 'skip' && value !== 'replace') {
-    throw new Error('modeが不正です')
+    throw new HttpError('modeが不正です', 400)
   }
   return value
 }
 
 function parseSelectedItems(value: unknown): SelectedCopyItem[] {
   if (!Array.isArray(value)) {
-    throw new Error('selectedItemsが不正です')
+    throw new HttpError('selectedItemsが不正です', 400)
   }
   return value.map((item) => {
     const input = assertObject(item)
@@ -253,12 +255,16 @@ function parseSelectedItems(value: unknown): SelectedCopyItem[] {
         ? input.itemCopyMode
         : null
     if (!type || !itemCopyMode) {
-      throw new Error('selectedItemsが不正です')
+      throw new HttpError('selectedItemsが不正です', 400)
+    }
+    const amount = parseInteger(input.amount, 'amount')
+    if (itemCopyMode === 'withAmount') {
+      assertRecordAmount(type, amount)
     }
     return {
       id: parseString(input.id, 'id'),
       label: parseString(input.label, 'label'),
-      amount: parseInteger(input.amount, 'amount'),
+      amount,
       person: parsePerson(input.person),
       type,
       itemCopyMode,

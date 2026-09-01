@@ -1,10 +1,18 @@
+import { z } from 'zod'
 import { apiRequest } from './client'
-import type { ApiEnvelope } from './types'
+import { apiEnvelopeSchema, type ApiEnvelope } from './types'
 
 export interface LoginRateLimitStatus {
   allowed: boolean
   retryAfterSeconds?: number
 }
+
+const loginRateLimitStatusSchema: z.ZodType<LoginRateLimitStatus> = z.object({
+  allowed: z.boolean(),
+  retryAfterSeconds: z.number().optional(),
+})
+
+const loginRateLimitStatusEnvelopeSchema = apiEnvelopeSchema(loginRateLimitStatusSchema)
 
 export async function checkLoginRateLimit(
   key: string
@@ -14,6 +22,7 @@ export async function checkLoginRateLimit(
     {
       method: 'POST',
       body: { key },
+      responseSchema: loginRateLimitStatusEnvelopeSchema,
     }
   )
   return response.data
@@ -27,6 +36,7 @@ export async function recordFailedLoginAttempt(
     {
       method: 'POST',
       body: { key },
+      responseSchema: loginRateLimitStatusEnvelopeSchema,
     }
   )
   return response.data

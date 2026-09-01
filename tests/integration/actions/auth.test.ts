@@ -16,7 +16,9 @@ vi.mock('@/lib/webauthn/session', () => ({
 }))
 
 const loginAttemptMocks = vi.hoisted(() => ({
-  checkLoginRateLimit: vi.fn(async () => ({ allowed: true })),
+  checkLoginRateLimit: vi.fn<
+    () => Promise<{ allowed: boolean; retryAfterSeconds?: number }>
+  >(async () => ({ allowed: true })),
   recordFailedLoginAttempt: vi.fn(async () => ({ allowed: true })),
   resetLoginAttempts: vi.fn(async () => undefined),
 }))

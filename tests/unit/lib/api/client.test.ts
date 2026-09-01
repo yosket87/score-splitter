@@ -1,12 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { ApiError, apiRequest } from '@/lib/api/client'
 
 describe('apiRequest', () => {
   beforeEach(() => {
     vi.unstubAllGlobals()
-    process.env.CLOUDFLARE_WORKER_API_URL = 'https://worker.example.test/'
-    process.env.CLOUDFLARE_WORKER_API_TOKEN = 'worker-secret'
+    vi.stubEnv('CLOUDFLARE_WORKER_API_URL', 'https://worker.example.test/')
+    vi.stubEnv('CLOUDFLARE_WORKER_API_TOKEN', 'worker-secret')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('Worker APIへ共有シークレット付きでリクエストする', async () => {

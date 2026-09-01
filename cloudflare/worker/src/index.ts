@@ -356,6 +356,7 @@ const AI_CATEGORIES = new Set([
   'communications', 'transportation', 'healthcare', 'clothing_beauty',
   'entertainment', 'subscriptions', 'social_gifts', 'travel', 'other',
 ])
+const MAX_CATEGORY_EXPENSES = 100
 
 function parseCategoryAssignments(value: unknown): StoreCategoryAssignment[] {
   const input = assertObject(value)
@@ -363,7 +364,7 @@ function parseCategoryAssignments(value: unknown): StoreCategoryAssignment[] {
   if (!Array.isArray(input.assignments)) {
     throw new HttpError('assignmentsが不正です', 400)
   }
-  return input.assignments.map((assignment) => {
+  const assignments = input.assignments.map((assignment) => {
     const item = assertObject(assignment)
     assertExactKeys(item, ['expenseIds', 'category', 'expectedLabel'])
     if (!Array.isArray(item.expenseIds)) {
@@ -380,6 +381,14 @@ function parseCategoryAssignments(value: unknown): StoreCategoryAssignment[] {
       expectedLabel: parseString(item.expectedLabel, 'expectedLabel'),
     }
   })
+  const expenseCount = assignments.reduce(
+    (count, assignment) => count + assignment.expenseIds.length,
+    0
+  )
+  if (expenseCount > MAX_CATEGORY_EXPENSES) {
+    throw new HttpError('一度に分類できる支出は100件までです', 400)
+  }
+  return assignments
 }
 
 function parseSaveDiagnosisInput(value: unknown): SaveDiagnosisInput {

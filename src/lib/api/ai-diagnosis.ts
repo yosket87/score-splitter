@@ -11,13 +11,32 @@ import {
   type SavedDiagnosis,
 } from '@/features/ai-diagnosis/domain'
 
+const monthSchema = z.string().regex(/^\d{6}$/).refine((month) => {
+  const monthNumber = Number(month.slice(4, 6))
+  return monthNumber >= 1 && monthNumber <= 12
+}, '月はYYYYMM形式の実在する暦月で指定してください')
+const expenseCategoryAssignmentsSchema = z
+  .array(expenseCategoryAssignmentSchema)
+  .superRefine((assignments, context) => {
+    const expenseCount = assignments.reduce(
+      (count, assignment) => count + assignment.expenseIds.length,
+      0
+    )
+    if (expenseCount > 100) {
+      context.addIssue({
+        code: 'custom',
+        message: '一度に分類できる支出は100件までです',
+      })
+    }
+  })
+
 const diagnosisContextSchema: z.ZodType<DiagnosisContext> = z.object({
-  targetMonth: z.string(),
-  incomes: z.array(z.object({ month: z.string(), amount: z.number() }).strict()),
+  targetMonth: monthSchema,
+  incomes: z.array(z.object({ month: monthSchema, amount: z.number() }).strict()),
   expenses: z.array(
     z.object({
       id: z.string(),
-      month: z.string(),
+      month: monthSchema,
       label: z.string(),
       amount: z.number(),
       isCarryover: z.boolean(),
@@ -25,7 +44,7 @@ const diagnosisContextSchema: z.ZodType<DiagnosisContext> = z.object({
     }).strict()
   ),
   carryovers: z.array(
-    z.object({ month: z.string(), amount: z.number(), isCleared: z.boolean() }).strict()
+    z.object({ month: monthSchema, amount: z.number(), isCleared: z.boolean() }).strict()
   ),
 }).strict()
 
@@ -46,7 +65,7 @@ const diagnosisViewItemSchema = z.object({
 }).strict()
 
 const aiDiagnosisViewSchema: z.ZodType<AiDiagnosisView> = z.object({
-  month: z.string(),
+  month: monthSchema,
   summaryText: z.string(),
   currentExpenseTotal: z.number(),
   baselineExpenseAverage: z.number().nullable(),
@@ -77,21 +96,24 @@ const saveDiagnosisInputSchema: z.ZodType<SaveDiagnosisInput> = z.object({
 const diagnosisViewEnvelopeSchema = z.object({ data: aiDiagnosisViewSchema }).strict()
 
 export async function getDiagnosisContext(month: string): Promise<DiagnosisContext> {
-  const response = await apiRequest(`/ai-diagnoses/${encodeURIComponent(month)}/context`, {
+  const validatedMonth = monthSchema.parse(month)
+  const response = await apiRequest(`/ai-diagnoses/${encodeURIComponent(validatedMonth)}/context`, {
     responseSchema: diagnosisContextEnvelopeSchema,
   })
   return response.data
 }
 
 export async function getSavedDiagnosis(month: string): Promise<SavedDiagnosis | null> {
-  const response = await apiRequest(`/ai-diagnoses/${encodeURIComponent(month)}`, {
+  const validatedMonth = monthSchema.parse(month)
+  const response = await apiRequest(`/ai-diagnoses/${encodeURIComponent(validatedMonth)}`, {
     responseSchema: savedDiagnosisEnvelopeSchema,
   })
   return response.data
 }
 
 export async function acquireDiagnosisLease(month: string, runToken: string): Promise<void> {
-  await apiRequest(`/ai-diagnoses/${encodeURIComponent(month)}/lease`, {
+  const validatedMonth = monthSchema.parse(month)
+  await apiRequest(`/ai-diagnoses/${encodeURIComponent(validatedMonth)}/lease`, {
     method: 'POST',
     body: { runToken },
     responseSchema: successSchema,
@@ -101,7 +123,7 @@ export async function acquireDiagnosisLease(month: string, runToken: string): Pr
 export async function saveExpenseCategories(
   assignments: ExpenseCategoryAssignment[]
 ): Promise<void> {
-  const validatedAssignments = z.array(expenseCategoryAssignmentSchema).parse(assignments)
+  const validatedAssignments = expenseCategoryAssignmentsSchema.parse(assignments)
   await apiRequest('/ai-diagnoses/categories', {
     method: 'PATCH',
     body: { assignments: validatedAssignments },
@@ -113,8 +135,9 @@ export async function saveDiagnosis(
   month: string,
   input: SaveDiagnosisInput
 ): Promise<AiDiagnosisView> {
+  const validatedMonth = monthSchema.parse(month)
   const validatedInput = saveDiagnosisInputSchema.parse(input)
-  const response = await apiRequest(`/ai-diagnoses/${encodeURIComponent(month)}`, {
+  const response = await apiRequest(`/ai-diagnoses/${encodeURIComponent(validatedMonth)}`, {
     method: 'PUT',
     body: validatedInput,
     responseSchema: diagnosisViewEnvelopeSchema,
@@ -123,7 +146,8 @@ export async function saveDiagnosis(
 }
 
 export async function releaseDiagnosisLease(month: string, runToken: string): Promise<void> {
-  await apiRequest(`/ai-diagnoses/${encodeURIComponent(month)}/lease`, {
+  const validatedMonth = monthSchema.parse(month)
+  await apiRequest(`/ai-diagnoses/${encodeURIComponent(validatedMonth)}/lease`, {
     method: 'DELETE',
     body: { runToken },
     responseSchema: successSchema,

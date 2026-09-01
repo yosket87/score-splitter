@@ -627,6 +627,81 @@ describe('Cloudflare Worker API', () => {
     ])
   })
 
+  it('支出カテゴリ分類101件をWorker境界で400にしbatchを実行しない', async () => {
+    const db = new FakeD1Database()
+    const response = await handleRequest(
+      createRequest('/ai-diagnoses/categories', {
+        method: 'PATCH',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          assignments: [
+            {
+              expenseIds: Array.from({ length: 60 }, (_, index) => `expense-${index}`),
+              category: 'housing',
+              expectedLabel: '家賃',
+            },
+            {
+              expenseIds: Array.from({ length: 41 }, (_, index) => `expense-${index + 60}`),
+              category: 'housing',
+              expectedLabel: '家賃',
+            },
+          ],
+        }),
+      }),
+      createEnv(db)
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: '一度に分類できる支出は100件までです',
+    })
+    expect(db.batched).toHaveLength(0)
+  })
+
+  it('支出カテゴリ分類100件をWorker境界で受理する', async () => {
+    const expenses = Array.from({ length: 100 }, (_, index): FakeExpenseRow => ({
+      id: `expense-${index}`,
+      month: '202601',
+      label: '家賃',
+      amount: -1000,
+      person: index % 2 === 0 ? 'husband' : 'wife',
+      is_carryover: 0,
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    }))
+    const db = new FakeD1Database({ expenses })
+    const response = await handleRequest(
+      createRequest('/ai-diagnoses/categories', {
+        method: 'PATCH',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          assignments: [
+            {
+              expenseIds: expenses.slice(0, 60).map(({ id }) => id),
+              category: 'housing',
+              expectedLabel: '家賃',
+            },
+            {
+              expenseIds: expenses.slice(60).map(({ id }) => id),
+              category: 'housing',
+              expectedLabel: '家賃',
+            },
+          ],
+        }),
+      }),
+      createEnv(db)
+    )
+
+    expect(response.status).toBe(200)
+    expect(db.batched).toHaveLength(1)
+  })
+
   it('runTokenが一致する診断を保存し、成功後にリース解放を重ねない', async () => {
     const db = new FakeD1Database()
     await acquireLeaseForTest(db)
@@ -785,6 +860,47 @@ WHERE month = ? AND run_token = ?`,
     expect(invalidMonth.status).toBe(400)
   })
 
+  it.each([
+    ['context', '202600', 'GET', '/ai-diagnoses/202600/context', undefined],
+    ['context', '202613', 'GET', '/ai-diagnoses/202613/context', undefined],
+    ['lease', '202600', 'POST', '/ai-diagnoses/202600/lease', { runToken: 'run-1' }],
+    ['lease', '202613', 'POST', '/ai-diagnoses/202613/lease', { runToken: 'run-1' }],
+    ['save', '202600', 'PUT', '/ai-diagnoses/202600', {
+      runToken: 'run-1',
+      inputHash: 'hash-1',
+      analysisVersion: 'v1',
+      diagnosis: { ...diagnosisView, month: '202600' },
+    }],
+    ['save', '202613', 'PUT', '/ai-diagnoses/202613', {
+      runToken: 'run-1',
+      inputHash: 'hash-1',
+      analysisVersion: 'v1',
+      diagnosis: { ...diagnosisView, month: '202613' },
+    }],
+  ])('実在しない月の%s(%s)をDB操作前に400で拒否する', async (
+    _route,
+    _month,
+    method,
+    path,
+    body
+  ) => {
+    const db = new FakeD1Database()
+    const response = await handleRequest(
+      createRequest(path, {
+        method,
+        headers: {
+          authorization: 'Bearer secret-token',
+          ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      }),
+      createEnv(db)
+    )
+
+    expect(response.status).toBe(400)
+    expect(db.executed).toHaveLength(0)
+  })
+
   it('指定月の収入一覧を返す', async () => {
     const response = await handleRequest(
       createRequest('/incomes?month=202601', {
@@ -805,6 +921,19 @@ WHERE month = ? AND run_token = ?`,
         },
       ],
     })
+  })
+
+  it('通常レコードAPIでも実在しない月をDB操作前に400で拒否する', async () => {
+    const db = new FakeD1Database()
+    const response = await handleRequest(
+      createRequest('/incomes?month=202600', {
+        headers: { authorization: 'Bearer secret-token' },
+      }),
+      createEnv(db)
+    )
+
+    expect(response.status).toBe(400)
+    expect(db.executed).toHaveLength(0)
   })
 
   it('収入作成時にIDと日時をWorker側で生成する', async () => {

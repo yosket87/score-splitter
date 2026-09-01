@@ -46,11 +46,11 @@ export function AiDiagnosisDialog({ month, hasActualExpenses }: AiDiagnosisDialo
         description="家計の変化を、過去の自分たちと比べて振り返ります。"
         dialogContentClassName="flex max-h-[85vh] max-w-2xl flex-col overflow-hidden"
         drawerContentClassName="max-h-[90vh] overflow-hidden"
-        drawerBodyClassName="min-h-0 overflow-y-auto"
+        drawerBodyClassName="min-h-0 overflow-y-auto overscroll-contain"
       >
         <DiagnosisStatus state={state} />
         <div
-          className="min-h-0 overflow-y-auto"
+          className="min-h-0 md:overflow-y-auto md:overscroll-contain"
           aria-busy={state.status === 'loading' || state.status === 'running'}
         >
           <DiagnosisDialogContent state={state} onRetryLoad={retryLoad} onRun={run} />

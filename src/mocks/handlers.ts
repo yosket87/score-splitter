@@ -3,6 +3,7 @@
  */
 
 import { http, HttpResponse } from 'msw'
+import { AI_CATEGORY_SET } from '@/features/ai-diagnosis/categories'
 import {
   applyFilters,
   applyOrder,
@@ -88,6 +89,161 @@ export const handlers = [
     })
   }),
 
+  http.get(`${WORKER_API_URL}/ai-diagnoses/:month/context`, ({ params, request }) => {
+    if (!isAuthorized(request)) return unauthorized()
+    const targetMonth = String(params.month)
+    const months = getDiagnosisMonths(targetMonth)
+    return HttpResponse.json({
+      data: {
+        targetMonth,
+        incomes: getTable('incomes')
+          .filter(({ month }) => months.includes(String(month)))
+          .map(({ month, amount }) => ({ month, amount })),
+        expenses: getTable('expenses')
+          .filter(({ month }) => months.includes(String(month)))
+          .map(({ id, month, label, amount, is_carryover, ai_category }) => ({
+            id,
+            month,
+            label,
+            amount,
+            isCarryover: is_carryover === true,
+            aiCategory: ai_category ?? null,
+          })),
+        carryovers: getTable('carryovers')
+          .filter(({ month }) => months.includes(String(month)))
+          .map(({ month, amount, is_cleared }) => ({
+            month,
+            amount,
+            isCleared: is_cleared === true,
+          })),
+      },
+    })
+  }),
+
+  http.get(`${WORKER_API_URL}/ai-diagnoses/:month`, ({ params, request }) => {
+    if (!isAuthorized(request)) return unauthorized()
+    const row = getTable('ai_diagnoses').find(({ month }) => month === params.month)
+    if (!row || row.result_json == null) return HttpResponse.json({ data: null })
+    return HttpResponse.json({
+      data: {
+        diagnosis: row.result_json,
+        inputHash: row.input_hash,
+        analysisVersion: row.analysis_version,
+        updatedAt: row.updated_at,
+      },
+    })
+  }),
+
+  http.post(`${WORKER_API_URL}/ai-diagnoses/:month/lease`, async ({ params, request }) => {
+    if (!isAuthorized(request)) return unauthorized()
+    const { runToken } = (await request.json()) as { runToken?: unknown }
+    if (typeof runToken !== 'string' || runToken.length === 0) return invalidRequest()
+    const now = new Date()
+    const diagnoses = getTable('ai_diagnoses')
+    const existing = diagnoses.find(({ month }) => month === params.month)
+    if (
+      existing?.run_token != null &&
+      typeof existing.run_expires_at === 'string' &&
+      existing.run_expires_at >= now.toISOString()
+    ) {
+      return HttpResponse.json({ error: '診断を実行中です' }, { status: 409 })
+    }
+    const lease = {
+      run_token: runToken,
+      run_expires_at: new Date(now.getTime() + 2 * 60 * 1000).toISOString(),
+      updated_at: now.toISOString(),
+    }
+    if (existing) Object.assign(existing, lease)
+    else {
+      diagnoses.push({
+        id: crypto.randomUUID(),
+        month: String(params.month),
+        result_json: null,
+        input_hash: null,
+        analysis_version: null,
+        created_at: now.toISOString(),
+        ...lease,
+      })
+    }
+    return HttpResponse.json({ success: true })
+  }),
+
+  http.patch(`${WORKER_API_URL}/ai-diagnoses/categories`, async ({ request }) => {
+    if (!isAuthorized(request)) return unauthorized()
+    const { assignments } = (await request.json()) as { assignments?: unknown }
+    if (!Array.isArray(assignments)) return invalidRequest()
+    const expenseCount = assignments.reduce(
+      (count, value) =>
+        count +
+        (isObject(value) && Array.isArray(value.expenseIds)
+          ? value.expenseIds.length
+          : 0),
+      0
+    )
+    if (expenseCount > 100) return invalidRequest()
+    const now = new Date().toISOString()
+    let updatedCount = 0
+    for (const value of assignments) {
+      if (!isCategoryAssignment(value)) return invalidRequest()
+      for (const expenseId of value.expenseIds) {
+        const row = getTable('expenses').find(
+          ({ id, label }) => id === expenseId && label === value.expectedLabel
+        )
+        if (!row) continue
+        Object.assign(row, {
+          ai_category: value.category,
+          ai_category_source: 'ai',
+          ai_categorized_at: now,
+          updated_at: now,
+        })
+        updatedCount += 1
+      }
+    }
+    if (updatedCount !== expenseCount) {
+      return HttpResponse.json(
+        { error: '分類中に支出が変更されました' },
+        { status: 409 }
+      )
+    }
+    return HttpResponse.json({ success: true })
+  }),
+
+  http.put(`${WORKER_API_URL}/ai-diagnoses/:month`, async ({ params, request }) => {
+    if (!isAuthorized(request)) return unauthorized()
+    const body = (await request.json()) as Row
+    const row = getTable('ai_diagnoses').find(({ month }) => month === params.month)
+    if (!row || row.run_token !== body.runToken) {
+      return HttpResponse.json(
+        { error: '診断リースが失効しているため保存できません' },
+        { status: 409 }
+      )
+    }
+    const now = new Date().toISOString()
+    Object.assign(row, {
+      result_json: body.diagnosis,
+      input_hash: body.inputHash,
+      analysis_version: body.analysisVersion,
+      run_token: null,
+      run_expires_at: null,
+      updated_at: now,
+    })
+    return HttpResponse.json({ data: body.diagnosis })
+  }),
+
+  http.delete(`${WORKER_API_URL}/ai-diagnoses/:month/lease`, async ({ params, request }) => {
+    if (!isAuthorized(request)) return unauthorized()
+    const { runToken } = (await request.json()) as { runToken?: unknown }
+    const row = getTable('ai_diagnoses').find(({ month }) => month === params.month)
+    if (!row || row.run_token !== runToken) {
+      return HttpResponse.json(
+        { error: '診断リースが失効しているため解放できません' },
+        { status: 409 }
+      )
+    }
+    Object.assign(row, { run_token: null, run_expires_at: null })
+    return HttpResponse.json({ success: true })
+  }),
+
   http.get(`${WORKER_API_URL}/:table`, ({ params, request }) => {
     if (!isAuthorized(request)) return unauthorized()
     const table = params.table as string
@@ -148,7 +304,19 @@ export const handlers = [
     }
 
     if (!isRecordTable(table)) return notFound()
-    const updated = updateRows(table, { id: `eq.${id}` }, toDbRecord(table, body))
+    const existing = getTable(table).find((row) => row.id === id)
+    const categoryReset =
+      table === 'expenses' && existing?.label !== body.label
+        ? {
+            ai_category: null,
+            ai_category_source: null,
+            ai_categorized_at: null,
+          }
+        : {}
+    const updated = updateRows(table, { id: `eq.${id}` }, {
+      ...toDbRecord(table, body),
+      ...categoryReset,
+    })
     return HttpResponse.json({ data: toApiRecord(table, updated[0]) })
   }),
 
@@ -199,6 +367,42 @@ function unauthorized() {
 
 function notFound() {
   return HttpResponse.json({ error: 'エンドポイントが見つかりません' }, { status: 404 })
+}
+
+function invalidRequest() {
+  return HttpResponse.json({ error: 'リクエストの形式が不正です' }, { status: 400 })
+}
+
+function isObject(value: unknown): value is Row {
+  return typeof value === 'object' && value !== null
+}
+
+function isCategoryAssignment(value: unknown): value is {
+  expenseIds: string[]
+  category: string
+  expectedLabel: string
+} {
+  if (!isObject(value)) return false
+  return (
+    Array.isArray(value.expenseIds) &&
+    value.expenseIds.every((id) => typeof id === 'string' && id.length > 0) &&
+    typeof value.category === 'string' &&
+    AI_CATEGORY_SET.has(value.category) &&
+    typeof value.expectedLabel === 'string' &&
+    value.expectedLabel.length > 0
+  )
+}
+
+function getDiagnosisMonths(targetMonth: string): string[] {
+  if (!/^\d{6}$/.test(targetMonth)) return []
+  const year = Number(targetMonth.slice(0, 4))
+  const month = Number(targetMonth.slice(4, 6))
+  if (month < 1 || month > 12) return []
+  const targetIndex = year * 12 + month - 1
+  return Array.from({ length: 4 }, (_, offset) => {
+    const index = targetIndex - offset
+    return `${Math.floor(index / 12)}${String((index % 12) + 1).padStart(2, '0')}`
+  })
 }
 
 function isRecordTable(table: string): table is 'incomes' | 'expenses' | 'carryovers' {

@@ -32,7 +32,8 @@ const MOCK_CATEGORY_RULES: ReadonlyArray<{ keywords: readonly string[]; category
 ]
 
 export function createAiDiagnosisProvider(): AiDiagnosisProvider {
-  if (process.env.AI_PROVIDER === 'mock') return new MockAiDiagnosisProvider()
+  const provider = String(process.env.AI_PROVIDER ?? '')
+  if (provider === 'mock') return new MockAiDiagnosisProvider()
 
   return createOpenAiDiagnosisProvider({
     apiKey: requiredEnv('OPENAI_API_KEY'),
@@ -48,6 +49,10 @@ export class MockAiDiagnosisProvider implements AiDiagnosisProvider {
   }
 
   async generateNarrative(input: NarrativeInput): Promise<AiNarrativeResult> {
+    const delayMs = Number(process.env.AI_MOCK_DELAY_MS ?? 0)
+    if (Number.isFinite(delayMs) && delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
+    }
     return {
       summaryText: summaryFor(input.dataSufficiency),
       notableChanges: input.notableCandidates.map(({ id }) => ({

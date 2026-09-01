@@ -43,6 +43,18 @@ function toCurrentMonth(year: number, month: number): string {
   return `${year}${String(month).padStart(2, '0')}`
 }
 
+function createDiagnosisDataVersion(summary: MonthlyOverviewSummary): string {
+  return JSON.stringify({
+    incomes: summary.incomes.map(({ id, amount }) => ({ id, amount })),
+    expenses: summary.expenses.map(
+      ({ id, label, amount, isCarryover }) => ({ id, label, amount, isCarryover })
+    ),
+    carryovers: summary.carryovers.map(
+      ({ id, amount, isCleared }) => ({ id, amount, isCleared })
+    ),
+  })
+}
+
 function useMonthDirection(currentMonth: string): number {
   const [state, setState] = useState({
     currentMonth,
@@ -165,6 +177,7 @@ export function MonthlyOverview({
               carryovers={carryovers}
             />
             <AiDiagnosisDialog
+              key={createDiagnosisDataVersion(summary)}
               month={currentMonth}
               hasActualExpenses={expenses.some((expense) => !expense.isCarryover)}
             />

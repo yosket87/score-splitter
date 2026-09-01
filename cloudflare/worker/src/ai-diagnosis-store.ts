@@ -1,15 +1,11 @@
 import type { D1DatabaseLike, Runtime } from './d1'
+import { AI_CATEGORY_SET } from '../../../src/features/ai-diagnosis/categories'
 
 const DIAGNOSIS_LEASE_DURATION_MS = 2 * 60 * 1000
 const MAX_CATEGORY_EXPENSES = 100
 const MAX_D1_BOUND_PARAMETERS = 100
 const CATEGORY_FIXED_PARAMETER_COUNT = 4
 const CATEGORY_IDS_PER_STATEMENT = MAX_D1_BOUND_PARAMETERS - CATEGORY_FIXED_PARAMETER_COUNT
-const AI_CATEGORIES = new Set([
-  'groceries', 'dining', 'household', 'housing', 'utilities',
-  'communications', 'transportation', 'healthcare', 'clothing_beauty',
-  'entertainment', 'subscriptions', 'social_gifts', 'travel', 'other',
-])
 
 export interface DiagnosisContextRow {
   targetMonth: string
@@ -151,7 +147,7 @@ export async function saveExpenseCategories(
   if (expenseCount > MAX_CATEGORY_EXPENSES) {
     throw new Error('一度に分類できる支出は100件までです')
   }
-  if (assignments.some(({ category }) => !AI_CATEGORIES.has(category))) {
+  if (assignments.some(({ category }) => !AI_CATEGORY_SET.has(category))) {
     throw new Error('許可されていない支出カテゴリです')
   }
   const hasInvalidExpenseId = assignments.some(({ expenseIds }) =>

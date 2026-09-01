@@ -74,7 +74,7 @@ const expenses202602: MockRow[] = [
     id: '22222222-2222-2222-2222-000000000003',
     month: '202602',
     label: '食費',
-    amount: -50000,
+    amount: -32000,
     person: 'wife',
     is_carryover: false,
     created_at: ts('2026-02-01T10:02:00'),
@@ -99,6 +99,16 @@ const expenses202602: MockRow[] = [
     is_carryover: false,
     created_at: ts('2026-02-01T10:04:00'),
     updated_at: ts('2026-02-01T10:04:00'),
+  },
+  {
+    id: '22222222-2222-2222-2222-000000000006',
+    month: '202602',
+    label: '外食',
+    amount: -18000,
+    person: 'wife',
+    is_carryover: false,
+    created_at: ts('2026-02-10T19:00:00'),
+    updated_at: ts('2026-02-10T19:00:00'),
   },
 ]
 
@@ -158,13 +168,94 @@ const expenses202601: MockRow[] = [
     created_at: ts('2026-01-01T10:01:00'),
     updated_at: ts('2026-01-01T10:01:00'),
   },
+  {
+    id: '22222222-2222-2222-2222-000000000013',
+    month: '202601',
+    label: '外食',
+    amount: -12000,
+    person: 'wife',
+    is_carryover: false,
+    created_at: ts('2026-01-12T19:00:00'),
+    updated_at: ts('2026-01-12T19:00:00'),
+  },
 ]
 
 const carryovers202601: MockRow[] = []
 
+const expenses202512: MockRow[] = [
+  {
+    id: '22222222-2222-2222-2222-000000000021',
+    month: '202512',
+    label: '家賃',
+    amount: -120000,
+    person: 'husband',
+    is_carryover: false,
+    created_at: ts('2025-12-01T10:00:00'),
+    updated_at: ts('2025-12-01T10:00:00'),
+  },
+  {
+    id: '22222222-2222-2222-2222-000000000022',
+    month: '202512',
+    label: '食費',
+    amount: -42000,
+    person: 'wife',
+    is_carryover: false,
+    created_at: ts('2025-12-02T10:00:00'),
+    updated_at: ts('2025-12-02T10:00:00'),
+  },
+  {
+    id: '22222222-2222-2222-2222-000000000023',
+    month: '202512',
+    label: '外食',
+    amount: -12000,
+    person: 'wife',
+    is_carryover: false,
+    created_at: ts('2025-12-12T19:00:00'),
+    updated_at: ts('2025-12-12T19:00:00'),
+  },
+]
+
+const expenses202511: MockRow[] = [
+  {
+    id: '22222222-2222-2222-2222-000000000031',
+    month: '202511',
+    label: '家賃',
+    amount: -120000,
+    person: 'husband',
+    is_carryover: false,
+    created_at: ts('2025-11-01T10:00:00'),
+    updated_at: ts('2025-11-01T10:00:00'),
+  },
+  {
+    id: '22222222-2222-2222-2222-000000000032',
+    month: '202511',
+    label: '食費',
+    amount: -44000,
+    person: 'wife',
+    is_carryover: false,
+    created_at: ts('2025-11-02T10:00:00'),
+    updated_at: ts('2025-11-02T10:00:00'),
+  },
+  {
+    id: '22222222-2222-2222-2222-000000000033',
+    month: '202511',
+    label: '外食',
+    amount: -12000,
+    person: 'wife',
+    is_carryover: false,
+    created_at: ts('2025-11-12T19:00:00'),
+    updated_at: ts('2025-11-12T19:00:00'),
+  },
+]
+
 export const seedData = {
   incomes: [...incomes202601, ...incomes202602],
-  expenses: [...expenses202601, ...expenses202602],
+  expenses: [
+    ...expenses202511,
+    ...expenses202512,
+    ...expenses202601,
+    ...expenses202602,
+  ],
   carryovers: [...carryovers202601, ...carryovers202602],
   passkey_credentials: [],
 }

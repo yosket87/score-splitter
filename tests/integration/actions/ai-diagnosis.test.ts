@@ -375,6 +375,70 @@ describe('AI家計診断サービス', () => {
     expect(dependencies.provider.generateNarrative).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['hashのみ不一致', 'old-hash', 'v1'],
+    ['versionのみ不一致', null, 'v0'],
+  ] as const)('loadは%sを独立して期限切れ判定する', async (_name, hash, version) => {
+    const inputHash = await createDiagnosisInputHash(context)
+    const dependencies = createDependencies()
+    dependencies.repository.getSavedDiagnosis.mockResolvedValue({
+      diagnosis: savedDiagnosis,
+      inputHash: hash ?? inputHash,
+      analysisVersion: version,
+      updatedAt: '2026-09-01T00:00:00.000Z',
+    })
+
+    await expect(createAiDiagnosisService(dependencies).load('202604')).resolves.toEqual({
+      diagnosis: savedDiagnosis,
+      stale: true,
+    })
+  })
+
+  it.each([
+    ['hashのみ不一致', 'old-hash', 'v1'],
+    ['versionのみ不一致', null, 'v0'],
+  ] as const)('runは%sの保存結果を再利用せず再生成する', async (_name, hash, version) => {
+    const classifiedContext: DiagnosisContext = {
+      ...context,
+      expenses: context.expenses.map((expense) =>
+        expense.isCarryover ? expense : { ...expense, aiCategory: 'dining' }
+      ),
+    }
+    const inputHash = await createDiagnosisInputHash(classifiedContext)
+    const dependencies = createDependencies()
+    dependencies.repository.getContext.mockResolvedValue(classifiedContext)
+    dependencies.repository.getSavedDiagnosis.mockResolvedValue({
+      diagnosis: savedDiagnosis,
+      inputHash: hash ?? inputHash,
+      analysisVersion: version,
+      updatedAt: '2026-09-01T00:00:00.000Z',
+    })
+
+    await createAiDiagnosisService(dependencies).run('202604')
+
+    expect(dependencies.provider.generateNarrative).toHaveBeenCalledOnce()
+    expect(dependencies.repository.saveDiagnosis).toHaveBeenCalledOnce()
+    expect(dependencies.repository.releaseLease).not.toHaveBeenCalled()
+  })
+
+  it('narrativeへfixture record IDとperson sentinelを送らない', async () => {
+    const dependencies = createDependencies()
+    dependencies.repository.getContext.mockResolvedValue({
+      ...context,
+      expenses: context.expenses.map((expense) => ({
+        ...expense,
+        id: `fixture-record-${expense.id}`,
+        aiCategory: expense.isCarryover ? null : 'dining',
+        person: expense.id === 'apr-1' ? 'husband' : 'wife',
+      })) as DiagnosisContext['expenses'],
+    })
+
+    await createAiDiagnosisService(dependencies).run('202604')
+
+    const payload = JSON.stringify(dependencies.provider.generateNarrative.mock.calls)
+    expect(payload).not.toMatch(/fixture-record|"person"|husband|wife/)
+  })
+
   it('runは入力指紋が一致する保存済み診断を再利用してリースを解放する', async () => {
     const classifiedContext: DiagnosisContext = {
       ...context,

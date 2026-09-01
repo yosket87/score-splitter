@@ -1,13 +1,9 @@
 import { z } from 'zod'
+import { AI_CATEGORIES } from './categories'
 
-export const AI_CATEGORIES = [
-  'groceries', 'dining', 'household', 'housing', 'utilities',
-  'communications', 'transportation', 'healthcare', 'clothing_beauty',
-  'entertainment', 'subscriptions', 'social_gifts', 'travel', 'other',
-] as const
+export { AI_CATEGORIES, type AiCategory } from './categories'
 
 export const aiCategorySchema = z.enum(AI_CATEGORIES)
-export type AiCategory = z.infer<typeof aiCategorySchema>
 
 export const dataSufficiencySchema = z.enum(['current_only', 'reference', 'full'])
 export type DataSufficiency = z.infer<typeof dataSufficiencySchema>

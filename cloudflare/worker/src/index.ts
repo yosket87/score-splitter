@@ -46,6 +46,7 @@ import type {
   DiagnosisViewItem,
   SaveDiagnosisInput,
 } from '../../../src/features/ai-diagnosis/domain'
+import { AI_CATEGORY_SET } from '../../../src/features/ai-diagnosis/categories'
 
 const worker = {
   fetch(request: Request, env: Env): Promise<Response> {
@@ -351,11 +352,6 @@ function assertExactKeys(input: Record<string, unknown>, allowedKeys: string[]):
   }
 }
 
-const AI_CATEGORIES = new Set([
-  'groceries', 'dining', 'household', 'housing', 'utilities',
-  'communications', 'transportation', 'healthcare', 'clothing_beauty',
-  'entertainment', 'subscriptions', 'social_gifts', 'travel', 'other',
-])
 const MAX_CATEGORY_EXPENSES = 100
 
 function parseCategoryAssignments(value: unknown): StoreCategoryAssignment[] {
@@ -372,7 +368,7 @@ function parseCategoryAssignments(value: unknown): StoreCategoryAssignment[] {
     }
     const expenseIds = item.expenseIds.map((id) => parseString(id, 'expenseIds'))
     const category = parseString(item.category, 'category')
-    if (!AI_CATEGORIES.has(category)) {
+    if (!AI_CATEGORY_SET.has(category)) {
       throw new HttpError('categoryが不正です', 400)
     }
     return {
@@ -476,7 +472,7 @@ function parseNullableNumber(value: unknown, name: string): number | null {
 
 function parseAiCategory(value: unknown): AiCategory {
   const category = parseString(value, 'category')
-  if (!AI_CATEGORIES.has(category)) throw new HttpError('categoryが不正です', 400)
+  if (!AI_CATEGORY_SET.has(category)) throw new HttpError('categoryが不正です', 400)
   return category as AiCategory
 }
 

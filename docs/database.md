@@ -28,8 +28,33 @@ Cloudflare D1（SQLite）を使用したデータベース設計です。アプ�
 | amount | INTEGER | 金額（負の値） |
 | person | TEXT | 担当者（'husband' / 'wife'） |
 | is_carryover | INTEGER | 繰越扱いフラグ（0/1） |
+| ai_category | TEXT NULL | 固定14候補のAI内部カテゴリ |
+| ai_category_source | TEXT NULL | 分類元。MVPでは `ai` のみ |
+| ai_categorized_at | TEXT NULL | 分類日時（ISO文字列） |
 | created_at | TEXT | 作成日時（ISO文字列） |
 | updated_at | TEXT | 更新日時（ISO文字列） |
+
+AIカテゴリ3列は診断専用の内部情報であり、通常のExpense API・型・画面へは露出しません。支出ラベルを変更した場合だけ3列を同一UPDATE内でNULLへ戻します。金額、担当者、繰越フラグだけの変更では分類を保持します。
+
+### ai_diagnoses（AI家計診断テーブル）
+
+月ごとの最新診断と同時実行制御を保持します。履歴は保存せず、月単位でupsertします。
+
+| カラム | 型 | 説明 |
+|-------|---|------|
+| id | TEXT | 主キー（Workerで生成） |
+| month | TEXT UNIQUE | 診断対象月（YYYYMM） |
+| result_json | TEXT NULL | 検証済み4ブロック診断。leaseのみの行はNULL |
+| input_hash | TEXT NULL | 対象4か月の診断入力指紋 |
+| analysis_version | TEXT NULL | 集計・プロンプト契約のバージョン |
+| run_token | TEXT NULL | 実行所有者を示す一時トークン |
+| run_expires_at | TEXT NULL | lease有効期限 |
+| created_at | TEXT | 作成日時（ISO文字列） |
+| updated_at | TEXT | 最終更新日時（ISO文字列） |
+
+診断開始時はD1の条件付きUPDATEまたはINSERTで2分間のleaseを取得します。保存・解放は取得時と同じ`run_token`に限定し、期限切れ・別runの書き込みを409で拒否します。`input_hash`または`analysis_version`が現在値と異なる場合も保存結果は削除せず、期限切れとして明示的な再診断を促します。
+
+診断context APIは担当者を除外し、収入は月別合計に必要な金額だけを扱います。AI内部カテゴリ、担当者、収入ラベル、認証情報、レコードIDは通常APIまたはOpenAIの診断文payloadへ露出しません。
 
 ### carryovers（繰越テーブル）
 

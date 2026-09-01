@@ -437,6 +437,33 @@ describe('AiDiagnosisDialog', () => {
     expect(loadAiDiagnosis).not.toHaveBeenCalled()
   })
 
+  it('モバイルDrawerは本文だけを単一スクロール領域にしてoverscrollを閉じ込める', async () => {
+    const matchMedia = vi.spyOn(window, 'matchMedia').mockImplementation(
+      (query) =>
+        ({
+          matches: query.includes('max-width'),
+          media: query,
+          onchange: null,
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          dispatchEvent: vi.fn(),
+        }) as MediaQueryList
+    )
+    const user = userEvent.setup()
+    render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+
+    await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
+    const drawer = document.querySelector('[data-slot="drawer-content"]')
+    expect(drawer).toBeInTheDocument()
+    const scrollOwners = drawer?.querySelectorAll('.overflow-y-auto') ?? []
+    expect(scrollOwners).toHaveLength(1)
+    expect(scrollOwners[0]).toHaveClass('overscroll-contain')
+
+    matchMedia.mockRestore()
+  })
+
   it('保存済み診断の取得失敗を安全に表示し、取得を再試行できる', async () => {
     vi.mocked(loadAiDiagnosis)
       .mockResolvedValueOnce({ success: false, error: 'AI診断に失敗しました' })

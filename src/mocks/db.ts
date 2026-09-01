@@ -24,6 +24,7 @@ export function initStore(): void {
     passkey_credentials: structuredClone(seedData.passkey_credentials),
     webauthn_challenges: [],
     waitlist_entries: [],
+    ai_diagnoses: [],
   }
 }
 

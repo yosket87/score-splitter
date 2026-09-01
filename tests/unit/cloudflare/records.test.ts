@@ -207,8 +207,8 @@ describe('Cloudflare Worker レコード操作', () => {
       ...extra,
     })
 
-    expect(db.executions[0].query).toContain(`UPDATE ${table}`)
-    expect(db.executions[1].query).toBe(`SELECT * FROM ${table} WHERE id = ?`)
+    expect(db.executions.find(({ query }) => query.startsWith(`UPDATE ${table}`))).toBeDefined()
+    expect(db.executions.at(-1)?.query).toBe(`SELECT * FROM ${table} WHERE id = ?`)
     expect(result.id).toBe('record-id')
   })
 
@@ -222,6 +222,38 @@ describe('Cloudflare Worker レコード操作', () => {
         person: 'wife',
       })
     ).rejects.toEqual(expect.objectContaining<Partial<HttpError>>({ status: 404 }))
+  })
+
+  it('支出ラベルが変わった場合はAI分類を無効化する', async () => {
+    const db = new SpyDatabase()
+    db.firstResult = { ...baseRow, amount: -1000, is_carryover: 0 }
+
+    await updateRecord(db, runtime, 'expense', 'record-id', {
+      label: '変更後の項目',
+      amount: -1000,
+      person: 'husband',
+      isCarryover: false,
+    })
+
+    const update = db.executions.find(({ query }) => query.startsWith('UPDATE expenses'))
+    expect(update?.query).toContain('ai_category = NULL')
+    expect(update?.query).toContain('ai_category_source = NULL')
+    expect(update?.query).toContain('ai_categorized_at = NULL')
+  })
+
+  it('支出ラベルが同じ場合はAI分類を保持する', async () => {
+    const db = new SpyDatabase()
+    db.firstResult = { ...baseRow, amount: -1000, is_carryover: 0 }
+
+    await updateRecord(db, runtime, 'expense', 'record-id', {
+      label: baseRow.label,
+      amount: -2000,
+      person: 'wife',
+      isCarryover: true,
+    })
+
+    const update = db.executions.find(({ query }) => query.startsWith('UPDATE expenses'))
+    expect(update?.query).not.toContain('ai_category')
   })
 
   it.each([

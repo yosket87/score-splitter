@@ -187,10 +187,15 @@ export async function updateRecord(
   assertRecordAmount(type, amount)
 
   if (type === 'expense') {
+    const current = await getRecordRow(db, 'expenses', id)
     const isCarryover = parseBoolean(input.isCarryover ?? false, 'isCarryover')
+    const categoryReset =
+      current.label === label
+        ? ''
+        : ', ai_category = NULL, ai_category_source = NULL, ai_categorized_at = NULL'
     await db
       .prepare(
-        'UPDATE expenses SET label = ?, amount = ?, person = ?, is_carryover = ?, updated_at = ? WHERE id = ?'
+        `UPDATE expenses SET label = ?, amount = ?, person = ?, is_carryover = ?, updated_at = ?${categoryReset} WHERE id = ?`
       )
       .bind(label, amount, person, isCarryover ? 1 : 0, now, id)
       .run()

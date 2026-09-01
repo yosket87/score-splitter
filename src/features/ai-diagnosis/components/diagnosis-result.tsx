@@ -48,7 +48,7 @@ function ResultSection({
 
   return (
     <section
-      className="rounded-2xl border bg-card p-4"
+      className="min-w-0 rounded-2xl border bg-card p-4"
       aria-labelledby={`diagnosis-${title}`}
     >
       <h3
@@ -60,11 +60,13 @@ function ResultSection({
       </h3>
       <ul className="mt-3 space-y-4">
         {items.map((item) => (
-          <li key={item.id}>
+          <li key={item.id} className="min-w-0">
             {item.contributingLabels.length > 0 && (
-              <p className="font-medium">{item.contributingLabels.join('・')}</p>
+              <p className="min-w-0 font-medium [overflow-wrap:anywhere]">
+                {item.contributingLabels.join('・')}
+              </p>
             )}
-            <p className="mt-1 text-base leading-7 text-foreground/90">
+            <p className="mt-1 min-w-0 text-base leading-7 text-foreground/90 [overflow-wrap:anywhere]">
               {item.commentary}
             </p>
             <Evidence item={item} />
@@ -82,7 +84,7 @@ export function DiagnosisResult({ diagnosis, stale }: DiagnosisResultProps) {
     diagnosis.suggestions.length > 0
 
   return (
-    <div className="space-y-3 overflow-x-hidden">
+    <div className="min-w-0 space-y-3">
       {stale && (
         <div
           role="status"
@@ -100,13 +102,13 @@ export function DiagnosisResult({ diagnosis, stale }: DiagnosisResultProps) {
       )}
 
       <section
-        className="rounded-2xl border bg-card p-4"
+        className="min-w-0 rounded-2xl border bg-card p-4"
         aria-labelledby="diagnosis-summary"
       >
         <h3 id="diagnosis-summary" className="text-base font-semibold">
           今月のまとめ
         </h3>
-        <p className="mt-2 text-base leading-7 text-foreground/90">
+        <p className="mt-2 min-w-0 text-base leading-7 text-foreground/90 [overflow-wrap:anywhere]">
           {diagnosis.summaryText}
         </p>
         <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">

@@ -1,9 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { useLayoutEffect } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { generateAiDiagnosis, loadAiDiagnosis } from '@/app/actions/ai-diagnosis'
 import { AiDiagnosisDialog } from '@/features/ai-diagnosis'
 import { DiagnosisResult } from '@/features/ai-diagnosis/components/diagnosis-result'
+import { useAiDiagnosis } from '@/features/ai-diagnosis/use-ai-diagnosis'
 import type { AiDiagnosisView, DiagnosisViewItem } from '@/features/ai-diagnosis/domain'
 
 vi.mock('@/app/actions/ai-diagnosis', () => ({
@@ -73,6 +75,18 @@ beforeEach(() => {
     data: diagnosis,
   })
 })
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve
+  })
+  return { promise, resolve }
+}
 
 describe('AiDiagnosisDialog', () => {
   it('保存済み診断を4ブロックと数値根拠で表示する', async () => {
@@ -168,9 +182,12 @@ describe('AiDiagnosisDialog', () => {
 
     const status = screen.getByRole('status')
     expect(status).toHaveAttribute('aria-live', 'polite')
+    expect(status).toHaveAttribute('aria-atomic', 'true')
     expect(status).toHaveTextContent('支出を整理しています')
     expect(startButton).toBeDisabled()
-    expect(status.closest('[aria-busy]')).toHaveAttribute('aria-busy', 'true')
+    const busyRegion = document.querySelector('[aria-busy="true"]')
+    expect(busyRegion).toBeInTheDocument()
+    expect(busyRegion).not.toContainElement(status)
 
     act(() => vi.advanceTimersByTime(1000))
     expect(status).toHaveTextContent('過去の傾向と比較しています')
@@ -219,6 +236,134 @@ describe('AiDiagnosisDialog', () => {
       resolveGeneration?.({ success: true, data: completedDiagnosis })
     })
     expect(await screen.findByText(completedDiagnosis.summaryText)).toBeInTheDocument()
+  })
+
+  it('月変更を描画した時点で前月の診断を表示しない', async () => {
+    const committedTexts: string[] = []
+    const user = userEvent.setup()
+    const Probe = ({ month }: { month: string }) => {
+      useLayoutEffect(() => {
+        committedTexts.push(document.body.textContent ?? '')
+      }, [month])
+      return null
+    }
+    const Harness = ({ month }: { month: string }) => (
+      <>
+        <AiDiagnosisDialog month={month} hasActualExpenses />
+        <Probe month={month} />
+      </>
+    )
+    const { rerender } = render(<Harness month="202604" />)
+    await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
+    expect(await screen.findByText(diagnosis.summaryText)).toBeInTheDocument()
+
+    await act(async () => {
+      rerender(<Harness month="202605" />)
+    })
+
+    expect(committedTexts.at(-1)).not.toContain(diagnosis.summaryText)
+  })
+
+  it('新しい月の読込後に旧月の読込が完了しても表示を上書きしない', async () => {
+    const oldLoad = deferred<Awaited<ReturnType<typeof loadAiDiagnosis>>>()
+    const newLoad = deferred<Awaited<ReturnType<typeof loadAiDiagnosis>>>()
+    const newDiagnosis = { ...diagnosis, month: '202605', summaryText: '5月の診断です。' }
+    vi.mocked(loadAiDiagnosis).mockImplementation((month) =>
+      month === '202604' ? oldLoad.promise : newLoad.promise
+    )
+    const user = userEvent.setup()
+    const { rerender } = render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+    await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
+    await waitFor(() => expect(loadAiDiagnosis).toHaveBeenCalledWith('202604'))
+
+    rerender(<AiDiagnosisDialog month="202605" hasActualExpenses />)
+    await waitFor(() => expect(loadAiDiagnosis).toHaveBeenCalledWith('202605'))
+    await act(async () => {
+      newLoad.resolve({ success: true, data: { diagnosis: newDiagnosis, stale: false } })
+    })
+    expect(await screen.findByText(newDiagnosis.summaryText)).toBeInTheDocument()
+
+    await act(async () => {
+      oldLoad.resolve({ success: true, data: { diagnosis, stale: false } })
+    })
+    expect(screen.getByText(newDiagnosis.summaryText)).toBeInTheDocument()
+    expect(screen.queryByText(diagnosis.summaryText)).not.toBeInTheDocument()
+  })
+
+  it('旧月の読込が新しい月の読込開始前に完了しても旧結果を再利用しない', async () => {
+    const oldLoad = deferred<Awaited<ReturnType<typeof loadAiDiagnosis>>>()
+    const newLoad = deferred<Awaited<ReturnType<typeof loadAiDiagnosis>>>()
+    const newDiagnosis = { ...diagnosis, month: '202605', summaryText: '新しい月だけを表示します。' }
+    vi.mocked(loadAiDiagnosis)
+      .mockReturnValueOnce(oldLoad.promise)
+      .mockReturnValueOnce(newLoad.promise)
+    const user = userEvent.setup()
+    const { rerender } = render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+    const trigger = screen.getByRole('button', { name: 'AIで今月を振り返る' })
+    await user.click(trigger)
+    await waitFor(() => expect(loadAiDiagnosis).toHaveBeenCalledTimes(1))
+    await user.keyboard('{Escape}')
+
+    rerender(<AiDiagnosisDialog month="202605" hasActualExpenses />)
+    await act(async () => {
+      oldLoad.resolve({ success: true, data: { diagnosis, stale: false } })
+    })
+    expect(screen.queryByText(diagnosis.summaryText)).not.toBeInTheDocument()
+
+    await user.click(trigger)
+    await waitFor(() => expect(loadAiDiagnosis).toHaveBeenCalledTimes(2))
+    expect(screen.queryByText(diagnosis.summaryText)).not.toBeInTheDocument()
+    await act(async () => {
+      newLoad.resolve({ success: true, data: { diagnosis: newDiagnosis, stale: false } })
+    })
+    expect(await screen.findByText(newDiagnosis.summaryText)).toBeInTheDocument()
+  })
+
+  it('旧月の診断実行が月変更後に完了しても新しい月を上書きしない', async () => {
+    const oldRun = deferred<Awaited<ReturnType<typeof generateAiDiagnosis>>>()
+    const newDiagnosis = { ...diagnosis, month: '202605', summaryText: '5月の保存済み診断です。' }
+    vi.mocked(loadAiDiagnosis)
+      .mockResolvedValueOnce({ success: true, data: { diagnosis: null, stale: false } })
+      .mockResolvedValueOnce({ success: true, data: { diagnosis: newDiagnosis, stale: false } })
+    vi.mocked(generateAiDiagnosis).mockReturnValueOnce(oldRun.promise)
+    const user = userEvent.setup()
+    const { rerender } = render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+    await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
+    fireEvent.click(await screen.findByRole('button', { name: '診断を始める' }))
+
+    rerender(<AiDiagnosisDialog month="202605" hasActualExpenses />)
+    expect(await screen.findByText(newDiagnosis.summaryText)).toBeInTheDocument()
+    await act(async () => {
+      oldRun.resolve({ success: true, data: diagnosis })
+    })
+
+    expect(screen.getByText(newDiagnosis.summaryText)).toBeInTheDocument()
+    expect(screen.queryByText(diagnosis.summaryText)).not.toBeInTheDocument()
+  })
+
+  it('診断実行中のunmountでタイマーと完了後更新を破棄する', async () => {
+    const pendingRun = deferred<Awaited<ReturnType<typeof generateAiDiagnosis>>>()
+    vi.mocked(loadAiDiagnosis).mockResolvedValueOnce({
+      success: true,
+      data: { diagnosis: null, stale: false },
+    })
+    vi.mocked(generateAiDiagnosis).mockReturnValueOnce(pendingRun.promise)
+    const { result, unmount } = renderHook(() => useAiDiagnosis('202604'))
+    await act(async () => {
+      await result.current.ensureLoaded()
+    })
+    vi.useFakeTimers()
+    act(() => {
+      void result.current.run()
+    })
+    expect(vi.getTimerCount()).toBeGreaterThan(0)
+
+    unmount()
+    expect(vi.getTimerCount()).toBe(0)
+    await act(async () => {
+      pendingRun.resolve({ success: true, data: diagnosis })
+    })
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('実支出がない月は起点を無効にし、その理由を知覚可能にする', () => {
@@ -356,5 +501,34 @@ describe('DiagnosisResult', () => {
     expect(container).not.toHaveTextContent('groceries')
     expect(container).not.toHaveTextContent('husband')
     expect(container).not.toHaveTextContent('wife')
+  })
+
+  it('255文字のラベルと400文字のAI文章を横スクロールなしで折り返す', () => {
+    const longLabel = 'ラ'.repeat(255)
+    const longSummary = '要'.repeat(400)
+    const longCommentary = '説'.repeat(400)
+    const { container } = render(
+      <DiagnosisResult
+        diagnosis={{
+          ...diagnosis,
+          summaryText: longSummary,
+          notableChanges: [
+            {
+              ...diagnosis.notableChanges[0],
+              contributingLabels: [longLabel],
+              commentary: longCommentary,
+            },
+          ],
+          positivePoints: [],
+          suggestions: [],
+        }}
+        stale={false}
+      />
+    )
+
+    expect(container.firstElementChild).not.toHaveClass('overflow-x-hidden')
+    for (const text of [longLabel, longSummary, longCommentary]) {
+      expect(screen.getByText(text)).toHaveClass('min-w-0', '[overflow-wrap:anywhere]')
+    }
   })
 })

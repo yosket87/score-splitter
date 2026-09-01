@@ -21,12 +21,23 @@ async function updateDiningAmount(page: import('@playwright/test').Page, amount:
   await expect(editDialog).not.toBeVisible()
 }
 
+async function getAiDiagnosisStats(request: import('@playwright/test').APIRequestContext) {
+  const response = await request.get('/api/mock/ai-diagnosis-stats')
+  expect(response.ok()).toBe(true)
+  return response.json() as Promise<{
+    categoryProviderCalls: number
+    narrativeProviderCalls: number
+    diagnosisSaveCalls: number
+  }>
+}
+
 test.beforeEach(async ({ request }) => {
   await resetMockData(request)
 })
 
 test('4か月データから家庭全体の診断を生成して保存結果を再表示する', async ({
   page,
+  request,
 }) => {
   await login(page)
   await page.goto('/2026/02')
@@ -54,11 +65,24 @@ test('4か月データから家庭全体の診断を生成して保存結果を�
   await expect(dialog.getByText('来月のヒント')).toBeVisible()
   await expect(dialog.getByText(/過去平均より.*円増/).first()).toBeVisible()
   await expect(dialog.getByText(/夫の支出|妻の支出/)).toHaveCount(0)
+  await expect.poll(() => getAiDiagnosisStats(request)).toEqual({
+    categoryProviderCalls: 1,
+    narrativeProviderCalls: 1,
+    diagnosisSaveCalls: 1,
+  })
 
-  await page.keyboard.press('Escape')
-  await expect(dialog).not.toBeVisible()
-  await trigger.click()
-  await expect(dialog.getByText('今月のまとめ')).toBeVisible()
+  await page.reload()
+  await page.waitForLoadState('networkidle')
+  await page.getByRole('button', { name: 'AIで今月を振り返る' }).click()
+  const reloadedDialog = page.getByRole('dialog')
+  await expect(reloadedDialog.getByText('今月のまとめ')).toBeVisible()
+  await expect(page.getByRole('button', { name: '診断を始める' })).toHaveCount(0)
+  await expect(page.getByRole('status')).toHaveText('')
+  expect(await getAiDiagnosisStats(request)).toEqual({
+    categoryProviderCalls: 1,
+    narrativeProviderCalls: 1,
+    diagnosisSaveCalls: 1,
+  })
 })
 
 test('支出更新後は保存結果を期限切れ表示し、明示操作で再診断する', async ({ page }) => {
@@ -96,7 +120,7 @@ test('実支出0件月は診断起点を無効にして理由を表示する', a
   await expect(page.getByText('実支出がある月で利用できます')).toBeVisible()
 })
 
-test('390x844ではDrawerをEscapeで閉じて起点へフォーカスを戻す', async ({ page }) => {
+test('390x844ではDrawerの閉じる操作が44px以上で起点へfocusを戻す', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await login(page)
   await page.goto('/2026/02')
@@ -113,7 +137,11 @@ test('390x844ではDrawerをEscapeで閉じて起点へフォーカスを戻す'
   await trigger.click()
   await expect(page.locator('[data-slot="drawer-content"]')).toBeVisible()
   await expect(page.locator('[data-slot="dialog-content"]')).toHaveCount(0)
-  await page.keyboard.press('Escape')
+  const close = page.getByRole('button', { name: '閉じる' })
+  const closeBox = await close.boundingBox()
+  expect(closeBox?.width).toBeGreaterThanOrEqual(44)
+  expect(closeBox?.height).toBeGreaterThanOrEqual(44)
+  await close.click()
   await expect(page.locator('[data-slot="drawer-content"]')).not.toBeVisible()
   await expect(trigger).toBeFocused()
 })

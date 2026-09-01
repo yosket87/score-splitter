@@ -1,8 +1,10 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { X } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -13,6 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import {
   Drawer,
+  DrawerClose,
   DrawerContent,
   DrawerDescription,
   DrawerHeader,
@@ -50,9 +53,20 @@ export function ResponsiveModal({
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerTrigger asChild>{trigger}</DrawerTrigger>
         <DrawerContent className={cn('app-modal-surface app-solid-panel px-4 pb-safe', drawerContentClassName)}>
-          <DrawerHeader>
+          <DrawerHeader className="relative px-14">
             <DrawerTitle>{title}</DrawerTitle>
             <DrawerDescription>{description}</DrawerDescription>
+            <DrawerClose asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1"
+                aria-label="閉じる"
+              >
+                <X aria-hidden="true" />
+              </Button>
+            </DrawerClose>
           </DrawerHeader>
           <div className={cn('pb-4', drawerBodyClassName)}>
             {children}

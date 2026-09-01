@@ -236,6 +236,10 @@ OPENAI_DIAGNOSIS_MODEL=gpt-5-mini
 - `npm run dev:mock` は `.env.mock` の `AI_PROVIDER=mock` を使う。分類・診断は決定的なローカル実装だけで完結し、OpenAIへの通信は0件。
 - 本番のAPIキーは `npx wrangler secret put OPENAI_API_KEY` で登録する。漏えい・担当者変更・定期運用の基準に従いキーをローテーションし、旧キーを失効させる。
 - `gpt-5-mini` は現行エイリアスを使用する。応答差分を固定したい場合は、利用可能な現行snapshotを環境変数で指定する。deprecatedな `gpt-5-mini-2025-08-07` は使用しない。
-- Responses API呼び出しは常に `store: false`。加えてOpenAI組織側のData Controlsと保持期間を管理者が確認し、必要最小限の保持設定にする。
+- **学習利用**: OpenAI APIに送ったデータは、明示的にopt-inしない限りモデルの学習・改善に使用されないというOpenAIの既定に従う。これは当組織がopt-inしていないことの断定ではないため、API管理者は対象組織・projectの共有設定を確認する。
+- **Application state**: 本アプリのResponses API呼び出しは常に `store: false`とし、通常の同期応答を後続API操作用に保持しない。この制御は次のabuse monitoring logsとは別物で、`store: false` だけでそれらを無効化できない。利用機能ごとの例外は公式表を確認する。
+- **Abuse monitoring logs**: 既定でprompt・response等の顧客コンテンツを含む場合があり、原則最大30日保持され得る。法令上またはサービス・第三者を危害から保護するためにより長くなる例外もある。
+- **Zero Data Retention / Modified Abuse Monitoring**: 適格顧客向けであり、OpenAIの事前承認と追加要件の受諾が必要。承認後はOpenAI Platformの `Settings → Organization → Data controls`で組織単位とproject単位の設定を確認する。projectが組織設定を継承するか、ZDR/MAM/無効のどれかを実運用のAPI keyで確認し、未確認の状態をZDR/MAM有効と断定しない。
+- 保持の既定、対象endpoint、承認条件、設定画面の最新情報は [OpenAI公式 Data Controls](https://developers.openai.com/api/docs/guides/your-data) を参照する。
 - 障害時は既存の家計データを変更せず、保存済み診断があれば表示を維持する。新規実行・再診断だけを安全な固定メッセージで失敗させる。
 - モデル設定は非秘密だが、APIキー、認証Cookie、Worker共有トークン、担当者、収入ラベル、レコードIDをプロバイダーpayloadやログへ含めない。

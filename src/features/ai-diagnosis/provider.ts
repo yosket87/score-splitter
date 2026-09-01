@@ -7,6 +7,7 @@ import {
   type NarrativeInput,
 } from './domain'
 import { createOpenAiDiagnosisProvider } from './openai-provider'
+import { incrementAiDiagnosisMockStat } from '@/mocks/ai-diagnosis-stats'
 
 export interface AiDiagnosisProvider {
   classifyLabels(labels: string[]): Promise<CategoryAssignment[]>
@@ -44,11 +45,13 @@ export function createAiDiagnosisProvider(): AiDiagnosisProvider {
 
 export class MockAiDiagnosisProvider implements AiDiagnosisProvider {
   async classifyLabels(labels: string[]): Promise<CategoryAssignment[]> {
+    incrementAiDiagnosisMockStat('categoryProviderCalls')
     const uniqueLabels = mockLabelsSchema.parse([...new Set(labels)])
     return uniqueLabels.map((label) => ({ label, category: classifyMockLabel(label) }))
   }
 
   async generateNarrative(input: NarrativeInput): Promise<AiNarrativeResult> {
+    incrementAiDiagnosisMockStat('narrativeProviderCalls')
     const delayMs = Number(process.env.AI_MOCK_DELAY_MS ?? 0)
     if (Number.isFinite(delayMs) && delayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, delayMs))

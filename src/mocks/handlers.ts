@@ -3,7 +3,13 @@
  */
 
 import { http, HttpResponse } from 'msw'
-import { AI_CATEGORY_SET } from '@/features/ai-diagnosis/categories'
+import {
+  AiDiagnosisWireError,
+  parseAiDiagnosisMonth,
+  parseCategoryAssignments,
+  parseRunTokenInput,
+  parseSaveDiagnosisInput,
+} from '@/features/ai-diagnosis/wire'
 import {
   applyFilters,
   applyOrder,
@@ -12,6 +18,7 @@ import {
   insertRows,
   updateRows,
 } from './db'
+import { incrementAiDiagnosisMockStat } from './ai-diagnosis-stats'
 
 const WORKER_API_URL =
   process.env.CLOUDFLARE_WORKER_API_URL || 'http://mock-worker.local'
@@ -89,9 +96,9 @@ export const handlers = [
     })
   }),
 
-  http.get(`${WORKER_API_URL}/ai-diagnoses/:month/context`, ({ params, request }) => {
+  http.get(`${WORKER_API_URL}/ai-diagnoses/:month/context`, ({ params, request }) => handleAiWire(async () => {
     if (!isAuthorized(request)) return unauthorized()
-    const targetMonth = String(params.month)
+    const targetMonth = parseAiDiagnosisMonth(params.month)
     const months = getDiagnosisMonths(targetMonth)
     return HttpResponse.json({
       data: {
@@ -118,11 +125,12 @@ export const handlers = [
           })),
       },
     })
-  }),
+  })),
 
-  http.get(`${WORKER_API_URL}/ai-diagnoses/:month`, ({ params, request }) => {
+  http.get(`${WORKER_API_URL}/ai-diagnoses/:month`, ({ params, request }) => handleAiWire(async () => {
     if (!isAuthorized(request)) return unauthorized()
-    const row = getTable('ai_diagnoses').find(({ month }) => month === params.month)
+    const month = parseAiDiagnosisMonth(params.month)
+    const row = getTable('ai_diagnoses').find((record) => record.month === month)
     if (!row || row.result_json == null) return HttpResponse.json({ data: null })
     return HttpResponse.json({
       data: {
@@ -132,15 +140,15 @@ export const handlers = [
         updatedAt: row.updated_at,
       },
     })
-  }),
+  })),
 
-  http.post(`${WORKER_API_URL}/ai-diagnoses/:month/lease`, async ({ params, request }) => {
+  http.post(`${WORKER_API_URL}/ai-diagnoses/:month/lease`, ({ params, request }) => handleAiWire(async () => {
     if (!isAuthorized(request)) return unauthorized()
-    const { runToken } = (await request.json()) as { runToken?: unknown }
-    if (typeof runToken !== 'string' || runToken.length === 0) return invalidRequest()
+    const month = parseAiDiagnosisMonth(params.month)
+    const { runToken } = parseRunTokenInput(await readAiJson(request))
     const now = new Date()
     const diagnoses = getTable('ai_diagnoses')
-    const existing = diagnoses.find(({ month }) => month === params.month)
+    const existing = diagnoses.find((record) => record.month === month)
     if (
       existing?.run_token != null &&
       typeof existing.run_expires_at === 'string' &&
@@ -157,7 +165,7 @@ export const handlers = [
     else {
       diagnoses.push({
         id: crypto.randomUUID(),
-        month: String(params.month),
+        month,
         result_json: null,
         input_hash: null,
         analysis_version: null,
@@ -166,52 +174,45 @@ export const handlers = [
       })
     }
     return HttpResponse.json({ success: true })
-  }),
+  })),
 
-  http.patch(`${WORKER_API_URL}/ai-diagnoses/categories`, async ({ request }) => {
+  http.patch(`${WORKER_API_URL}/ai-diagnoses/categories`, ({ request }) => handleAiWire(async () => {
     if (!isAuthorized(request)) return unauthorized()
-    const { assignments } = (await request.json()) as { assignments?: unknown }
-    if (!Array.isArray(assignments)) return invalidRequest()
-    const expenseCount = assignments.reduce(
-      (count, value) =>
-        count +
-        (isObject(value) && Array.isArray(value.expenseIds)
-          ? value.expenseIds.length
-          : 0),
-      0
-    )
-    if (expenseCount > 100) return invalidRequest()
+    const assignments = parseCategoryAssignments(await readAiJson(request))
     const now = new Date().toISOString()
-    let updatedCount = 0
-    for (const value of assignments) {
-      if (!isCategoryAssignment(value)) return invalidRequest()
-      for (const expenseId of value.expenseIds) {
-        const row = getTable('expenses').find(
-          ({ id, label }) => id === expenseId && label === value.expectedLabel
-        )
-        if (!row) continue
-        Object.assign(row, {
-          ai_category: value.category,
-          ai_category_source: 'ai',
-          ai_categorized_at: now,
-          updated_at: now,
-        })
-        updatedCount += 1
-      }
-    }
-    if (updatedCount !== expenseCount) {
+    const updates = assignments.flatMap((assignment) =>
+      assignment.expenseIds.map((expenseId) => ({ expenseId, assignment }))
+    ).map(({ expenseId, assignment }) => ({
+      row: getTable('expenses').find(
+        ({ id, label }) => id === expenseId && label === assignment.expectedLabel
+      ),
+      category: assignment.category,
+    }))
+    if (updates.some(({ row }) => row === undefined)) {
       return HttpResponse.json(
         { error: '分類中に支出が変更されました' },
         { status: 409 }
       )
     }
+    for (const { row, category } of updates) {
+      Object.assign(row!, {
+          ai_category: category,
+          ai_category_source: 'ai',
+          ai_categorized_at: now,
+          updated_at: now,
+      })
+    }
     return HttpResponse.json({ success: true })
-  }),
+  })),
 
-  http.put(`${WORKER_API_URL}/ai-diagnoses/:month`, async ({ params, request }) => {
+  http.put(`${WORKER_API_URL}/ai-diagnoses/:month`, ({ params, request }) => handleAiWire(async () => {
     if (!isAuthorized(request)) return unauthorized()
-    const body = (await request.json()) as Row
-    const row = getTable('ai_diagnoses').find(({ month }) => month === params.month)
+    const month = parseAiDiagnosisMonth(params.month)
+    const body = parseSaveDiagnosisInput(await readAiJson(request))
+    if (body.diagnosis.month !== month) {
+      throw new AiDiagnosisWireError('診断月が不正です')
+    }
+    const row = getTable('ai_diagnoses').find((record) => record.month === month)
     if (!row || row.run_token !== body.runToken) {
       return HttpResponse.json(
         { error: '診断リースが失効しているため保存できません' },
@@ -227,13 +228,15 @@ export const handlers = [
       run_expires_at: null,
       updated_at: now,
     })
+    incrementAiDiagnosisMockStat('diagnosisSaveCalls')
     return HttpResponse.json({ data: body.diagnosis })
-  }),
+  })),
 
-  http.delete(`${WORKER_API_URL}/ai-diagnoses/:month/lease`, async ({ params, request }) => {
+  http.delete(`${WORKER_API_URL}/ai-diagnoses/:month/lease`, ({ params, request }) => handleAiWire(async () => {
     if (!isAuthorized(request)) return unauthorized()
-    const { runToken } = (await request.json()) as { runToken?: unknown }
-    const row = getTable('ai_diagnoses').find(({ month }) => month === params.month)
+    const month = parseAiDiagnosisMonth(params.month)
+    const { runToken } = parseRunTokenInput(await readAiJson(request))
+    const row = getTable('ai_diagnoses').find((record) => record.month === month)
     if (!row || row.run_token !== runToken) {
       return HttpResponse.json(
         { error: '診断リースが失効しているため解放できません' },
@@ -242,7 +245,7 @@ export const handlers = [
     }
     Object.assign(row, { run_token: null, run_expires_at: null })
     return HttpResponse.json({ success: true })
-  }),
+  })),
 
   http.get(`${WORKER_API_URL}/:table`, ({ params, request }) => {
     if (!isAuthorized(request)) return unauthorized()
@@ -369,28 +372,23 @@ function notFound() {
   return HttpResponse.json({ error: 'エンドポイントが見つかりません' }, { status: 404 })
 }
 
-function invalidRequest() {
-  return HttpResponse.json({ error: 'リクエストの形式が不正です' }, { status: 400 })
+async function readAiJson(request: Request): Promise<unknown> {
+  try {
+    return await request.json()
+  } catch {
+    throw new AiDiagnosisWireError('JSONの形式が不正です')
+  }
 }
 
-function isObject(value: unknown): value is Row {
-  return typeof value === 'object' && value !== null
-}
-
-function isCategoryAssignment(value: unknown): value is {
-  expenseIds: string[]
-  category: string
-  expectedLabel: string
-} {
-  if (!isObject(value)) return false
-  return (
-    Array.isArray(value.expenseIds) &&
-    value.expenseIds.every((id) => typeof id === 'string' && id.length > 0) &&
-    typeof value.category === 'string' &&
-    AI_CATEGORY_SET.has(value.category) &&
-    typeof value.expectedLabel === 'string' &&
-    value.expectedLabel.length > 0
-  )
+async function handleAiWire(run: () => Promise<Response>): Promise<Response> {
+  try {
+    return await run()
+  } catch (error) {
+    if (error instanceof AiDiagnosisWireError) {
+      return HttpResponse.json({ error: error.message }, { status: 400 })
+    }
+    throw error
+  }
 }
 
 function getDiagnosisMonths(targetMonth: string): string[] {

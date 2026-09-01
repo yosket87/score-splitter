@@ -5,6 +5,7 @@ import type {
   D1PreparedStatementLike,
   D1ResultLike,
 } from '../../../cloudflare/worker/src/d1'
+import { invalidAiWireCases } from '../../fixtures/ai-diagnosis-wire-cases'
 
 class FakeStatement implements D1PreparedStatementLike {
   constructor(
@@ -42,6 +43,9 @@ type FakeIncomeRow = {
 
 type FakeExpenseRow = FakeIncomeRow & {
   is_carryover: number
+  ai_category?: string | null
+  ai_category_source?: string | null
+  ai_categorized_at?: string | null
 }
 
 type FakeCarryoverRow = FakeIncomeRow & {
@@ -820,6 +824,29 @@ WHERE month = ? AND run_token = ?`,
     expect(response.status).toBe(400)
   })
 
+  it.each(invalidAiWireCases)('$nameをMSWと同じ400で拒否する', async ({
+    path,
+    method,
+    body,
+    rawBody,
+  }) => {
+    const db = new FakeD1Database()
+    const response = await handleRequest(
+      createRequest(path, {
+        method,
+        headers: {
+          authorization: 'Bearer secret-token',
+          ...(method === 'GET' ? {} : { 'content-type': 'application/json' }),
+        },
+        body: method === 'GET' ? undefined : (rawBody ?? JSON.stringify(body)),
+      }),
+      createEnv(db)
+    )
+
+    expect(response.status).toBe(400)
+    expect(db.executed).toHaveLength(0)
+  })
+
   it.each([
     ['保存', '/ai-diagnoses/202601', 'PUT', {
       runToken: 'missing-run',
@@ -921,6 +948,45 @@ WHERE month = ? AND run_token = ?`,
         },
       ],
     })
+  })
+
+  it('本番の通常Expense APIはAI内部3列を露出せず公開keyだけ返す', async () => {
+    const db = new FakeD1Database({
+      expenses: [{
+        id: 'expense-with-ai-category',
+        month: '202601',
+        label: '家賃',
+        amount: -120000,
+        person: 'wife',
+        is_carryover: 0,
+        ai_category: 'housing',
+        ai_category_source: 'ai',
+        ai_categorized_at: '2026-01-05T00:00:00.000Z',
+        created_at: '2026-01-02T00:00:00.000Z',
+        updated_at: '2026-01-05T00:00:00.000Z',
+      }],
+    })
+    const response = await handleRequest(
+      createRequest('/expenses?month=202601', {
+        headers: { authorization: 'Bearer secret-token' },
+      }),
+      createEnv(db)
+    )
+
+    expect(response.status).toBe(200)
+    const payload = (await response.json()) as { data: Array<Record<string, unknown>> }
+    expect(Object.keys(payload.data[0]).sort()).toEqual([
+      'amount',
+      'createdAt',
+      'id',
+      'isCarryover',
+      'label',
+      'month',
+      'person',
+    ])
+    expect(JSON.stringify(payload)).not.toMatch(
+      /ai_category|aiCategory|ai_category_source|aiCategorySource|ai_categorized_at|aiCategorizedAt/
+    )
   })
 
   it('通常レコードAPIでも実在しない月をDB操作前に400で拒否する', async () => {

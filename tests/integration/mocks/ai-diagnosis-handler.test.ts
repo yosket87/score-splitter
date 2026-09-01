@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getTable, initStore } from '@/mocks/db'
 import { server } from '@/mocks/server'
+import { invalidAiWireCases } from '../../fixtures/ai-diagnosis-wire-cases'
 
 const API_URL = 'http://mock-worker.local'
 const AUTHORIZATION = 'Bearer mock-worker-token'
@@ -93,5 +94,45 @@ describe('AI家計診断のモックAPI', () => {
       }),
     })
     expect(saveConflict.status).toBe(409)
+  })
+
+  it.each(invalidAiWireCases)('$nameを本番と同じ400で拒否する', async ({
+    path,
+    method,
+    body,
+    rawBody,
+  }) => {
+    const response = await fetch(`${API_URL}${path}`, {
+      method,
+      headers: method === 'GET' ? { authorization: AUTHORIZATION } : jsonHeaders,
+      body: method === 'GET' ? undefined : (rawBody ?? JSON.stringify(body)),
+    })
+
+    expect(response.status).toBe(400)
+  })
+
+  it('後続assignmentが競合しても先行assignmentを部分更新しない', async () => {
+    const expense = getTable('expenses').find(({ month }) => month === '202602')
+    const response = await fetch(`${API_URL}/ai-diagnoses/categories`, {
+      method: 'PATCH',
+      headers: jsonHeaders,
+      body: JSON.stringify({
+        assignments: [
+          {
+            expenseIds: [expense?.id],
+            category: 'housing',
+            expectedLabel: expense?.label,
+          },
+          {
+            expenseIds: [expense?.id],
+            category: 'dining',
+            expectedLabel: '更新後のラベル',
+          },
+        ],
+      }),
+    })
+
+    expect(response.status).toBe(409)
+    expect(expense).not.toHaveProperty('ai_category')
   })
 })

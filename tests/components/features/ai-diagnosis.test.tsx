@@ -1,4 +1,4 @@
-import { useLayoutEffect } from 'react'
+import { startTransition, Suspense, useLayoutEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -162,10 +162,8 @@ describe('AiDiagnosisDialog', () => {
   })
 
   it('実行中は操作を無効にして3段階の状態をaria-liveで順番に通知する', async () => {
-    vi.mocked(loadAiDiagnosis).mockResolvedValueOnce({
-      success: true,
-      data: { diagnosis: null, stale: false },
-    })
+    const pendingLoad = deferred<Awaited<ReturnType<typeof loadAiDiagnosis>>>()
+    vi.mocked(loadAiDiagnosis).mockReturnValueOnce(pendingLoad.promise)
     let resolveGeneration: ((value: Awaited<ReturnType<typeof generateAiDiagnosis>>) => void) | undefined
     vi.mocked(generateAiDiagnosis).mockReturnValueOnce(
       new Promise((resolve) => {
@@ -175,14 +173,28 @@ describe('AiDiagnosisDialog', () => {
     const user = userEvent.setup()
     render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
     await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
+
+    const status = await screen.findByRole('status')
+    expect(status).toHaveAttribute('aria-live', 'polite')
+    expect(status).toHaveAttribute('aria-atomic', 'true')
+    expect(status).toHaveTextContent('保存済みの診断を読み込んでいます')
+    const loadingRegion = document.querySelector('[aria-busy="true"]')
+    expect(loadingRegion).toBeInTheDocument()
+    expect(loadingRegion).not.toContainElement(status)
+
+    await act(async () => {
+      pendingLoad.resolve({
+        success: true,
+        data: { diagnosis: null, stale: false },
+      })
+    })
+    await waitFor(() => expect(status).toBeEmptyDOMElement())
     const startButton = await screen.findByRole('button', { name: '診断を始める' })
 
     vi.useFakeTimers()
     fireEvent.click(startButton)
 
-    const status = screen.getByRole('status')
-    expect(status).toHaveAttribute('aria-live', 'polite')
-    expect(status).toHaveAttribute('aria-atomic', 'true')
+    expect(screen.getByRole('status')).toBe(status)
     expect(status).toHaveTextContent('支出を整理しています')
     expect(startButton).toBeDisabled()
     const busyRegion = document.querySelector('[aria-busy="true"]')
@@ -262,6 +274,54 @@ describe('AiDiagnosisDialog', () => {
     })
 
     expect(committedTexts.at(-1)).not.toContain(diagnosis.summaryText)
+  })
+
+  it('破棄される月変更renderがcommit済み月の読込完了を妨げない', async () => {
+    const pendingLoad = deferred<Awaited<ReturnType<typeof loadAiDiagnosis>>>()
+    const neverResolves = new Promise<never>(() => {})
+    vi.mocked(loadAiDiagnosis).mockReturnValueOnce(pendingLoad.promise)
+
+    function SuspendMay({ month }: { month: string }) {
+      if (month === '202605') throw neverResolves
+      return null
+    }
+
+    function ConcurrentHarness() {
+      const [month, setMonth] = useState('202604')
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => startTransition(() => setMonth('202605'))}
+          >
+            破棄される月変更
+          </button>
+          <Suspense fallback={<p>月を切り替えています</p>}>
+            <AiDiagnosisDialog month={month} hasActualExpenses />
+            <SuspendMay month={month} />
+          </Suspense>
+        </>
+      )
+    }
+
+    const user = userEvent.setup()
+    const { unmount } = render(<ConcurrentHarness />)
+    await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
+    expect(await screen.findByText('保存済みの診断を読み込んでいます')).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: '破棄される月変更', hidden: true })
+      )
+    })
+    expect(screen.queryByText('月を切り替えています')).not.toBeInTheDocument()
+    await act(async () => {
+      pendingLoad.resolve({ success: true, data: { diagnosis, stale: false } })
+    })
+
+    expect(await screen.findByText(diagnosis.summaryText)).toBeInTheDocument()
+    expect(loadAiDiagnosis).toHaveBeenCalledTimes(1)
+    unmount()
   })
 
   it('新しい月の読込後に旧月の読込が完了しても表示を上書きしない', async () => {

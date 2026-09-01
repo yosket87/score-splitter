@@ -20,38 +20,38 @@ function ErrorMessage({ children }: { children: string }) {
   )
 }
 
-export function DiagnosisProgress({ state }: { state: AiDiagnosisState }) {
-  if (state.status !== 'running') return null
+export function DiagnosisStatus({ state }: { state: AiDiagnosisState }) {
+  const message =
+    state.status === 'loading'
+      ? '保存済みの診断を読み込んでいます'
+      : state.status === 'running'
+        ? PROGRESS_STAGES[state.progressStage]
+        : ''
+  const busy = state.status === 'loading' || state.status === 'running'
   return (
     <div
       role="status"
       aria-live="polite"
       aria-atomic="true"
-      className="mb-4 flex min-h-11 items-center gap-2 rounded-xl border bg-muted/50 p-3 text-sm"
+      className={
+        busy
+          ? 'mb-4 flex min-h-11 items-center gap-2 rounded-xl border bg-muted/50 p-3 text-sm'
+          : 'sr-only'
+      }
     >
-      <LoaderCircle
-        className="size-4 animate-spin motion-reduce:animate-none"
-        aria-hidden="true"
-      />
-      {PROGRESS_STAGES[state.progressStage]}
+      {busy && (
+        <LoaderCircle
+          className="size-4 animate-spin motion-reduce:animate-none"
+          aria-hidden="true"
+        />
+      )}
+      {message}
     </div>
   )
 }
 
 function LoadingState() {
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="flex min-h-32 items-center justify-center gap-2 text-muted-foreground"
-    >
-      <LoaderCircle
-        className="size-5 animate-spin motion-reduce:animate-none"
-        aria-hidden="true"
-      />
-      保存済みの診断を読み込んでいます
-    </div>
-  )
+  return <div className="min-h-24" aria-hidden="true" />
 }
 
 function LoadErrorState({

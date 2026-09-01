@@ -4,7 +4,7 @@ import { useEffect, useId, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ResponsiveModal } from '@/components/ui/responsive-modal'
-import { DiagnosisDialogContent, DiagnosisProgress } from './components/diagnosis-dialog-content'
+import { DiagnosisDialogContent, DiagnosisStatus } from './components/diagnosis-dialog-content'
 import { useAiDiagnosis } from './use-ai-diagnosis'
 
 interface AiDiagnosisDialogProps {
@@ -48,7 +48,7 @@ export function AiDiagnosisDialog({ month, hasActualExpenses }: AiDiagnosisDialo
         drawerContentClassName="max-h-[90vh] overflow-hidden"
         drawerBodyClassName="min-h-0 overflow-y-auto"
       >
-        <DiagnosisProgress state={state} />
+        <DiagnosisStatus state={state} />
         <div
           className="min-h-0 overflow-y-auto"
           aria-busy={state.status === 'loading' || state.status === 'running'}

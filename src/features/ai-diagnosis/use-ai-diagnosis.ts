@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react'
 import { generateAiDiagnosis, loadAiDiagnosis } from '@/app/actions/ai-diagnosis'
 import type { DiagnosisSnapshot } from './domain'
@@ -48,6 +48,7 @@ function clearTimer(timer: MutableRefObject<number | null>) {
 
 function useLifecycleEffects(
   month: string,
+  currentMonthRef: MutableRefObject<string>,
   mountedRef: MutableRefObject<boolean>,
   invalidate: () => void,
   setState: SetDiagnosisState
@@ -59,11 +60,12 @@ function useLifecycleEffects(
       invalidate()
     }
   }, [invalidate, mountedRef])
-  useEffect(() => {
+  useLayoutEffect(() => {
+    currentMonthRef.current = month
     invalidate()
     setState({ status: 'idle', month })
     return invalidate
-  }, [invalidate, month, setState])
+  }, [currentMonthRef, invalidate, month, setState])
 }
 
 function useRequestLifecycle(
@@ -77,9 +79,6 @@ function useRequestLifecycle(
   const runId = useRef(0)
   const runInFlight = useRef(false)
   const progressTimer = useRef<number | null>(null)
-  // 月変更のcommit直後にも旧requestを拒否できるよう、描画と同時に同期する。
-  // eslint-disable-next-line react-hooks/refs
-  currentMonthRef.current = month
 
   const invalidate = useCallback(() => {
     loadId.current += 1
@@ -88,7 +87,13 @@ function useRequestLifecycle(
     runInFlight.current = false
     clearTimer(progressTimer)
   }, [])
-  useLifecycleEffects(month, mountedRef, invalidate, setState)
+  useLifecycleEffects(
+    month,
+    currentMonthRef,
+    mountedRef,
+    invalidate,
+    setState
+  )
 
   const canCommitLoad = useCallback(
     (requestMonth: string, id: number) =>

@@ -32,11 +32,35 @@ const oneOffTravelContext: DiagnosisContext = {
 }
 
 describe('buildDiagnosisAnalysis', () => {
-  it('差額と増減率の両方を満たす増加だけを最大3件抽出する', () => {
-    const result = buildDiagnosisAnalysis(context)
-    expect(result.notableCandidates).toEqual([
-      expect.objectContaining({ id: 'increase:dining', differenceAmount: 16000, differenceRate: 0.5 }),
+  it('差額と増減率を満たす増加を差額降順で最大3件抽出する', () => {
+    const result = buildDiagnosisAnalysis({
+      targetMonth: '202604',
+      incomes: [],
+      expenses: [
+        { id: 'apr-dining', month: '202604', label: '外食', amount: -50000, isCarryover: false, aiCategory: 'dining' },
+        { id: 'apr-groceries', month: '202604', label: '食料品', amount: -42000, isCarryover: false, aiCategory: 'groceries' },
+        { id: 'apr-household', month: '202604', label: '日用品', amount: -35000, isCarryover: false, aiCategory: 'household' },
+        { id: 'apr-transportation', month: '202604', label: '交通費', amount: -30000, isCarryover: false, aiCategory: 'transportation' },
+        { id: 'apr-other', month: '202604', label: 'その他', amount: -25000, isCarryover: false, aiCategory: 'other' },
+        ...['202603', '202602', '202601'].flatMap((month) => [
+          { id: `${month}-dining`, month, label: '外食', amount: -10000, isCarryover: false, aiCategory: 'dining' as const },
+          { id: `${month}-groceries`, month, label: '食料品', amount: -10000, isCarryover: false, aiCategory: 'groceries' as const },
+          { id: `${month}-household`, month, label: '日用品', amount: -10000, isCarryover: false, aiCategory: 'household' as const },
+          { id: `${month}-transportation`, month, label: '交通費', amount: -10000, isCarryover: false, aiCategory: 'transportation' as const },
+          { id: `${month}-other`, month, label: 'その他', amount: -10000, isCarryover: false, aiCategory: 'other' as const },
+        ]),
+      ],
+      carryovers: [],
+    })
+
+    expect(result.notableCandidates.map(({ id, differenceAmount }) => ({ id, differenceAmount }))).toEqual([
+      { id: 'increase:dining', differenceAmount: 40000 },
+      { id: 'increase:groceries', differenceAmount: 32000 },
+      { id: 'increase:household', differenceAmount: 25000 },
     ])
+    expect(result.suggestionCandidates).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ category: 'other' })]),
+    )
   })
 
   it('医療費と繰越支出を削減候補にしない', () => {

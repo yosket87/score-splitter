@@ -16,7 +16,7 @@ export const DIAGNOSIS_THRESHOLDS = {
   maximumNotableChanges: 3,
 } as const
 
-const PROTECTED_SUGGESTION_CATEGORIES = new Set<AiCategory>(['healthcare'])
+const PROTECTED_SUGGESTION_CATEGORIES = new Set<AiCategory>(['healthcare', 'other'])
 const ONE_OFF_LABEL_SHARE = 0.8
 
 export function getDiagnosisMonths(month: string): string[] {
@@ -69,7 +69,7 @@ function buildAnalysisFromCategoryTotals(
       availableReferenceMonths,
     ))
   const notableCandidates = candidates
-    .filter((candidate) => isIncrease(candidate) && !PROTECTED_SUGGESTION_CATEGORIES.has(candidate.category))
+    .filter(isIncrease)
     .sort(sortByLargestDifference)
     .slice(0, DIAGNOSIS_THRESHOLDS.maximumNotableChanges)
     .map((candidate) => ({ ...candidate, id: `increase:${candidate.category}`, kind: 'increase' as const }))

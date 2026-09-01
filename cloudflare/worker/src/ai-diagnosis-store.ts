@@ -2,6 +2,9 @@ import type { D1DatabaseLike, Runtime } from './d1'
 
 const DIAGNOSIS_LEASE_DURATION_MS = 2 * 60 * 1000
 const MAX_CATEGORY_EXPENSES = 100
+const MAX_D1_BOUND_PARAMETERS = 100
+const CATEGORY_FIXED_PARAMETER_COUNT = 4
+const CATEGORY_IDS_PER_STATEMENT = MAX_D1_BOUND_PARAMETERS - CATEGORY_FIXED_PARAMETER_COUNT
 const AI_CATEGORIES = new Set([
   'groceries', 'dining', 'household', 'housing', 'utilities',
   'communications', 'transportation', 'healthcare', 'clothing_beauty',
@@ -25,6 +28,7 @@ export interface DiagnosisContextRow {
 export interface StoreCategoryAssignment {
   expenseIds: string[]
   category: string
+  expectedLabel: string
 }
 
 export interface SavedDiagnosisRow {
@@ -156,22 +160,37 @@ export async function saveExpenseCategories(
   if (hasInvalidExpenseId) {
     throw new Error('支出IDが不正です')
   }
+  if (
+    assignments.some(
+      ({ expectedLabel }) => typeof expectedLabel !== 'string' || expectedLabel.length === 0
+    )
+  ) {
+    throw new Error('期待ラベルが不正です')
+  }
 
   const now = runtime.now().toISOString()
-  const statements = assignments
-    .filter(({ expenseIds }) => expenseIds.length > 0)
-    .map(({ expenseIds, category }) => {
-      const placeholders = expenseIds.map(() => '?').join(', ')
+  const statements = assignments.flatMap(({ expenseIds, category, expectedLabel }) =>
+    chunk(expenseIds, CATEGORY_IDS_PER_STATEMENT).map((ids) => {
+      const placeholders = ids.map(() => '?').join(', ')
       return db
         .prepare(
           `UPDATE expenses
 SET ai_category = ?, ai_category_source = 'ai', ai_categorized_at = ?, updated_at = ?
-WHERE id IN (${placeholders})`
+WHERE id IN (${placeholders}) AND label = ?`
         )
-        .bind(category, now, now, ...expenseIds)
+        .bind(category, now, now, ...ids, expectedLabel)
     })
+  )
 
-  if (statements.length > 0) await db.batch(statements)
+  if (statements.length === 0) return
+  const results = await db.batch(statements)
+  const updatedExpenseCount = results.reduce(
+    (count, result) => count + (result.meta?.changes ?? 0),
+    0
+  )
+  if (updatedExpenseCount !== expenseCount) {
+    throw new Error('分類中に支出が変更されました')
+  }
 }
 
 export async function getSavedDiagnosis(
@@ -230,7 +249,7 @@ export async function releaseDiagnosisLease(
   month: string,
   token: string
 ): Promise<void> {
-  await db
+  const result = await db
     .prepare(
       `UPDATE ai_diagnoses
 SET run_token = NULL, run_expires_at = NULL
@@ -238,6 +257,9 @@ WHERE month = ? AND run_token = ?`
     )
     .bind(month, token)
     .run()
+  if (result.meta?.changes !== 1) {
+    throw new Error('診断リースが失効しているため解放できません')
+  }
 }
 
 function getDiagnosisMonths(targetMonth: string): string[] {
@@ -253,4 +275,10 @@ function getDiagnosisMonths(targetMonth: string): string[] {
     const calculatedMonth = (monthIndex % 12) + 1
     return `${calculatedYear}${String(calculatedMonth).padStart(2, '0')}`
   })
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  return Array.from({ length: Math.ceil(items.length / size) }, (_, index) =>
+    items.slice(index * size, (index + 1) * size)
+  )
 }

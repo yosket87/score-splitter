@@ -236,9 +236,35 @@ describe('Cloudflare Worker レコード操作', () => {
     })
 
     const update = db.executions.find(({ query }) => query.startsWith('UPDATE expenses'))
-    expect(update?.query).toContain('ai_category = NULL')
-    expect(update?.query).toContain('ai_category_source = NULL')
-    expect(update?.query).toContain('ai_categorized_at = NULL')
+    expect(update?.query.match(/ELSE NULL END/g)).toHaveLength(3)
+    expect(update?.params.slice(0, 3)).toEqual([
+      '変更後の項目',
+      '変更後の項目',
+      '変更後の項目',
+    ])
+  })
+
+  it('支出更新は単一UPDATE内で更新直前のラベルと比較する', async () => {
+    const db = new SpyDatabase()
+    db.firstResult = { ...baseRow, amount: -1000, is_carryover: 0 }
+
+    await updateRecord(db, runtime, 'expense', 'record-id', {
+      label: '変更後の項目',
+      amount: -1000,
+      person: 'husband',
+      isCarryover: false,
+    })
+
+    expect(db.executions[0].method).toBe('run')
+    expect(db.executions[0].query).toContain(
+      'ai_category = CASE WHEN label = ? THEN ai_category ELSE NULL END'
+    )
+    expect(db.executions[0].query).toContain(
+      'ai_category_source = CASE WHEN label = ? THEN ai_category_source ELSE NULL END'
+    )
+    expect(db.executions[0].query).toContain(
+      'ai_categorized_at = CASE WHEN label = ? THEN ai_categorized_at ELSE NULL END'
+    )
   })
 
   it('支出ラベルが同じ場合はAI分類を保持する', async () => {
@@ -253,7 +279,8 @@ describe('Cloudflare Worker レコード操作', () => {
     })
 
     const update = db.executions.find(({ query }) => query.startsWith('UPDATE expenses'))
-    expect(update?.query).not.toContain('ai_category')
+    expect(update?.query).toContain('CASE WHEN label = ? THEN ai_category ELSE NULL END')
+    expect(update?.params.slice(0, 3)).toEqual([baseRow.label, baseRow.label, baseRow.label])
   })
 
   it.each([

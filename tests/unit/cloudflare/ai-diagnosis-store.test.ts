@@ -28,6 +28,7 @@ class SpyStatement implements D1PreparedStatementLike {
   ) {}
 
   bind(...values: unknown[]): D1PreparedStatementLike {
+    if (values.length > 100) throw new Error('D1のbind上限は100個です')
     return new SpyStatement(this.db, this.query, values)
   }
 
@@ -43,13 +44,15 @@ class SpyStatement implements D1PreparedStatementLike {
 
   run(): Promise<D1ResultLike> {
     this.db.executions.push({ query: this.query, params: this.params, method: 'run' })
-    return Promise.resolve({ success: true, meta: { changes: this.db.nextRunChanges.shift() ?? 1 } })
+    return Promise.resolve(this.db.resolveRun(this.query, this.params))
   }
 }
 
 class SpyDatabase implements D1DatabaseLike {
   readonly executions: Execution[] = []
   nextRunChanges: number[] = []
+  nextRunResults: D1ResultLike[] = []
+  categoryRows = new Map<string, { label: string; category: string | null }>()
   batchCalls = 0
   firstResult: unknown = null
 
@@ -81,6 +84,25 @@ class SpyDatabase implements D1DatabaseLike {
       return [{ month: '202604', amount: -10000, is_cleared: 0 }]
     }
     return []
+  }
+
+  resolveRun(query: string, params: unknown[]): D1ResultLike {
+    if (query.startsWith('UPDATE expenses\nSET ai_category') && this.categoryRows.size > 0) {
+      const category = params[0] as string
+      const expectedLabel = params.at(-1) as string
+      const expenseIds = params.slice(3, -1) as string[]
+      const changes = expenseIds.reduce((count, expenseId) => {
+        const row = this.categoryRows.get(expenseId)
+        if (!row || row.label !== expectedLabel) return count
+        this.categoryRows.set(expenseId, { ...row, category })
+        return count + 1
+      }, 0)
+      return { success: true, meta: { changes } }
+    }
+    return this.nextRunResults.shift() ?? {
+      success: true,
+      meta: { changes: this.nextRunChanges.shift() ?? 1 },
+    }
   }
 }
 
@@ -150,10 +172,11 @@ describe('AI家計診断D1ストア', () => {
 
   it('許可カテゴリをD1バッチで最大100件まで保存する', async () => {
     const db = new SpyDatabase()
+    db.nextRunChanges = [2, 1]
 
     await saveExpenseCategories(db, runtime, [
-      { expenseIds: ['expense-1', 'expense-2'], category: 'dining' },
-      { expenseIds: ['expense-3'], category: 'healthcare' },
+      { expenseIds: ['expense-1', 'expense-2'], category: 'dining', expectedLabel: '外食' },
+      { expenseIds: ['expense-3'], category: 'healthcare', expectedLabel: '通院' },
     ])
 
     expect(db.batchCalls).toBe(1)
@@ -165,18 +188,54 @@ describe('AI家計診断D1ストア', () => {
       NOW,
       'expense-1',
       'expense-2',
+      '外食',
     ])
+  })
+
+  it('同一カテゴリ100件を各statementのbind上限内で保存する', async () => {
+    const db = new SpyDatabase()
+    db.nextRunChanges = [96, 4]
+    const expenseIds = Array.from({ length: 100 }, (_, index) => `expense-${index}`)
+
+    await expect(
+      saveExpenseCategories(db, runtime, [
+        { expenseIds, category: 'dining', expectedLabel: '外食' },
+      ])
+    ).resolves.toBeUndefined()
+
+    expect(db.executions).toHaveLength(2)
+    expect(db.executions.map(({ params }) => params.length)).toEqual([100, 8])
+  })
+
+  it('ラベル変更後に古い分類を復活させず競合として拒否する', async () => {
+    const db = new SpyDatabase()
+    db.categoryRows.set('expense-1', { label: '通院', category: null })
+
+    await expect(
+      saveExpenseCategories(db, runtime, [
+        { expenseIds: ['expense-1'], category: 'dining', expectedLabel: '外食' },
+      ])
+    ).rejects.toThrow('分類中に支出が変更')
+
+    expect(db.categoryRows.get('expense-1')).toEqual({ label: '通院', category: null })
+    expect(db.executions[0].query).toContain('AND label = ?')
   })
 
   it('許可されていないカテゴリと100件超の保存を拒否する', async () => {
     const db = new SpyDatabase()
 
     await expect(
-      saveExpenseCategories(db, runtime, [{ expenseIds: ['expense-1'], category: 'unknown' }])
+      saveExpenseCategories(db, runtime, [
+        { expenseIds: ['expense-1'], category: 'unknown', expectedLabel: '不明' },
+      ])
     ).rejects.toThrow('許可されていない')
     await expect(
       saveExpenseCategories(db, runtime, [
-        { expenseIds: Array.from({ length: 101 }, (_, index) => `expense-${index}`), category: 'other' },
+        {
+          expenseIds: Array.from({ length: 101 }, (_, index) => `expense-${index}`),
+          category: 'other',
+          expectedLabel: 'その他',
+        },
       ])
     ).rejects.toThrow('100件まで')
     expect(db.executions).toHaveLength(0)
@@ -259,5 +318,17 @@ WHERE month = ? AND run_token = ?`,
       params: ['202604', 'run-1'],
       method: 'run',
     })
+  })
+
+  it.each([
+    ['changesが0', { success: true, meta: { changes: 0 } }],
+    ['metaがない', { success: true }],
+  ] as const)('%s場合はリース解放を失敗にする', async (_name, result) => {
+    const db = new SpyDatabase()
+    db.nextRunResults = [result]
+
+    await expect(releaseDiagnosisLease(db, '202604', 'expired-run')).rejects.toThrow(
+      'リースが失効'
+    )
   })
 })

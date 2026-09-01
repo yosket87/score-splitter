@@ -15,7 +15,10 @@ import type {
   AiDiagnosisView,
   DiagnosisSnapshot,
 } from '@/features/ai-diagnosis/domain'
-import { createAiDiagnosisProvider } from '@/features/ai-diagnosis/provider'
+import {
+  createAiDiagnosisProvider,
+  type AiDiagnosisProvider,
+} from '@/features/ai-diagnosis/provider'
 import {
   createAiDiagnosisService,
   NoActualExpensesError,
@@ -70,12 +73,25 @@ export async function generateAiDiagnosis(
 function createRequestService(): AiDiagnosisService {
   return createAiDiagnosisService({
     repository: createRepository(),
-    provider: createAiDiagnosisProvider(),
+    provider: createLazyProvider(),
     randomUUID: () => crypto.randomUUID(),
     logReleaseError: () => {
       console.error('AI診断リース解放エラー')
     },
   })
+}
+
+function createLazyProvider(): AiDiagnosisProvider {
+  let provider: AiDiagnosisProvider | undefined
+  const getProvider = (): AiDiagnosisProvider => {
+    provider ??= createAiDiagnosisProvider()
+    return provider
+  }
+
+  return {
+    classifyLabels: (labels) => getProvider().classifyLabels(labels),
+    generateNarrative: (input) => getProvider().generateNarrative(input),
+  }
 }
 
 function createRepository(): AiDiagnosisRepository {

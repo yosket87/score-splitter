@@ -238,13 +238,34 @@ describe('OpenAI家計診断プロバイダー', () => {
     expect(responses.calls).toBe(1)
   })
 
-  it('分類入力を重複除去後の件数と文字数で制限する', async () => {
+  it.each([81, 255])(
+    '%s文字の正当な支出ラベルを切り詰めず分類する',
+    async (length) => {
+      const label = 'あ'.repeat(length)
+      const responses = new FakeResponsesClient([{
+        assignments: [{ label, category: 'other' }],
+      }])
+      const provider = createOpenAiDiagnosisProvider({
+        apiKey: 'test-api-key',
+        responses,
+      })
+
+      await expect(provider.classifyLabels([label])).resolves.toEqual([
+        { label, category: 'other' },
+      ])
+      expect(responses.lastRequest?.input[1]?.content).toBe(
+        JSON.stringify({ labels: [label] })
+      )
+    }
+  )
+
+  it('分類入力を重複除去後100件・各255文字に制限する', async () => {
     const responses = new FakeResponsesClient()
     const provider = createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses })
     const tooManyLabels = Array.from({ length: 101 }, (_, index) => `ラベル${index}`)
 
     await expect(provider.classifyLabels(tooManyLabels)).rejects.toThrow()
-    await expect(provider.classifyLabels(['あ'.repeat(81)])).rejects.toThrow()
+    await expect(provider.classifyLabels(['あ'.repeat(256)])).rejects.toThrow()
     expect(responses.calls).toBe(0)
   })
 

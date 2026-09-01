@@ -30,7 +30,9 @@ vi.mock('@/features/ai-diagnosis/provider', async (importOriginal) => {
 import type {
   AiDiagnosisView,
   AiNarrativeResult,
+  CategoryAssignment,
   DiagnosisContext,
+  ExpenseCategoryAssignment,
 } from '@/features/ai-diagnosis/domain'
 import { createDiagnosisInputHash } from '@/features/ai-diagnosis/input-hash'
 import { createAiDiagnosisService } from '@/features/ai-diagnosis/service'
@@ -118,6 +120,20 @@ function createDependencies() {
   }
 }
 
+function createUnknownExpenses(
+  count: number,
+  labelAt: (index: number) => string
+): DiagnosisContext['expenses'] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `expense-${index + 1}`,
+    month: '202604',
+    label: labelAt(index),
+    amount: -1000,
+    isCarryover: false,
+    aiCategory: null,
+  }))
+}
+
 describe('AI家計診断サービス', () => {
   it('未分類の正規化ラベルだけを分類し、exact label単位で保存して元contextを変更しない', async () => {
     const dependencies = createDependencies()
@@ -164,6 +180,161 @@ describe('AI家計診断サービス', () => {
       dependencies.repository.saveDiagnosis,
     ].map((mock) => mock.mock.invocationCallOrder[0])
     expect(callOrder).toEqual([...callOrder].sort((left, right) => left - right))
+  })
+
+  it('同一ラベル101件は分類を1回に保ち、保存を100件以下へ分割する', async () => {
+    const dependencies = createDependencies()
+    dependencies.repository.getContext.mockResolvedValue({
+      targetMonth: '202604',
+      incomes: [],
+      expenses: createUnknownExpenses(101, () => '食料品'),
+      carryovers: [],
+    })
+    dependencies.provider.classifyLabels.mockResolvedValue([
+      { label: '食料品', category: 'groceries' },
+    ])
+    dependencies.provider.generateNarrative.mockResolvedValue({
+      summaryText: '今月の支出構成を振り返りました',
+      notableChanges: [],
+      positivePoints: [],
+      suggestions: [],
+      dataSufficiency: 'current_only',
+    })
+
+    await expect(
+      createAiDiagnosisService(dependencies).run('202604')
+    ).resolves.toEqual(expect.objectContaining({ month: '202604' }))
+
+    expect(dependencies.provider.classifyLabels).toHaveBeenCalledOnce()
+    expect(dependencies.provider.classifyLabels).toHaveBeenCalledWith(['食料品'])
+    expect(dependencies.repository.saveCategories).toHaveBeenCalledTimes(2)
+    expect(
+      dependencies.repository.saveCategories.mock.calls.map((call) =>
+        (call[0] as ExpenseCategoryAssignment[]).reduce(
+          (count: number, assignment: ExpenseCategoryAssignment) =>
+            count + assignment.expenseIds.length,
+          0
+        )
+      )
+    ).toEqual([100, 1])
+  })
+
+  it('正規化ラベル101種類は100種類以下の分類batchへ分割して安全に統合する', async () => {
+    const dependencies = createDependencies()
+    dependencies.repository.getContext.mockResolvedValue({
+      targetMonth: '202604',
+      incomes: [],
+      expenses: createUnknownExpenses(101, (index) => `分類ラベル${index + 1}`),
+      carryovers: [],
+    })
+    dependencies.provider.classifyLabels.mockImplementation(
+      async (labels: string[]) =>
+        labels.map((label) => ({ label, category: 'groceries' as const }))
+    )
+    dependencies.provider.generateNarrative.mockResolvedValue({
+      summaryText: '今月の支出構成を振り返りました',
+      notableChanges: [],
+      positivePoints: [],
+      suggestions: [],
+      dataSufficiency: 'current_only',
+    })
+
+    await expect(
+      createAiDiagnosisService(dependencies).run('202604')
+    ).resolves.toEqual(expect.objectContaining({ month: '202604' }))
+
+    expect(
+      dependencies.provider.classifyLabels.mock.calls.map(
+        (call) => (call[0] as string[]).length
+      )
+    ).toEqual([100, 1])
+    expect(dependencies.repository.saveCategories).toHaveBeenCalledTimes(2)
+    expect(
+      dependencies.repository.saveCategories.mock.calls.flatMap(
+        (call) => (call[0] as ExpenseCategoryAssignment[])
+          .flatMap(({ expenseIds }) => expenseIds)
+      )
+    ).toHaveLength(101)
+  })
+
+  it('後続の分類batchが失敗したら保存と診断を行わずリースを解放する', async () => {
+    const dependencies = createDependencies()
+    const batchError = new Error('classification batch failed')
+    dependencies.repository.getContext.mockResolvedValue({
+      targetMonth: '202604',
+      incomes: [],
+      expenses: createUnknownExpenses(101, (index) => `分類ラベル${index + 1}`),
+      carryovers: [],
+    })
+    dependencies.provider.classifyLabels
+      .mockImplementationOnce(
+        async (labels: string[]): Promise<CategoryAssignment[]> =>
+          labels.map((label) => ({ label, category: 'groceries' as const }))
+      )
+      .mockRejectedValueOnce(batchError)
+
+    await expect(
+      createAiDiagnosisService(dependencies).run('202604')
+    ).rejects.toBe(batchError)
+
+    expect(dependencies.provider.classifyLabels).toHaveBeenCalledTimes(2)
+    expect(dependencies.repository.saveCategories).not.toHaveBeenCalled()
+    expect(dependencies.provider.generateNarrative).not.toHaveBeenCalled()
+    expect(dependencies.repository.releaseLease).toHaveBeenCalledOnce()
+  })
+
+  it('後続の保存batch失敗後は永続化済み分類を再利用して残りだけ分類する', async () => {
+    const dependencies = createDependencies()
+    const expenses = createUnknownExpenses(101, () => '食料品')
+    const saveError = new Error('category save batch failed')
+    dependencies.repository.getContext.mockResolvedValue({
+      targetMonth: '202604', incomes: [], expenses, carryovers: [],
+    })
+    dependencies.provider.classifyLabels.mockResolvedValue([
+      { label: '食料品', category: 'groceries' },
+    ])
+    dependencies.provider.generateNarrative.mockResolvedValue({
+      summaryText: '今月の支出構成を振り返りました',
+      notableChanges: [], positivePoints: [], suggestions: [],
+      dataSufficiency: 'current_only',
+    })
+    dependencies.repository.saveCategories
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(saveError)
+
+    await expect(
+      createAiDiagnosisService(dependencies).run('202604')
+    ).rejects.toBe(saveError)
+    expect(dependencies.provider.generateNarrative).not.toHaveBeenCalled()
+    expect(dependencies.repository.releaseLease).toHaveBeenCalledOnce()
+
+    dependencies.repository.getContext.mockResolvedValue({
+      targetMonth: '202604',
+      incomes: [],
+      expenses: expenses.map((expense, index) =>
+        index < 100 ? { ...expense, aiCategory: 'groceries' } : expense
+      ),
+      carryovers: [],
+    })
+    dependencies.repository.saveCategories.mockReset()
+    dependencies.repository.saveCategories.mockResolvedValue(undefined)
+    dependencies.provider.classifyLabels.mockClear()
+    dependencies.provider.generateNarrative.mockClear()
+    dependencies.repository.releaseLease.mockClear()
+
+    await expect(
+      createAiDiagnosisService(dependencies).run('202604')
+    ).resolves.toEqual(expect.objectContaining({ month: '202604' }))
+    expect(dependencies.provider.classifyLabels).toHaveBeenCalledWith(['食料品'])
+    expect(dependencies.repository.saveCategories).toHaveBeenCalledWith([
+      {
+        expenseIds: ['expense-101'],
+        category: 'groceries',
+        expectedLabel: '食料品',
+      },
+    ])
+    expect(dependencies.provider.generateNarrative).toHaveBeenCalledOnce()
+    expect(dependencies.repository.releaseLease).not.toHaveBeenCalled()
   })
 
   it('loadはAIとリースを使わず保存なし・新鮮・期限切れを判定する', async () => {
@@ -234,6 +405,35 @@ describe('AI家計診断サービス', () => {
       'run-token'
     )
     expect(dependencies.provider.classifyLabels).not.toHaveBeenCalled()
+    expect(dependencies.provider.generateNarrative).not.toHaveBeenCalled()
+    expect(dependencies.repository.saveDiagnosis).not.toHaveBeenCalled()
+  })
+
+  it('fresh cacheのrelease失敗は一度だけ記録し、TTL失効に任せてcacheを返す', async () => {
+    const classifiedContext: DiagnosisContext = {
+      ...context,
+      expenses: context.expenses.map((expense) =>
+        expense.isCarryover ? expense : { ...expense, aiCategory: 'dining' }
+      ),
+    }
+    const inputHash = await createDiagnosisInputHash(classifiedContext)
+    const dependencies = createDependencies()
+    const releaseError = new Error('release response lost')
+    dependencies.repository.getContext.mockResolvedValue(classifiedContext)
+    dependencies.repository.getSavedDiagnosis.mockResolvedValue({
+      diagnosis: savedDiagnosis,
+      inputHash,
+      analysisVersion: 'v1',
+      updatedAt: '2026-09-01T00:00:00.000Z',
+    })
+    dependencies.repository.releaseLease.mockRejectedValueOnce(releaseError)
+
+    await expect(
+      createAiDiagnosisService(dependencies).run('202604')
+    ).resolves.toBe(savedDiagnosis)
+
+    expect(dependencies.repository.releaseLease).toHaveBeenCalledOnce()
+    expect(dependencies.logReleaseError).toHaveBeenCalledWith(releaseError)
     expect(dependencies.provider.generateNarrative).not.toHaveBeenCalled()
     expect(dependencies.repository.saveDiagnosis).not.toHaveBeenCalled()
   })
@@ -424,15 +624,51 @@ describe('AI家計診断Action', () => {
     expect(aiDiagnosisApiMock.acquireDiagnosisLease).not.toHaveBeenCalled()
   })
 
-  it('loadはrequest内でfactoryを生成してsnapshotを返す', async () => {
+  it('loadはOpenAI providerを生成せずsnapshotを返す', async () => {
     await expect(loadAiDiagnosis('202604')).resolves.toEqual({
       success: true,
       data: { diagnosis: null, stale: false },
     })
 
-    expect(providerFactoryMock).toHaveBeenCalledOnce()
+    expect(providerFactoryMock).not.toHaveBeenCalled()
     expect(aiDiagnosisApiMock.getDiagnosisContext).toHaveBeenCalledWith('202604')
     expect(aiDiagnosisApiMock.acquireDiagnosisLease).not.toHaveBeenCalled()
+  })
+
+  it('provider factoryが失敗してもloadは保存なし・fresh・staleのsnapshotを返す', async () => {
+    const inputHash = await createDiagnosisInputHash(context)
+    providerFactoryMock.mockImplementation(() => {
+      throw new Error('OPENAI_API_KEY missing')
+    })
+
+    await expect(loadAiDiagnosis('202604')).resolves.toEqual({
+      success: true,
+      data: { diagnosis: null, stale: false },
+    })
+
+    aiDiagnosisApiMock.getSavedDiagnosis.mockResolvedValue({
+      diagnosis: savedDiagnosis,
+      inputHash,
+      analysisVersion: 'v1',
+      updatedAt: '2026-09-01T00:00:00.000Z',
+    })
+
+    await expect(loadAiDiagnosis('202604')).resolves.toEqual({
+      success: true,
+      data: { diagnosis: savedDiagnosis, stale: false },
+    })
+
+    aiDiagnosisApiMock.getSavedDiagnosis.mockResolvedValue({
+      diagnosis: savedDiagnosis,
+      inputHash: 'old-hash',
+      analysisVersion: 'v1',
+      updatedAt: '2026-09-01T00:00:00.000Z',
+    })
+    await expect(loadAiDiagnosis('202604')).resolves.toEqual({
+      success: true,
+      data: { diagnosis: savedDiagnosis, stale: true },
+    })
+    expect(providerFactoryMock).not.toHaveBeenCalled()
   })
 
   it('generateはrequest内でfactoryを生成して診断を返す', async () => {
@@ -444,6 +680,47 @@ describe('AI家計診断Action', () => {
     })
     expect(providerFactoryMock).toHaveBeenCalledOnce()
     expect(aiDiagnosisApiMock.acquireDiagnosisLease).toHaveBeenCalledOnce()
+  })
+
+  it('fresh cacheのrelease応答喪失は安全に記録してcacheを返し、残存leaseの409を次回変換する', async () => {
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined)
+    const classifiedContext: DiagnosisContext = {
+      ...context,
+      expenses: context.expenses.map((expense) =>
+        expense.isCarryover ? expense : { ...expense, aiCategory: 'dining' }
+      ),
+    }
+    const inputHash = await createDiagnosisInputHash(classifiedContext)
+    aiDiagnosisApiMock.getDiagnosisContext.mockResolvedValue(classifiedContext)
+    aiDiagnosisApiMock.getSavedDiagnosis.mockResolvedValue({
+      diagnosis: savedDiagnosis,
+      inputHash,
+      analysisVersion: 'v1',
+      updatedAt: '2026-09-01T00:00:00.000Z',
+    })
+    aiDiagnosisApiMock.releaseDiagnosisLease
+      .mockRejectedValueOnce(new Error('runToken=secret'))
+      .mockResolvedValueOnce(undefined)
+
+    await expect(generateAiDiagnosis('202604')).resolves.toEqual({
+      success: true,
+      data: savedDiagnosis,
+    })
+    expect(aiDiagnosisApiMock.releaseDiagnosisLease).toHaveBeenCalledOnce()
+    expect(providerFactoryMock).not.toHaveBeenCalled()
+
+    aiDiagnosisApiMock.acquireDiagnosisLease.mockRejectedValueOnce(
+      new ApiError('lease remains', 409)
+    )
+    await expect(generateAiDiagnosis('202604')).resolves.toEqual({
+      success: false,
+      error: '診断を実行中です',
+    })
+    expect(aiDiagnosisApiMock.releaseDiagnosisLease).toHaveBeenCalledOnce()
+    expect(JSON.stringify(consoleError.mock.calls)).not.toMatch(/secret|runToken/)
+    consoleError.mockRestore()
   })
 
   it('リース競合を実行中メッセージへ変換する', async () => {

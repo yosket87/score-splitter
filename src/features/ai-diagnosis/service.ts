@@ -2,6 +2,7 @@ import { buildDiagnosisAnalysis, composeDiagnosisView } from './analyze'
 import { createDiagnosisInputHash } from './input-hash'
 import type {
   AiDiagnosisView,
+  CategoryAssignment,
   DiagnosisContext,
   DiagnosisSnapshot,
   ExpenseCategoryAssignment,
@@ -12,6 +13,8 @@ import type {
 import type { AiDiagnosisProvider } from './provider'
 
 const ANALYSIS_VERSION = 'v1'
+const MAX_CLASSIFICATION_LABELS = 100
+const MAX_CATEGORY_EXPENSE_IDS = 100
 
 export class NoActualExpensesError extends Error {
   constructor() {
@@ -81,8 +84,12 @@ export function createAiDiagnosisService(
           saved?.inputHash === inputHash &&
           saved.analysisVersion === ANALYSIS_VERSION
         ) {
-          await repository.releaseLease(month, runToken)
           leaseOwned = false
+          try {
+            await repository.releaseLease(month, runToken)
+          } catch (releaseError) {
+            dependencies.logReleaseError(releaseError)
+          }
           return saved.diagnosis
         }
 
@@ -143,7 +150,14 @@ async function classifyUnknownLabels(
   ]
   if (normalizedLabels.length === 0) return context
 
-  const classifications = await provider.classifyLabels(normalizedLabels)
+  const classifications = await chunkItems(
+    normalizedLabels,
+    MAX_CLASSIFICATION_LABELS
+  ).reduce<Promise<CategoryAssignment[]>>(async (collected, batch) => {
+    const previous = await collected
+    const current = await provider.classifyLabels(batch)
+    return [...previous, ...current]
+  }, Promise.resolve([]))
   const categoriesByLabel = new Map(
     classifications.map(({ label, category }) => [label, category])
   )
@@ -183,7 +197,9 @@ async function classifyUnknownLabels(
     },
     []
   )
-  await repository.saveCategories(assignments)
+  for (const batch of createCategoryAssignmentBatches(assignments)) {
+    await repository.saveCategories(batch)
+  }
 
   return {
     ...context,
@@ -203,6 +219,45 @@ async function classifyUnknownLabels(
     }),
     carryovers: context.carryovers.map((carryover) => ({ ...carryover })),
   }
+}
+
+function createCategoryAssignmentBatches(
+  assignments: ExpenseCategoryAssignment[]
+): ExpenseCategoryAssignment[][] {
+  const splitAssignments = assignments.flatMap((assignment) =>
+    chunkItems(assignment.expenseIds, MAX_CATEGORY_EXPENSE_IDS).map(
+      (expenseIds) => ({ ...assignment, expenseIds })
+    )
+  )
+
+  return splitAssignments.reduce<ExpenseCategoryAssignment[][]>(
+    (batches, assignment) => {
+      const lastBatch = batches.at(-1) ?? []
+      const lastExpenseCount = lastBatch.reduce(
+        (count, item) => count + item.expenseIds.length,
+        0
+      )
+      if (
+        lastBatch.length === 0 ||
+        lastExpenseCount + assignment.expenseIds.length >
+          MAX_CATEGORY_EXPENSE_IDS
+      ) {
+        return [...batches, [assignment]]
+      }
+      return [
+        ...batches.slice(0, -1),
+        [...lastBatch, assignment],
+      ]
+    },
+    []
+  )
+}
+
+function chunkItems<T>(items: T[], size: number): T[][] {
+  return Array.from(
+    { length: Math.ceil(items.length / size) },
+    (_, index) => items.slice(index * size, (index + 1) * size)
+  )
 }
 
 function toNarrativeInput(analysis: NarrativeInput): NarrativeInput {

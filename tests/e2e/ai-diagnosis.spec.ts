@@ -1,9 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { login, resetMockData } from './helpers'
 
-const SCREENSHOT_DIR =
-  '.superpowers/sdd/2026-09-01-ai-household-diagnosis/screenshots'
-
 async function selectTheme(page: import('@playwright/test').Page, theme: 'ライト' | 'ダーク') {
   await page.getByRole('button', { name: 'テーマを切り替え' }).click()
   await page.getByRole('menuitem', { name: theme }).click()
@@ -161,7 +158,7 @@ test('1440x900ではDialogをEscapeで閉じて起点へフォーカスを戻す
   await expect(trigger).toBeFocused()
 })
 
-test('1440x900と390x844のlight/dark目視証跡を保存する', async ({ page }) => {
+test('1440x900と390x844のlight/dark目視証跡を保存する', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await login(page)
   await page.goto('/2026/02')
@@ -185,7 +182,7 @@ test('1440x900と390x844のlight/dark目視証跡を保存する', async ({ page
     elements.forEach((element) => element.remove())
   )
   await page.screenshot({
-    path: `${SCREENSHOT_DIR}/desktop-light.png`,
+    path: testInfo.outputPath('desktop-light.png'),
     animations: 'disabled',
   })
   await page.keyboard.press('Escape')
@@ -193,7 +190,7 @@ test('1440x900と390x844のlight/dark目視証跡を保存する', async ({ page
   await trigger.click()
   await expect(dialog.getByText('今月のまとめ')).toBeVisible()
   await page.screenshot({
-    path: `${SCREENSHOT_DIR}/desktop-dark.png`,
+    path: testInfo.outputPath('desktop-dark.png'),
     animations: 'disabled',
   })
   await page.keyboard.press('Escape')
@@ -223,7 +220,7 @@ test('1440x900と390x844のlight/dark目視証跡を保存する', async ({ page
     documentOverflow: 0,
   })
   await page.screenshot({
-    path: `${SCREENSHOT_DIR}/mobile-light.png`,
+    path: testInfo.outputPath('mobile-light.png'),
     animations: 'disabled',
   })
   await page.keyboard.press('Escape')
@@ -231,7 +228,7 @@ test('1440x900と390x844のlight/dark目視証跡を保存する', async ({ page
   await trigger.click()
   await expect(drawer.getByText('今月のまとめ')).toBeVisible()
   await page.screenshot({
-    path: `${SCREENSHOT_DIR}/mobile-dark.png`,
+    path: testInfo.outputPath('mobile-dark.png'),
     animations: 'disabled',
   })
 })

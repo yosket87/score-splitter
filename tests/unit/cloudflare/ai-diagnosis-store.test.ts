@@ -46,6 +46,15 @@ class SpyStatement implements D1PreparedStatementLike {
     this.db.executions.push({ query: this.query, params: this.params, method: 'run' })
     return Promise.resolve(this.db.resolveRun(this.query, this.params))
   }
+
+  executeBatch(): D1ResultLike {
+    if (this.query.startsWith('SELECT')) {
+      this.db.executions.push({ query: this.query, params: this.params, method: 'all' })
+      return { success: true, results: this.db.resolveAll(this.query) }
+    }
+    this.db.executions.push({ query: this.query, params: this.params, method: 'run' })
+    return this.db.resolveRun(this.query, this.params)
+  }
 }
 
 class SpyDatabase implements D1DatabaseLike {
@@ -62,7 +71,7 @@ class SpyDatabase implements D1DatabaseLike {
 
   async batch(statements: D1PreparedStatementLike[]): Promise<D1ResultLike[]> {
     this.batchCalls += 1
-    return Promise.all(statements.map((statement) => statement.run()))
+    return statements.map((statement) => (statement as SpyStatement).executeBatch())
   }
 
   resolveAll(query: string): unknown[] {
@@ -83,6 +92,7 @@ class SpyDatabase implements D1DatabaseLike {
     if (query.includes('FROM carryovers')) {
       return [{ month: '202604', amount: -10000, is_cleared: 0 }]
     }
+    if (query.includes('FROM ai_diagnosis_source_revision')) return [{ revision: 7 }]
     return []
   }
 
@@ -113,6 +123,50 @@ class SpyDatabase implements D1DatabaseLike {
   }
 }
 
+class SnapshotStatement implements D1PreparedStatementLike {
+  constructor(
+    readonly query: string,
+    readonly params: unknown[] = []
+  ) {}
+
+  bind(...values: unknown[]): D1PreparedStatementLike {
+    return new SnapshotStatement(this.query, values)
+  }
+
+  first<T>(): Promise<T | null> {
+    throw new Error('snapshot取得ではfirstを個別実行しません')
+  }
+
+  all<T>(): Promise<{ results: T[] }> {
+    throw new Error('snapshot取得ではallを個別実行しません')
+  }
+
+  run(): Promise<D1ResultLike> {
+    throw new Error('snapshot取得ではrunを個別実行しません')
+  }
+}
+
+class SnapshotDatabase implements D1DatabaseLike {
+  prepare(query: string): D1PreparedStatementLike {
+    return new SnapshotStatement(query)
+  }
+
+  async batch(statements: D1PreparedStatementLike[]): Promise<D1ResultLike[]> {
+    return statements.map((statement) => {
+      const query = (statement as SnapshotStatement).query
+      if (query.includes('FROM incomes')) {
+        return { success: true, results: [{ month: '202604', amount: 420000 }] }
+      }
+      if (query.includes('FROM expenses')) return { success: true, results: [] }
+      if (query.includes('FROM carryovers')) return { success: true, results: [] }
+      if (query.includes('FROM ai_diagnosis_source_revision')) {
+        return { success: true, results: [{ revision: 7 }] }
+      }
+      return { success: true, results: [] }
+    }) as D1ResultLike[]
+  }
+}
+
 const NOW = '2026-04-20T12:00:00.000Z'
 const runtime: Runtime = {
   randomUUID: () => 'diagnosis-id',
@@ -120,6 +174,16 @@ const runtime: Runtime = {
 }
 
 describe('AI家計診断D1ストア', () => {
+  it('3種データとsource revisionを同じtransactional batch snapshotで返す', async () => {
+    const result = await getDiagnosisContext(new SnapshotDatabase(), '202604')
+
+    expect(result).toMatchObject({
+      targetMonth: '202604',
+      sourceRevision: 7,
+      incomes: [{ month: '202604', amount: 420000 }],
+    })
+  })
+
   it('診断コンテキストから担当者を除外する', async () => {
     const db = new SpyDatabase()
 
@@ -144,8 +208,8 @@ describe('AI家計診断D1ストア', () => {
 
     await getDiagnosisContext(db, '202601')
 
-    expect(db.executions).toHaveLength(3)
-    expect(db.executions.every(({ params }) => {
+    expect(db.executions).toHaveLength(4)
+    expect(db.executions.slice(0, 3).every(({ params }) => {
       return params.join(',') === '202601,202512,202511,202510'
     })).toBe(true)
   })
@@ -330,9 +394,11 @@ WHERE id = ? AND run_token = ?`,
       inputHash: 'hash-1',
       analysisVersion: 'v1',
       diagnosis,
-    })
+      expectedSourceRevision: 7,
+    } as Parameters<typeof saveDiagnosis>[3])
 
     expect(db.executions[0].query).toContain('WHERE month = ? AND run_token = ?')
+    expect(db.executions[0].query).toContain('ai_diagnosis_source_revision')
     expect(db.executions[0].params).toEqual([
       JSON.stringify(diagnosis),
       'hash-1',
@@ -344,7 +410,25 @@ WHERE id = ? AND run_token = ?`,
       1,
       'run-1',
       NOW,
+      1,
+      7,
     ])
+  })
+
+  it('source revision不一致を専用競合として拒否する', async () => {
+    const db = new SpyDatabase()
+    db.nextRunChanges = [0]
+    db.firstResult = { revision: 8 }
+
+    await expect(
+      saveDiagnosis(db, runtime, '202604', {
+        runToken: 'run-1',
+        inputHash: 'hash-1',
+        analysisVersion: 'v1',
+        diagnosis: {},
+        expectedSourceRevision: 7,
+      })
+    ).rejects.toThrow('診断対象データが更新されたため保存できません')
   })
 
   it('runTokenが失効した診断結果は保存しない', async () => {
@@ -357,6 +441,7 @@ WHERE id = ? AND run_token = ?`,
         inputHash: 'hash-1',
         analysisVersion: 'v1',
         diagnosis: {},
+        expectedSourceRevision: 7,
       })
     ).rejects.toThrow('リースが失効')
   })

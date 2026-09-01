@@ -252,6 +252,39 @@ describe('OpenAI家計診断プロバイダー', () => {
     ).rejects.toThrow('候補ID')
   })
 
+  it.each([
+    ['notable', 'notableChanges'],
+    ['positive', 'positivePoints'],
+    ['suggestion', 'suggestions'],
+  ] as const)('入力候補がある%s groupの全省略を一度再試行後に拒否する', async (
+    _group,
+    omittedKey
+  ) => {
+    const positiveCandidate = {
+      ...narrativeInput.notableCandidates[0],
+      id: 'positive:dining',
+      kind: 'positive' as const,
+    }
+    const input = {
+      ...narrativeInput,
+      positiveCandidates: [positiveCandidate],
+    }
+    const complete = {
+      ...validNarrative,
+      positivePoints: [
+        { candidateId: 'positive:dining', commentary: '続けたい変化です' },
+      ],
+    }
+    const invalid = { ...complete, [omittedKey]: [] }
+    const responses = new FakeResponsesClient([invalid, invalid])
+
+    await expect(
+      createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses })
+        .generateNarrative(input)
+    ).rejects.toThrow('候補があるグループ')
+    expect(responses.calls).toBe(2)
+  })
+
   it('dataSufficiencyが入力と一致しない応答を拒否する', async () => {
     const invalid = { ...validNarrative, dataSufficiency: 'reference' }
     const responses = new FakeResponsesClient([invalid, invalid])
@@ -417,6 +450,25 @@ describe('家計診断プロバイダーfactory', () => {
     ])
     await expect(second.generateNarrative(narrativeInput)).resolves.toEqual(
       await first.generateNarrative(narrativeInput),
+    )
+  })
+
+  it('mock providerも候補がある各groupを最低1件返す', async () => {
+    vi.stubEnv('AI_PROVIDER', 'mock')
+    const baseCandidate = narrativeInput.notableCandidates[0]
+    const input: NarrativeInput = {
+      ...narrativeInput,
+      positiveCandidates: [
+        { ...baseCandidate, id: 'positive:dining', kind: 'positive' },
+      ],
+    }
+
+    await expect(createAiDiagnosisProvider().generateNarrative(input)).resolves.toEqual(
+      expect.objectContaining({
+        notableChanges: [expect.objectContaining({ candidateId: 'increase:dining' })],
+        positivePoints: [expect.objectContaining({ candidateId: 'positive:dining' })],
+        suggestions: [expect.objectContaining({ candidateId: 'suggestion:dining' })],
+      })
     )
   })
 

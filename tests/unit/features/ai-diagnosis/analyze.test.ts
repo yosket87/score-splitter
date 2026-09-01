@@ -8,6 +8,7 @@ import type { AiNarrativeResult, DiagnosisContext } from '@/features/ai-diagnosi
 
 const context: DiagnosisContext = {
   targetMonth: '202604',
+  sourceRevision: 1,
   incomes: [{ month: '202604', amount: 600000 }],
   expenses: [
     { id: 'apr-dining', month: '202604', label: '外食', amount: -48000, isCarryover: false, aiCategory: 'dining' },
@@ -23,6 +24,7 @@ const context: DiagnosisContext = {
 
 const oneOffTravelContext: DiagnosisContext = {
   targetMonth: '202604',
+  sourceRevision: 1,
   incomes: [],
   expenses: [
     { id: 'apr-travel', month: '202604', label: '旅行', amount: -50000, isCarryover: false, aiCategory: 'travel' },
@@ -35,6 +37,7 @@ describe('buildDiagnosisAnalysis', () => {
   it('差額と増減率を満たす増加を差額降順で最大3件抽出する', () => {
     const result = buildDiagnosisAnalysis({
       targetMonth: '202604',
+      sourceRevision: 1,
       incomes: [],
       expenses: [
         { id: 'apr-dining', month: '202604', label: '外食', amount: -50000, isCarryover: false, aiCategory: 'dining' },
@@ -107,6 +110,54 @@ describe('buildDiagnosisAnalysis', () => {
       expect.objectContaining({ category: 'groceries', currentAmount: 20000, commentary: '節約できています' }),
     )
     expect(() => composeDiagnosisView(analysis, { ...narrative, suggestions: [{ candidateId: 'unknown', commentary: '不正' }] })).toThrow()
+  })
+
+  it('過去3か月に各1万円あり当月0円のカテゴリを安全な過去ラベルで良かった点にする', () => {
+    const analysis = buildDiagnosisAnalysis({
+      targetMonth: '202604',
+      sourceRevision: 1,
+      incomes: [],
+      expenses: [
+        { id: 'apr-dining', month: '202604', label: '外食', amount: -5000, isCarryover: false, aiCategory: 'dining' },
+        { id: 'mar-grocery', month: '202603', label: '食料品', amount: -10000, isCarryover: false, aiCategory: 'groceries' },
+        { id: 'feb-grocery', month: '202602', label: '食料品', amount: -10000, isCarryover: false, aiCategory: 'groceries' },
+        { id: 'jan-grocery', month: '202601', label: '食料品', amount: -10000, isCarryover: false, aiCategory: 'groceries' },
+      ],
+      carryovers: [],
+    })
+
+    expect(analysis.positiveCandidates).toContainEqual(
+      expect.objectContaining({
+        id: 'positive:groceries',
+        currentAmount: 0,
+        baselineAmount: 10000,
+        differenceAmount: -10000,
+        differenceRate: -1,
+        contributingLabels: ['食料品'],
+      })
+    )
+  })
+
+  it('比較月が一部だけでも当月0円のカテゴリを良かった点にする', () => {
+    const analysis = buildDiagnosisAnalysis({
+      targetMonth: '202604',
+      sourceRevision: 1,
+      incomes: [],
+      expenses: [
+        { id: 'apr-dining', month: '202604', label: '外食', amount: -5000, isCarryover: false, aiCategory: 'dining' },
+        { id: 'mar-transport', month: '202603', label: '電車', amount: -6000, isCarryover: false, aiCategory: 'transportation' },
+      ],
+      carryovers: [],
+    })
+
+    expect(analysis.positiveCandidates).toContainEqual(
+      expect.objectContaining({
+        category: 'transportation',
+        currentAmount: 0,
+        baselineAmount: 6000,
+        contributingLabels: ['電車'],
+      })
+    )
   })
 })
 

@@ -72,6 +72,12 @@ AIカテゴリ3列は診断専用の内部情報であり、通常のExpense API
 
 月leaseと世帯全体guardはD1 `batch()`のtransactionでまとめて条件付き取得します。同時実行は1件、cooldownは5秒、UTC日次上限は20回です。busyは409、cooldownまたは日次上限は`Retry-After`付き429を返します。診断保存または所有tokenによるlease解放で`ai_diagnoses.run_token`をNULLへ更新すると、triggerが同じtokenの世帯全体guardを解放します。
 
+### ai_diagnosis_source_revision（診断入力revision）
+
+単一行（`id = 1`）の単調増加revisionで、診断生成中に家計データが更新されていないことを最終保存時に検証します。context取得では収入・支出・繰越とrevisionを同じD1 `batch()` snapshotで読み、保存UPDATEの同一statementに期待revisionを含めます。不一致は専用409となり、古い結果はfreshとして保存しません。
+
+revisionは収入の`month/amount`、支出の`month/label/amount/is_carryover`、繰越の`month/amount/is_cleared`の更新と、3テーブルのinsert/deleteで増加します。担当者、収入・繰越の表示label、AI内部カテゴリだけの更新では増加しません。
+
 ### carryovers（繰越テーブル）
 
 | カラム | 型 | 説明 |

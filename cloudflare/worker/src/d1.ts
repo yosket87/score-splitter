@@ -1,5 +1,6 @@
 export interface D1ResultLike {
   success: boolean
+  results?: unknown[]
   meta?: {
     changes?: number
   }

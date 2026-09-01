@@ -8,9 +8,12 @@ import {
 } from '../../../src/features/ai-diagnosis/limits'
 
 const GLOBAL_GUARD_ID = 1
+export const SOURCE_REVISION_CONFLICT_MESSAGE =
+  '診断対象データが更新されたため保存できません'
 
 export interface DiagnosisContextRow {
   targetMonth: string
+  sourceRevision: number
   incomes: Array<{ month: string; amount: number }>
   expenses: Array<{
     id: string
@@ -41,6 +44,7 @@ export interface StoreDiagnosisInput {
   inputHash: string
   analysisVersion: string
   diagnosis: unknown
+  expectedSourceRevision: number
 }
 
 type SavedDiagnosisD1Row = {
@@ -87,27 +91,31 @@ export async function getDiagnosisContext(
 ): Promise<DiagnosisContextRow> {
   const months = getDiagnosisMonths(targetMonth)
   const placeholders = months.map(() => '?').join(', ')
-  const [incomes, expenses, carryovers] = await Promise.all([
+  const [incomes, expenses, carryovers, revision] = await db.batch([
     db
       .prepare(`SELECT month, amount FROM incomes WHERE month IN (${placeholders})`)
-      .bind(...months)
-      .all<{ month: string; amount: number }>(),
+      .bind(...months),
     db
       .prepare(
         `SELECT id, month, label, amount, is_carryover, ai_category FROM expenses WHERE month IN (${placeholders})`
       )
-      .bind(...months)
-      .all<ExpenseContextD1Row>(),
+      .bind(...months),
     db
       .prepare(`SELECT month, amount, is_cleared FROM carryovers WHERE month IN (${placeholders})`)
-      .bind(...months)
-      .all<CarryoverContextD1Row>(),
+      .bind(...months),
+    db.prepare('SELECT revision FROM ai_diagnosis_source_revision WHERE id = 1'),
   ])
+  const revisionRow = revision.results?.[0] as { revision?: unknown } | undefined
+  const sourceRevision = revisionRow?.revision
+  if (!Number.isSafeInteger(sourceRevision) || Number(sourceRevision) < 0) {
+    throw new Error('診断source revisionが不正です')
+  }
 
   return {
     targetMonth,
-    incomes: incomes.results,
-    expenses: expenses.results.map((row) => ({
+    sourceRevision: Number(sourceRevision),
+    incomes: (incomes.results ?? []) as Array<{ month: string; amount: number }>,
+    expenses: ((expenses.results ?? []) as ExpenseContextD1Row[]).map((row) => ({
       id: row.id,
       month: row.month,
       label: row.label,
@@ -115,7 +123,7 @@ export async function getDiagnosisContext(
       isCarryover: row.is_carryover === 1,
       aiCategory: row.ai_category ?? null,
     })),
-    carryovers: carryovers.results.map((row) => ({
+    carryovers: ((carryovers.results ?? []) as CarryoverContextD1Row[]).map((row) => ({
       month: row.month,
       amount: row.amount,
       isCleared: row.is_cleared === 1,
@@ -433,6 +441,10 @@ WHERE month = ? AND run_token = ? AND run_expires_at >= ?
   AND EXISTS (
     SELECT 1 FROM ai_execution_guard
     WHERE id = ? AND run_token = ? AND run_expires_at >= ?
+  )
+  AND EXISTS (
+    SELECT 1 FROM ai_diagnosis_source_revision
+    WHERE id = ? AND revision = ?
   )`
     )
     .bind(
@@ -445,10 +457,19 @@ WHERE month = ? AND run_token = ? AND run_expires_at >= ?
       now,
       GLOBAL_GUARD_ID,
       input.runToken,
-      now
+      now,
+      GLOBAL_GUARD_ID,
+      input.expectedSourceRevision
     )
     .run()
   if (result.meta?.changes !== 1) {
+    const revision = await db
+      .prepare('SELECT revision FROM ai_diagnosis_source_revision WHERE id = ?')
+      .bind(GLOBAL_GUARD_ID)
+      .first<{ revision: number }>()
+    if (revision && revision.revision !== input.expectedSourceRevision) {
+      throw new Error(SOURCE_REVISION_CONFLICT_MESSAGE)
+    }
     throw new Error('診断リースが失効しているため保存できません')
   }
 }

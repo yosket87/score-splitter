@@ -20,6 +20,7 @@ export type DiagnosisExpense = z.infer<typeof diagnosisExpenseSchema>
 
 export const diagnosisContextSchema = z.object({
   targetMonth: z.string(),
+  sourceRevision: z.number().int().nonnegative(),
   incomes: z.array(z.object({ month: z.string(), amount: z.number() })),
   expenses: z.array(diagnosisExpenseSchema),
   carryovers: z.array(z.object({ month: z.string(), amount: z.number(), isCleared: z.boolean() })),
@@ -106,5 +107,6 @@ export const saveDiagnosisInputSchema = z.object({
   inputHash: z.string(),
   analysisVersion: z.string(),
   diagnosis: aiDiagnosisViewSchema,
+  expectedSourceRevision: z.number().int().nonnegative(),
 })
 export type SaveDiagnosisInput = z.infer<typeof saveDiagnosisInputSchema>

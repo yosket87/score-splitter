@@ -23,9 +23,14 @@ describe('AI家計診断のモックAPI', () => {
 
     expect(response.status).toBe(200)
     const payload = (await response.json()) as {
-      data: { targetMonth: string; expenses: Array<Record<string, unknown>> }
+      data: {
+        targetMonth: string
+        sourceRevision: number
+        expenses: Array<Record<string, unknown>>
+      }
     }
     expect(payload.data.targetMonth).toBe('202602')
+    expect(payload.data.sourceRevision).toBe(0)
     expect(new Set(payload.data.expenses.map(({ month }) => month))).toEqual(
       new Set(['202602', '202601', '202512', '202511'])
     )
@@ -108,6 +113,7 @@ describe('AI家計診断のモックAPI', () => {
         runToken: 'run-2',
         inputHash: 'hash-1',
         analysisVersion: 'v1',
+        expectedSourceRevision: 0,
         diagnosis: {
           month: '202602',
           summaryText: '診断',

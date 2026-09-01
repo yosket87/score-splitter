@@ -58,7 +58,6 @@ function buildAnalysisFromCategoryTotals(
     ? null
     : availableReferenceMonths.reduce((total, month) => total + sumAmounts(expenses.filter((expense) => expense.month === month)), 0) / availableReferenceMonths.length
   const candidates = [...categoryTotals.entries()]
-    .filter(([, totals]) => totals.has(currentMonth))
     .map(([category, totals]) => createCategoryCandidate(
       category,
       totals,
@@ -124,7 +123,15 @@ function createCategoryCandidate(
   const differenceAmount = baselineAmount === null ? actualCurrentAmount : actualCurrentAmount - baselineAmount
   const differenceRate = baselineAmount === null || baselineAmount === 0 ? null : differenceAmount / baselineAmount
   const contributingExpenses = currentExpenses.filter((expense) => expense.aiCategory === category)
-  const contributingLabels = [...new Set(contributingExpenses.map((expense) => expense.label))]
+  const labelSources = contributingExpenses.length > 0
+    ? contributingExpenses
+    : allExpenses.filter(
+        (expense) =>
+          referenceMonths.includes(expense.month) && expense.aiCategory === category
+      )
+  const contributingLabels = [
+    ...new Set(labelSources.map((expense) => expense.label)),
+  ].sort()
   const isLikelyOneOff = isOneOff(actualCurrentAmount, referenceAmounts, contributingExpenses, allExpenses, referenceMonths)
 
   return {
@@ -195,6 +202,7 @@ function sortByLargestDifference(left: DiagnosisCandidate, right: DiagnosisCandi
 }
 
 export function composeDiagnosisView(analysis: DiagnosisAnalysis, narrative: AiNarrativeResult): AiDiagnosisView {
+  assertNarrativeCoverage(analysis, narrative)
   return {
     month: analysis.targetMonth,
     summaryText: narrative.summaryText,
@@ -205,6 +213,20 @@ export function composeDiagnosisView(analysis: DiagnosisAnalysis, narrative: AiN
     positivePoints: composeViewItems(analysis.positiveCandidates, narrative.positivePoints),
     suggestions: composeViewItems(analysis.suggestionCandidates, narrative.suggestions),
     dataSufficiency: analysis.dataSufficiency,
+  }
+}
+
+function assertNarrativeCoverage(
+  analysis: DiagnosisAnalysis,
+  narrative: AiNarrativeResult
+): void {
+  const groups = [
+    [analysis.notableCandidates, narrative.notableChanges],
+    [analysis.positiveCandidates, narrative.positivePoints],
+    [analysis.suggestionCandidates, narrative.suggestions],
+  ]
+  if (groups.some(([candidates, items]) => candidates.length > 0 && items.length === 0)) {
+    throw new Error('入力候補があるグループには診断文が最低1件必要です。')
   }
 }
 

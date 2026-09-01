@@ -145,6 +145,23 @@ describe('AiDiagnosisDialog', () => {
     expect(screen.getByRole('button', { name: 'もう一度診断する' })).toBeInTheDocument()
   })
 
+  it('source revision競合時は直前の診断をfreshのまま残さない', async () => {
+    vi.mocked(generateAiDiagnosis).mockResolvedValueOnce({
+      success: false,
+      error: '家計データが更新されました。最新データで再診断してください',
+      errorCode: 'source_revision_conflict',
+    })
+    const user = userEvent.setup()
+    render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+
+    await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
+    await user.click(await screen.findByRole('button', { name: 'もう一度診断する' }))
+
+    expect(await screen.findByText(/家計データが更新されています/)).toBeInTheDocument()
+    expect(screen.getByText(diagnosis.summaryText)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '最新データで再診断' })).toBeInTheDocument()
+  })
+
   it('開くまで読み込まず、未保存なら説明と開始操作を表示する', async () => {
     vi.mocked(loadAiDiagnosis).mockResolvedValueOnce({
       success: true,
@@ -539,6 +556,37 @@ describe('AiDiagnosisDialog', () => {
 })
 
 describe('DiagnosisResult', () => {
+  it('当月0円の良かった点を過去ラベルで表示し変化なしと誤表示しない', () => {
+    const zeroPositive = {
+      ...diagnosis.notableChanges[0],
+      id: 'positive:groceries',
+      kind: 'positive' as const,
+      category: 'groceries' as const,
+      currentAmount: 0,
+      baselineAmount: 10000,
+      differenceAmount: -10000,
+      differenceRate: -1,
+      contributingLabels: ['食料品'],
+    }
+    render(
+      <DiagnosisResult
+        diagnosis={{
+          ...diagnosis,
+          notableChanges: [],
+          positivePoints: [zeroPositive],
+          suggestions: [],
+        }}
+        stale={false}
+      />
+    )
+
+    expect(screen.getByText('良かった点')).toBeInTheDocument()
+    expect(screen.getByText('食料品')).toBeInTheDocument()
+    expect(screen.getByText('今月 0円')).toBeInTheDocument()
+    expect(screen.queryByText('groceries')).not.toBeInTheDocument()
+    expect(screen.queryByText('今月は大きな変化はありません')).not.toBeInTheDocument()
+  })
+
   it('候補がないセクションを隠して大きな変化がないことを表示する', () => {
     const emptyDiagnosis: AiDiagnosisView = {
       ...diagnosis,

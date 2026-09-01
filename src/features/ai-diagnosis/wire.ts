@@ -88,12 +88,22 @@ export function parseCategoryAssignments(value: unknown): {
 
 export function parseSaveDiagnosisInput(value: unknown): SaveDiagnosisInput {
   const input = assertObject(value)
-  assertExactKeys(input, ['runToken', 'inputHash', 'analysisVersion', 'diagnosis'])
+  assertExactKeys(input, [
+    'runToken',
+    'inputHash',
+    'analysisVersion',
+    'diagnosis',
+    'expectedSourceRevision',
+  ])
   return {
     runToken: parseString(input.runToken, 'runToken'),
     inputHash: parseString(input.inputHash, 'inputHash'),
     analysisVersion: parseString(input.analysisVersion, 'analysisVersion'),
     diagnosis: parseDiagnosisView(input.diagnosis),
+    expectedSourceRevision: parseNonnegativeInteger(
+      input.expectedSourceRevision,
+      'expectedSourceRevision'
+    ),
   }
 }
 
@@ -157,6 +167,12 @@ function parseDiagnosisViewItem(value: unknown): DiagnosisViewItem {
 function parseNumber(value: unknown, name: string): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) invalid(`${name}が不正です`)
   return value
+}
+
+function parseNonnegativeInteger(value: unknown, name: string): number {
+  const number = parseNumber(value, name)
+  if (!Number.isSafeInteger(number) || number < 0) invalid(`${name}が不正です`)
+  return number
 }
 
 function parseNullableNumber(value: unknown, name: string): number | null {

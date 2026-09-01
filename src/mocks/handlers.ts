@@ -109,6 +109,9 @@ export const handlers = [
     return HttpResponse.json({
       data: {
         targetMonth,
+        sourceRevision: Number(
+          getTable('ai_diagnosis_source_revision')[0]?.revision ?? 0
+        ),
         incomes: getTable('incomes')
           .filter(({ month }) => months.includes(String(month)))
           .map(({ month, amount }) => ({ month, amount })),
@@ -308,6 +311,15 @@ export const handlers = [
     const row = getTable('ai_diagnoses').find((record) => record.month === month)
     const guard = getTable('ai_execution_guard')[0]
     const nowIso = new Date().toISOString()
+    const sourceRevision = Number(
+      getTable('ai_diagnosis_source_revision')[0]?.revision ?? -1
+    )
+    if (sourceRevision !== body.expectedSourceRevision) {
+      return HttpResponse.json(
+        { error: '診断対象データが更新されたため保存できません' },
+        { status: 409 }
+      )
+    }
     if (
       !row ||
       row.run_token !== body.runToken ||

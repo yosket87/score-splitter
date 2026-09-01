@@ -27,6 +27,12 @@ import {
 } from '@/features/ai-diagnosis/service'
 import type { ActionResult } from '@/types'
 
+const SOURCE_REVISION_CONFLICT_MESSAGE =
+  '診断対象データが更新されたため保存できません'
+type GenerateAiDiagnosisResult = ActionResult<AiDiagnosisView> & {
+  errorCode?: 'source_revision_conflict'
+}
+
 export async function loadAiDiagnosis(
   month: string
 ): Promise<ActionResult<DiagnosisSnapshot>> {
@@ -46,7 +52,7 @@ export async function loadAiDiagnosis(
 
 export async function generateAiDiagnosis(
   month: string
-): Promise<ActionResult<AiDiagnosisView>> {
+): Promise<GenerateAiDiagnosisResult> {
   await requireAuth()
   if (!isValidMonth(month)) {
     return { success: false, error: '月の形式が不正です' }
@@ -57,6 +63,17 @@ export async function generateAiDiagnosis(
     return { success: true, data: diagnosis }
   } catch (error) {
     console.error('AI診断生成エラー')
+    if (
+      error instanceof ApiError &&
+      error.status === 409 &&
+      error.message === SOURCE_REVISION_CONFLICT_MESSAGE
+    ) {
+      return {
+        success: false,
+        error: '家計データが更新されました。最新データで再診断してください',
+        errorCode: 'source_revision_conflict',
+      }
+    }
     if (error instanceof ApiError && error.status === 409) {
       return { success: false, error: '診断を実行中です' }
     }

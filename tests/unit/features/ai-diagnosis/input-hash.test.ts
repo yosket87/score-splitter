@@ -4,6 +4,7 @@ import type { DiagnosisContext } from '@/features/ai-diagnosis/domain'
 
 const context: DiagnosisContext = {
   targetMonth: '202604',
+  sourceRevision: 1,
   incomes: [{ month: '202604', amount: 600000 }],
   expenses: [{ id: 'apr-dining', month: '202604', label: '外食', amount: -48000, isCarryover: false, aiCategory: 'dining' }],
   carryovers: [{ month: '202604', amount: -10000, isCleared: false }],

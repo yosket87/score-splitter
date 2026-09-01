@@ -169,6 +169,11 @@ function assertNarrativeSafety(input: NarrativeInput, narrative: AiNarrativeResu
     || groups.some(({ items, allowed }) => items.some(({ candidateId }) => !allowed.has(candidateId)))) {
     throw new StructuredOutputError('診断文に許可されていない候補IDまたは重複した候補IDがあります。')
   }
+  if (groups.some(({ items, allowed }) => allowed.size > 0 && items.length === 0)) {
+    throw new StructuredOutputError(
+      '入力候補があるグループには診断文が最低1件必要です。'
+    )
+  }
 
   const narrativeTexts = [
     narrative.summaryText,

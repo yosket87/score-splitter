@@ -40,6 +40,7 @@ const expenseCategoryAssignmentsSchema = z
 
 const diagnosisContextSchema: z.ZodType<DiagnosisContext> = z.object({
   targetMonth: monthSchema,
+  sourceRevision: z.number().int().nonnegative(),
   incomes: z.array(z.object({ month: monthSchema, amount: z.number() }).strict()),
   expenses: z.array(
     z.object({
@@ -100,6 +101,7 @@ const saveDiagnosisInputSchema: z.ZodType<SaveDiagnosisInput> = z.object({
   inputHash: z.string(),
   analysisVersion: z.string(),
   diagnosis: aiDiagnosisViewSchema,
+  expectedSourceRevision: z.number().int().nonnegative(),
 }).strict()
 const diagnosisViewEnvelopeSchema = z.object({ data: aiDiagnosisViewSchema }).strict()
 

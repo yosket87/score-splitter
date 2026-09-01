@@ -11,6 +11,12 @@ interface Store {
   [table: string]: Row[]
 }
 
+const REVISION_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  incomes: ['month', 'amount'],
+  expenses: ['month', 'label', 'amount', 'is_carryover'],
+  carryovers: ['month', 'amount', 'is_cleared'],
+}
+
 // グローバルストア（サーバープロセス内で永続化）
 let store: Store = {}
 
@@ -35,6 +41,9 @@ export function initStore(): void {
         daily_count: 0,
         updated_at: '1970-01-01T00:00:00.000Z',
       },
+    ],
+    ai_diagnosis_source_revision: [
+      { id: 1, revision: 0, updated_at: '1970-01-01T00:00:00.000Z' },
     ],
   }
 }
@@ -148,6 +157,7 @@ export function insertRows(table: string, rows: Row[]): Row[] {
   }))
 
   tableData.push(...inserted)
+  incrementSourceRevision(table, inserted.length)
   return inserted
 }
 
@@ -166,10 +176,15 @@ export function updateRows(
 
   for (let i = 0; i < tableData.length; i++) {
     if (matchingIds.has(tableData[i].id)) {
+      const before = tableData[i]
       tableData[i] = {
         ...tableData[i],
         ...updates,
         updated_at: now,
+      }
+      const fields = REVISION_FIELDS[table] ?? []
+      if (fields.some((field) => before[field] !== tableData[i][field])) {
+        incrementSourceRevision(table, 1)
       }
       updated.push(tableData[i])
     }
@@ -189,5 +204,15 @@ export function deleteRows(
 
   const before = tableData.length
   store[table] = tableData.filter((r) => !matchingIds.has(r.id))
-  return before - store[table].length
+  const deleted = before - store[table].length
+  incrementSourceRevision(table, deleted)
+  return deleted
+}
+
+function incrementSourceRevision(table: string, count: number): void {
+  if (!(table in REVISION_FIELDS) || count === 0) return
+  const row = getTable('ai_diagnosis_source_revision')[0]
+  if (!row) throw new Error('診断source revisionが初期化されていません')
+  row.revision = Number(row.revision) + count
+  row.updated_at = new Date().toISOString()
 }

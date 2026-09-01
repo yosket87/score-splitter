@@ -91,13 +91,15 @@ export function createAiDiagnosisService(
           saved?.inputHash === inputHash &&
           saved.analysisVersion === ANALYSIS_VERSION
         ) {
+          const result = await repository.saveDiagnosis(month, {
+            runToken,
+            inputHash,
+            analysisVersion: ANALYSIS_VERSION,
+            diagnosis: saved.diagnosis,
+            expectedSourceRevision: classifiedContext.sourceRevision,
+          })
           leaseOwned = false
-          try {
-            await repository.releaseLease(month, runToken)
-          } catch (releaseError) {
-            dependencies.logReleaseError(releaseError)
-          }
-          return saved.diagnosis
+          return result
         }
 
         const analysis = buildDiagnosisAnalysis(classifiedContext)
@@ -110,6 +112,7 @@ export function createAiDiagnosisService(
           inputHash,
           analysisVersion: ANALYSIS_VERSION,
           diagnosis,
+          expectedSourceRevision: classifiedContext.sourceRevision,
         })
         leaseOwned = false
         return result

@@ -163,10 +163,16 @@ function useLoadDiagnosis(lifecycle: RequestLifecycle, setState: SetDiagnosisSta
 function readyState(
   month: string,
   snapshot: DiagnosisSnapshot | null,
-  error: string
+  error: string,
+  markStale = false
 ): AiDiagnosisState {
   return snapshot
-    ? { status: 'saved', month, snapshot, error }
+    ? {
+        status: 'saved',
+        month,
+        snapshot: markStale ? { ...snapshot, stale: true } : snapshot,
+        error,
+      }
     : { status: 'empty', month, error }
 }
 
@@ -221,7 +227,8 @@ async function executeDiagnosisRun(execution: RunExecution, timer: number) {
         : readyState(
             requestMonth,
             previousSnapshot,
-            result.error ?? SAFE_ERROR_MESSAGE
+            result.error ?? SAFE_ERROR_MESSAGE,
+            result.errorCode === 'source_revision_conflict'
           )
     )
   } catch {

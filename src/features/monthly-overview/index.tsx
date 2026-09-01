@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { AnimatedYen } from '@/components/animations/animated-number'
 import { useMotionPrefs } from '@/components/animations/use-motion-prefs'
 import { TrendCard } from '@/components/charts/trend-card'
+import { AiDiagnosisDialog } from '@/features/ai-diagnosis'
 import { CopyMonthDialog } from '@/features/copy-month'
 import { ExportCsvButton } from '@/features/export-csv'
 import {
@@ -162,6 +163,10 @@ export function MonthlyOverview({
               incomes={incomes}
               expenses={expenses}
               carryovers={carryovers}
+            />
+            <AiDiagnosisDialog
+              month={currentMonth}
+              hasActualExpenses={expenses.some((expense) => !expense.isCarryover)}
             />
           </div>
         </div>

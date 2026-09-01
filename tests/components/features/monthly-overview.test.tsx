@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import { MonthlyOverview } from '@/features/monthly-overview'
+import type { MonthlyOverviewSummary } from '@/features/monthly-overview'
 import type { Expense, Income, MonthlySummary } from '@/types'
 
 const mockPush = vi.fn()
@@ -17,6 +18,24 @@ vi.mock('@/features/copy-month', () => ({
 
 vi.mock('@/features/export-csv', () => ({
   ExportCsvButton: () => <button type="button">CSV出力</button>,
+}))
+
+vi.mock('@/features/ai-diagnosis', () => ({
+  AiDiagnosisDialog: ({
+    month,
+    hasActualExpenses,
+  }: {
+    month: string
+    hasActualExpenses: boolean
+  }) => (
+    <button
+      type="button"
+      data-month={month}
+      data-has-actual-expenses={String(hasActualExpenses)}
+    >
+      AIで今月を振り返る
+    </button>
+  ),
 }))
 
 const incomes: Income[] = [
@@ -62,12 +81,18 @@ const summaries: MonthlySummary[] = [
   },
 ]
 
-function renderOverview() {
+function renderOverview(
+  overviewSummary: MonthlyOverviewSummary = {
+    incomes,
+    expenses,
+    carryovers: [],
+  }
+) {
   return render(
     <MonthlyOverview
       year={2026}
       month={4}
-      summary={{ incomes, expenses, carryovers: [] }}
+      summary={overviewSummary}
       summaries={summaries}
     />
   )
@@ -143,5 +168,34 @@ describe('MonthlyOverview', () => {
     expect(allowance.compareDocumentPosition(trend)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     )
+  })
+
+  it('コピー・CSVの順を保ってAI診断を同じアクション群へ配置する', () => {
+    renderOverview()
+
+    const copy = screen.getByRole('button', { name: '前月からコピー' })
+    const csv = screen.getByRole('button', { name: 'CSV出力' })
+    const ai = screen.getByRole('button', { name: 'AIで今月を振り返る' })
+
+    expect(copy.compareDocumentPosition(csv)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
+    expect(csv.compareDocumentPosition(ai)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
+    expect(ai).toHaveAttribute('data-month', '202604')
+    expect(ai).toHaveAttribute('data-has-actual-expenses', 'true')
+  })
+
+  it('繰越支出だけの月はAI診断へ実支出なしを渡す', () => {
+    renderOverview({
+      incomes,
+      expenses: [{ ...expenses[0], isCarryover: true }],
+      carryovers: [],
+    })
+
+    expect(
+      screen.getByRole('button', { name: 'AIで今月を振り返る' })
+    ).toHaveAttribute('data-has-actual-expenses', 'false')
   })
 })

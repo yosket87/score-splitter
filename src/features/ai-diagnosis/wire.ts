@@ -5,8 +5,7 @@ import type {
   ExpenseCategoryAssignment,
   SaveDiagnosisInput,
 } from './domain'
-
-const MAX_CATEGORY_EXPENSES = 100
+import { AI_DIAGNOSIS_MAX_CATEGORY_EXPENSES } from './limits'
 
 export class AiDiagnosisWireError extends Error {}
 
@@ -46,9 +45,13 @@ export function parseRunTokenInput(value: unknown): { runToken: string } {
   return { runToken: parseString(input.runToken, 'runToken') }
 }
 
-export function parseCategoryAssignments(value: unknown): ExpenseCategoryAssignment[] {
+export function parseCategoryAssignments(value: unknown): {
+  month: string
+  runToken: string
+  assignments: ExpenseCategoryAssignment[]
+} {
   const input = assertObject(value)
-  assertExactKeys(input, ['assignments'])
+  assertExactKeys(input, ['month', 'runToken', 'assignments'])
   if (!Array.isArray(input.assignments)) invalid('assignmentsが不正です')
 
   const assignments = input.assignments.map((assignment) => {
@@ -69,10 +72,18 @@ export function parseCategoryAssignments(value: unknown): ExpenseCategoryAssignm
     (count, assignment) => count + assignment.expenseIds.length,
     0
   )
-  if (expenseCount > MAX_CATEGORY_EXPENSES) {
+  if (expenseCount > AI_DIAGNOSIS_MAX_CATEGORY_EXPENSES) {
     invalid('一度に分類できる支出は100件までです')
   }
-  return assignments
+  const expenseIds = assignments.flatMap((assignment) => assignment.expenseIds)
+  if (new Set(expenseIds).size !== expenseIds.length) {
+    invalid('支出IDが重複しています')
+  }
+  return {
+    month: parseAiDiagnosisMonth(input.month),
+    runToken: parseString(input.runToken, 'runToken'),
+    assignments,
+  }
 }
 
 export function parseSaveDiagnosisInput(value: unknown): SaveDiagnosisInput {

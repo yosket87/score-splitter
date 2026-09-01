@@ -60,6 +60,12 @@ export async function generateAiDiagnosis(
     if (error instanceof ApiError && error.status === 409) {
       return { success: false, error: '診断を実行中です' }
     }
+    if (error instanceof ApiError && error.status === 429) {
+      return {
+        success: false,
+        error: 'しばらく待ってから再診断してください',
+      }
+    }
     if (error instanceof NoActualExpensesError) {
       return {
         success: false,

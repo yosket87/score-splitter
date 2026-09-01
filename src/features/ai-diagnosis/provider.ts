@@ -7,6 +7,7 @@ import {
   type NarrativeInput,
 } from './domain'
 import { createOpenAiDiagnosisProvider } from './openai-provider'
+import { AI_DIAGNOSIS_MAX_CLASSIFICATION_LABELS } from './limits'
 import { incrementAiDiagnosisMockStat } from '@/mocks/ai-diagnosis-stats'
 
 export interface AiDiagnosisProvider {
@@ -14,7 +15,9 @@ export interface AiDiagnosisProvider {
   generateNarrative(input: NarrativeInput): Promise<AiNarrativeResult>
 }
 
-const mockLabelsSchema = z.array(z.string().min(1).max(255)).max(100)
+const mockLabelsSchema = z
+  .array(z.string().min(1).max(255))
+  .max(AI_DIAGNOSIS_MAX_CLASSIFICATION_LABELS)
 
 const MOCK_CATEGORY_RULES: ReadonlyArray<{ keywords: readonly string[]; category: AiCategory }> = [
   { keywords: ['uber eats', '外食', 'レストラン', 'カフェ'], category: 'dining' },

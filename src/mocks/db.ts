@@ -25,6 +25,17 @@ export function initStore(): void {
     webauthn_challenges: [],
     waitlist_entries: [],
     ai_diagnoses: [],
+    ai_execution_guard: [
+      {
+        id: 1,
+        run_token: null,
+        run_expires_at: null,
+        last_started_at: null,
+        usage_date: '1970-01-01',
+        daily_count: 0,
+        updated_at: '1970-01-01T00:00:00.000Z',
+      },
+    ],
   }
 }
 

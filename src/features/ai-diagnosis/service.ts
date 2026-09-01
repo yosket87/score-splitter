@@ -11,10 +11,12 @@ import type {
   SavedDiagnosis,
 } from './domain'
 import type { AiDiagnosisProvider } from './provider'
+import {
+  AI_DIAGNOSIS_MAX_CATEGORY_EXPENSES,
+  AI_DIAGNOSIS_MAX_CLASSIFICATION_LABELS,
+} from './limits'
 
 const ANALYSIS_VERSION = 'v1'
-const MAX_CLASSIFICATION_LABELS = 100
-const MAX_CATEGORY_EXPENSE_IDS = 100
 
 export class NoActualExpensesError extends Error {
   constructor() {
@@ -27,7 +29,11 @@ export interface AiDiagnosisRepository {
   getContext(month: string): Promise<DiagnosisContext>
   getSavedDiagnosis(month: string): Promise<SavedDiagnosis | null>
   acquireLease(month: string, runToken: string): Promise<void>
-  saveCategories(assignments: ExpenseCategoryAssignment[]): Promise<void>
+  saveCategories(
+    month: string,
+    runToken: string,
+    assignments: ExpenseCategoryAssignment[]
+  ): Promise<void>
   saveDiagnosis(month: string, input: SaveDiagnosisInput): Promise<AiDiagnosisView>
   releaseLease(month: string, runToken: string): Promise<void>
 }
@@ -75,7 +81,8 @@ export function createAiDiagnosisService(
         const classifiedContext = await classifyUnknownLabels(
           context,
           provider,
-          repository
+          repository,
+          runToken
         )
         const inputHash = await createDiagnosisInputHash(classifiedContext)
         const saved = await repository.getSavedDiagnosis(month)
@@ -134,7 +141,8 @@ function assertCurrentMonthHasActualExpenses(context: DiagnosisContext): void {
 async function classifyUnknownLabels(
   context: DiagnosisContext,
   provider: AiDiagnosisProvider,
-  repository: AiDiagnosisRepository
+  repository: AiDiagnosisRepository,
+  runToken: string
 ): Promise<DiagnosisContext> {
   const unknownExpenses = context.expenses
     .filter((expense) => !expense.isCarryover && expense.aiCategory === null)
@@ -147,17 +155,20 @@ async function classifyUnknownLabels(
     }))
   const normalizedLabels = [
     ...new Set(unknownExpenses.map(({ normalizedLabel }) => normalizedLabel)),
-  ]
+  ].sort()
   if (normalizedLabels.length === 0) return context
 
-  const classifications = await chunkItems(
-    normalizedLabels,
-    MAX_CLASSIFICATION_LABELS
-  ).reduce<Promise<CategoryAssignment[]>>(async (collected, batch) => {
-    const previous = await collected
-    const current = await provider.classifyLabels(batch)
-    return [...previous, ...current]
-  }, Promise.resolve([]))
+  const labelsForProvider = normalizedLabels.slice(
+    0,
+    AI_DIAGNOSIS_MAX_CLASSIFICATION_LABELS
+  )
+  const overflowLabels = normalizedLabels.slice(
+    AI_DIAGNOSIS_MAX_CLASSIFICATION_LABELS
+  )
+  const classifications: CategoryAssignment[] = [
+    ...(await provider.classifyLabels(labelsForProvider)),
+    ...overflowLabels.map((label) => ({ label, category: 'other' as const })),
+  ]
   const categoriesByLabel = new Map(
     classifications.map(({ label, category }) => [label, category])
   )
@@ -198,34 +209,17 @@ async function classifyUnknownLabels(
     []
   )
   for (const batch of createCategoryAssignmentBatches(assignments)) {
-    await repository.saveCategories(batch)
+    await repository.saveCategories(context.targetMonth, runToken, batch)
   }
 
-  return {
-    ...context,
-    incomes: context.incomes.map((income) => ({ ...income })),
-    expenses: context.expenses.map((expense) => {
-      if (expense.isCarryover || expense.aiCategory !== null) {
-        return { ...expense }
-      }
-      const normalizedLabel = expense.label
-        .normalize('NFKC')
-        .trim()
-        .replace(/\s+/g, ' ')
-      const category = categoriesByLabel.get(normalizedLabel)
-      return category === undefined
-        ? { ...expense }
-        : { ...expense, aiCategory: category }
-    }),
-    carryovers: context.carryovers.map((carryover) => ({ ...carryover })),
-  }
+  return repository.getContext(context.targetMonth)
 }
 
 function createCategoryAssignmentBatches(
   assignments: ExpenseCategoryAssignment[]
 ): ExpenseCategoryAssignment[][] {
   const splitAssignments = assignments.flatMap((assignment) =>
-    chunkItems(assignment.expenseIds, MAX_CATEGORY_EXPENSE_IDS).map(
+    chunkItems(assignment.expenseIds, AI_DIAGNOSIS_MAX_CATEGORY_EXPENSES).map(
       (expenseIds) => ({ ...assignment, expenseIds })
     )
   )
@@ -240,7 +234,7 @@ function createCategoryAssignmentBatches(
       if (
         lastBatch.length === 0 ||
         lastExpenseCount + assignment.expenseIds.length >
-          MAX_CATEGORY_EXPENSE_IDS
+          AI_DIAGNOSIS_MAX_CATEGORY_EXPENSES
       ) {
         return [...batches, [assignment]]
       }

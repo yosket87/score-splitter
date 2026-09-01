@@ -145,6 +145,25 @@ describe('OpenAI家計診断プロバイダー', () => {
     expect(responses.calls).toBe(2)
   })
 
+  it('1診断の分類とnarrativeは内部再試行込みで合計4 requestを超えない', async () => {
+    const invalidNarrative = {
+      ...validNarrative,
+      summaryText: '夫の支出が増えました',
+    }
+    const responses = new FakeResponsesClient([
+      { assignments: [{ label: 'イオン', category: 'unknown' }] },
+      { assignments: [{ label: 'イオン', category: 'groceries' }] },
+      invalidNarrative,
+      validNarrative,
+    ])
+    const provider = createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses })
+
+    await expect(provider.classifyLabels(['イオン'])).resolves.toHaveLength(1)
+    await expect(provider.generateNarrative(narrativeInput)).resolves.toEqual(validNarrative)
+
+    expect(responses.calls).toBe(4)
+  })
+
   it('診断要求には分析済み候補だけを数値なしで送る', async () => {
     const responses = new FakeResponsesClient([validNarrative])
     const provider = createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses })

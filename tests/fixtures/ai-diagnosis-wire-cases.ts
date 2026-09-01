@@ -77,11 +77,38 @@ export const invalidAiWireCases: InvalidAiWireCase[] = [
     body: { assignments: [], person: 'wife' },
   },
   {
+    name: '分類のfenceフィールド欠落',
+    path: '/ai-diagnoses/categories',
+    method: 'PATCH',
+    body: {
+      assignments: [{
+        expenseIds: ['expense-1'],
+        category: 'housing',
+        expectedLabel: '家賃',
+      }],
+    },
+  },
+  {
     name: '分類assignmentの必須フィールド欠落',
     path: '/ai-diagnoses/categories',
     method: 'PATCH',
     body: {
+      month: '202601',
+      runToken: 'run-1',
       assignments: [{ expenseIds: ['expense-1'], category: 'housing' }],
+    },
+  },
+  {
+    name: '分類の支出ID重複',
+    path: '/ai-diagnoses/categories',
+    method: 'PATCH',
+    body: {
+      month: '202601',
+      runToken: 'run-1',
+      assignments: [
+        { expenseIds: ['expense-1'], category: 'housing', expectedLabel: '家賃' },
+        { expenseIds: ['expense-1'], category: 'dining', expectedLabel: '家賃' },
+      ],
     },
   },
   {
@@ -89,6 +116,8 @@ export const invalidAiWireCases: InvalidAiWireCase[] = [
     path: '/ai-diagnoses/categories',
     method: 'PATCH',
     body: {
+      month: '202601',
+      runToken: 'run-1',
       assignments: [{
         expenseIds: ['expense-1'],
         category: 'housing',

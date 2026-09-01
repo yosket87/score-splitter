@@ -149,6 +149,19 @@ class FakeD1Database implements D1DatabaseLike {
   private challengeRows: FakeChallengeRow[] = []
   private diagnosisRows: FakeDiagnosisRow[] = []
   private diagnosisLeases = new Map<string, { runToken: string; expiresAt: string }>()
+  private diagnosisGuard: {
+    runToken: string | null
+    expiresAt: string | null
+    lastStartedAt: string | null
+    usageDate: string
+    dailyCount: number
+  } = {
+    runToken: null,
+    expiresAt: null,
+    lastStartedAt: null,
+    usageDate: '1970-01-01',
+    dailyCount: 0,
+  }
 
   constructor(rows: {
     incomes?: FakeIncomeRow[]
@@ -192,6 +205,15 @@ class FakeD1Database implements D1DatabaseLike {
 
   async first<T>(query: string, params: unknown[]): Promise<T | null> {
     this.executed.push({ query, params })
+    if (query.includes('FROM ai_execution_guard')) {
+      return {
+        run_token: this.diagnosisGuard.runToken,
+        run_expires_at: this.diagnosisGuard.expiresAt,
+        last_started_at: this.diagnosisGuard.lastStartedAt,
+        usage_date: this.diagnosisGuard.usageDate,
+        daily_count: this.diagnosisGuard.dailyCount,
+      } as T
+    }
     if (query.includes('FROM ai_diagnoses')) {
       return (
         this.diagnosisRows.find((row) => row.month === params[0]) ?? null
@@ -265,14 +287,74 @@ class FakeD1Database implements D1DatabaseLike {
 
   async run(query: string, params: unknown[]): Promise<D1ResultLike> {
     this.executed.push({ query, params })
+    if (query.startsWith('UPDATE ai_execution_guard\nSET run_token = ?')) {
+      const token = params[0] as string
+      const expiresAt = params[1] as string
+      const now = params[2] as string
+      const usageDate = params[3] as string
+      const cooldownCutoff = params[8] as string
+      const dailyLimit = params[10] as number
+      const month = params[11] as string
+      const active =
+        this.diagnosisGuard.runToken !== null &&
+        this.diagnosisGuard.expiresAt !== null &&
+        this.diagnosisGuard.expiresAt >= now
+      const coolingDown =
+        this.diagnosisGuard.lastStartedAt !== null &&
+        this.diagnosisGuard.lastStartedAt > cooldownCutoff
+      const dailyLimited =
+        this.diagnosisGuard.usageDate === usageDate &&
+        this.diagnosisGuard.dailyCount >= dailyLimit
+      const monthLease = this.diagnosisLeases.get(month)
+      const monthBusy = monthLease !== undefined && monthLease.expiresAt >= now
+      if (active || coolingDown || dailyLimited || monthBusy) {
+        return { success: true, meta: { changes: 0 } }
+      }
+      this.diagnosisGuard = {
+        runToken: token,
+        expiresAt,
+        lastStartedAt: now,
+        usageDate,
+        dailyCount:
+          this.diagnosisGuard.usageDate === usageDate
+            ? this.diagnosisGuard.dailyCount + 1
+            : 1,
+      }
+      return { success: true, meta: { changes: 1 } }
+    }
+    if (query.startsWith('UPDATE ai_execution_guard\nSET run_token = NULL')) {
+      const token = params[1] as string
+      if (this.diagnosisGuard.runToken !== token) {
+        return { success: true, meta: { changes: 0 } }
+      }
+      this.diagnosisGuard = {
+        ...this.diagnosisGuard,
+        runToken: null,
+        expiresAt: null,
+      }
+      return { success: true, meta: { changes: 1 } }
+    }
     if (query.startsWith('UPDATE ai_diagnoses\nSET result_json')) {
-      const month = params.at(-2) as string
-      const runToken = params.at(-1) as string
+      const month = params[4] as string
+      const runToken = params[5] as string
+      const now = params[6] as string
       const current = this.diagnosisLeases.get(month)
-      if (!current || current.runToken !== runToken) {
+      if (
+        !current ||
+        current.runToken !== runToken ||
+        current.expiresAt < now ||
+        this.diagnosisGuard.runToken !== runToken ||
+        this.diagnosisGuard.expiresAt === null ||
+        this.diagnosisGuard.expiresAt < now
+      ) {
         return { success: true, meta: { changes: 0 } }
       }
       this.diagnosisLeases.delete(month)
+      this.diagnosisGuard = {
+        ...this.diagnosisGuard,
+        runToken: null,
+        expiresAt: null,
+      }
       return { success: true, meta: { changes: 1 } }
     }
     if (query.startsWith('UPDATE ai_diagnoses\nSET run_token = NULL')) {
@@ -283,6 +365,13 @@ class FakeD1Database implements D1DatabaseLike {
         return { success: true, meta: { changes: 0 } }
       }
       this.diagnosisLeases.delete(month)
+      if (this.diagnosisGuard.runToken === runToken) {
+        this.diagnosisGuard = {
+          ...this.diagnosisGuard,
+          runToken: null,
+          expiresAt: null,
+        }
+      }
       return { success: true, meta: { changes: 1 } }
     }
     if (query.startsWith('UPDATE ai_diagnoses\nSET run_token = ?, run_expires_at = ?')) {
@@ -292,7 +381,10 @@ class FakeD1Database implements D1DatabaseLike {
       if (current && current.expiresAt >= now) {
         return { success: true, meta: { changes: 0 } }
       }
-      if (!current) {
+      if (
+        this.diagnosisGuard.runToken !== params[6] ||
+        this.diagnosisGuard.expiresAt !== params[7]
+      ) {
         return { success: true, meta: { changes: 0 } }
       }
       this.diagnosisLeases.set(month, {
@@ -303,14 +395,54 @@ class FakeD1Database implements D1DatabaseLike {
     }
     if (query.startsWith('INSERT OR IGNORE INTO ai_diagnoses')) {
       const month = params[1] as string
-      if (this.diagnosisLeases.has(month)) {
+      return {
+        success: true,
+        meta: { changes: this.diagnosisRows.some((row) => row.month === month) ? 0 : 1 },
+      }
+    }
+    if (query.startsWith('WITH requested AS')) {
+      const requested = JSON.parse(params[0] as string) as Array<{
+        expenseId: string
+        category: string
+        expectedLabel: string
+      }>
+      const month = params[2] as string
+      const runToken = params[3] as string
+      const now = params[4] as string
+      const monthLease = this.diagnosisLeases.get(month)
+      const ownsRun =
+        monthLease?.runToken === runToken &&
+        monthLease.expiresAt >= now &&
+        this.diagnosisGuard.runToken === runToken &&
+        this.diagnosisGuard.expiresAt !== null &&
+        this.diagnosisGuard.expiresAt >= now
+      const eligible = requested.every(({ expenseId, expectedLabel }) =>
+        this.expenseRows.some(
+          (row) =>
+            row.id === expenseId &&
+            row.label === expectedLabel &&
+            row.ai_category == null
+        )
+      )
+      if (!ownsRun || !eligible) {
         return { success: true, meta: { changes: 0 } }
       }
-      this.diagnosisLeases.set(month, {
-        runToken: params[2] as string,
-        expiresAt: params[3] as string,
+      const categoriesById = new Map(
+        requested.map(({ expenseId, category }) => [expenseId, category])
+      )
+      this.expenseRows = this.expenseRows.map((row) => {
+        const category = categoriesById.get(row.id)
+        return category === undefined
+          ? row
+          : {
+              ...row,
+              ai_category: category,
+              ai_category_source: 'ai',
+              ai_categorized_at: params[6] as string,
+              updated_at: params[7] as string,
+            }
       })
-      return { success: true, meta: { changes: 1 } }
+      return { success: true, meta: { changes: requested.length } }
     }
     if (query.startsWith('UPDATE expenses\nSET ai_category')) {
       const expectedLabel = params.at(-1) as string
@@ -535,7 +667,8 @@ describe('Cloudflare Worker API', () => {
       createRequest('/ai-diagnoses/202601', {
         headers: { authorization: 'Bearer secret-token' },
       }),
-      createEnv(db)
+      createEnv(db),
+      { now: vi.fn(() => new Date('2026-01-20T12:00:00.000Z')) }
     )
 
     expect(response.status).toBe(200)
@@ -610,8 +743,125 @@ describe('Cloudflare Worker API', () => {
     await expect(second.json()).resolves.toEqual({ error: '診断を実行中です' })
   })
 
+  it('異なる月の同時実行も世帯全体で1件に制限する', async () => {
+    const db = new FakeD1Database()
+    const requestLease = (month: string, runToken: string) =>
+      handleRequest(
+        createRequest(`/ai-diagnoses/${month}/lease`, {
+          method: 'POST',
+          headers: {
+            authorization: 'Bearer secret-token',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ runToken }),
+        }),
+        createEnv(db),
+        {
+          randomUUID: vi.fn(() => `diagnosis-${month}`),
+          now: vi.fn(() => new Date('2026-01-20T12:00:00.000Z')),
+        }
+      )
+
+    const january = await requestLease('202601', 'january-run')
+    const february = await requestLease('202602', 'february-run')
+
+    expect(january.status).toBe(200)
+    expect(february.status).toBe(409)
+    await expect(february.json()).resolves.toEqual({ error: '診断を実行中です' })
+  })
+
+  it('解放後5秒のクールダウン中は429とRetry-Afterを返す', async () => {
+    const db = new FakeD1Database()
+    const at = (iso: string) => ({ now: vi.fn(() => new Date(iso)) })
+    const leaseRequest = (month: string, runToken: string, iso: string) =>
+      handleRequest(
+        createRequest(`/ai-diagnoses/${month}/lease`, {
+          method: 'POST',
+          headers: {
+            authorization: 'Bearer secret-token',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ runToken }),
+        }),
+        createEnv(db),
+        at(iso)
+      )
+
+    expect((await leaseRequest('202601', 'run-secret-1', '2026-01-20T12:00:00.000Z')).status)
+      .toBe(200)
+    const released = await handleRequest(
+      createRequest('/ai-diagnoses/202601/lease', {
+        method: 'DELETE',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ runToken: 'run-secret-1' }),
+      }),
+      createEnv(db)
+    )
+    expect(released.status).toBe(200)
+
+    const limited = await leaseRequest(
+      '202602',
+      'run-secret-2',
+      '2026-01-20T12:00:01.000Z'
+    )
+
+    expect(limited.status).toBe(429)
+    expect(limited.headers.get('Retry-After')).toBe('4')
+    const body = await limited.text()
+    expect(body).toBe(JSON.stringify({ error: 'AI診断の利用上限に達しました' }))
+    expect(body).not.toMatch(/20260|run-secret/)
+  })
+
+  it('UTC日次20回は成功し21回目を429にし、翌UTC日は再開する', async () => {
+    const db = new FakeD1Database()
+    const baseTime = new Date('2026-01-20T12:00:00.000Z').getTime()
+    const requestLease = (index: number, iso: string) =>
+      handleRequest(
+        createRequest('/ai-diagnoses/202601/lease', {
+          method: 'POST',
+          headers: {
+            authorization: 'Bearer secret-token',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ runToken: `run-${index}` }),
+        }),
+        createEnv(db),
+        { now: vi.fn(() => new Date(iso)) }
+      )
+
+    for (let index = 0; index < 20; index += 1) {
+      const iso = new Date(baseTime + index * 5_000).toISOString()
+      expect((await requestLease(index, iso)).status).toBe(200)
+      expect((await handleRequest(
+        createRequest('/ai-diagnoses/202601/lease', {
+          method: 'DELETE',
+          headers: {
+            authorization: 'Bearer secret-token',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ runToken: `run-${index}` }),
+        }),
+        createEnv(db)
+      )).status).toBe(200)
+    }
+
+    const limited = await requestLease(
+      20,
+      new Date(baseTime + 20 * 5_000).toISOString()
+    )
+    expect(limited.status).toBe(429)
+    expect(Number(limited.headers.get('Retry-After'))).toBeGreaterThan(0)
+
+    const nextDay = await requestLease(21, '2026-01-21T00:00:00.000Z')
+    expect(nextDay.status).toBe(200)
+  })
+
   it('支出カテゴリを期待ラベルとの楽観ロック付きで保存する', async () => {
     const db = new FakeD1Database()
+    await acquireLeaseForTest(db)
     const response = await handleRequest(
       createRequest('/ai-diagnoses/categories', {
         method: 'PATCH',
@@ -620,6 +870,8 @@ describe('Cloudflare Worker API', () => {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
+          month: '202601',
+          runToken: 'run-1',
           assignments: [
             { expenseIds: ['expense-1'], category: 'housing', expectedLabel: '家賃' },
           ],
@@ -631,13 +883,11 @@ describe('Cloudflare Worker API', () => {
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ success: true })
-    expect(db.batched[0][0].params).toEqual([
-      'housing',
-      '2026-01-20T12:00:00.000Z',
-      '2026-01-20T12:00:00.000Z',
-      'expense-1',
-      '家賃',
-    ])
+    const categoryUpdate = db.executed.find(({ query }) =>
+      query.startsWith('WITH requested AS')
+    )
+    expect(categoryUpdate?.query).toContain('expenses.ai_category IS NULL')
+    expect(categoryUpdate?.params.slice(1, 4)).toEqual([1, '202601', 'run-1'])
   })
 
   it('支出カテゴリ分類101件をWorker境界で400にしbatchを実行しない', async () => {
@@ -650,6 +900,8 @@ describe('Cloudflare Worker API', () => {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
+          month: '202601',
+          runToken: 'run-1',
           assignments: [
             {
               expenseIds: Array.from({ length: 60 }, (_, index) => `expense-${index}`),
@@ -686,6 +938,7 @@ describe('Cloudflare Worker API', () => {
       updated_at: '2026-01-01T00:00:00.000Z',
     }))
     const db = new FakeD1Database({ expenses })
+    await acquireLeaseForTest(db)
     const response = await handleRequest(
       createRequest('/ai-diagnoses/categories', {
         method: 'PATCH',
@@ -694,6 +947,8 @@ describe('Cloudflare Worker API', () => {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
+          month: '202601',
+          runToken: 'run-1',
           assignments: [
             {
               expenseIds: expenses.slice(0, 60).map(({ id }) => id),
@@ -708,11 +963,14 @@ describe('Cloudflare Worker API', () => {
           ],
         }),
       }),
-      createEnv(db)
+      createEnv(db),
+      { now: vi.fn(() => new Date('2026-01-20T12:00:00.000Z')) }
     )
 
     expect(response.status).toBe(200)
-    expect(db.batched).toHaveLength(1)
+    expect(
+      db.executed.some(({ query }) => query.startsWith('WITH requested AS'))
+    ).toBe(true)
   })
 
   it('runTokenが一致する診断を保存し、成功後にリース解放を重ねない', async () => {
@@ -742,7 +1000,7 @@ describe('Cloudflare Worker API', () => {
       query.startsWith('UPDATE ai_diagnoses')
     )
     expect(diagnosisUpdates).toHaveLength(1)
-    expect(diagnosisUpdates[0].params.slice(-2)).toEqual(['202601', 'run-1'])
+    expect(diagnosisUpdates[0].params.slice(4, 6)).toEqual(['202601', 'run-1'])
   })
 
   it('失敗経路で所有中の診断リースを解放する', async () => {
@@ -771,6 +1029,8 @@ WHERE month = ? AND run_token = ?`,
   })
 
   it('分類対象のラベルが変わっていた場合は409を返す', async () => {
+    const db = new FakeD1Database()
+    await acquireLeaseForTest(db)
     const response = await handleRequest(
       createRequest('/ai-diagnoses/categories', {
         method: 'PATCH',
@@ -779,18 +1039,59 @@ WHERE month = ? AND run_token = ?`,
           'content-type': 'application/json',
         },
         body: JSON.stringify({
+          month: '202601',
+          runToken: 'run-1',
           assignments: [
             { expenseIds: ['expense-1'], category: 'housing', expectedLabel: '旧家賃' },
           ],
         }),
       }),
-      createEnv()
+      createEnv(db)
     )
 
     expect(response.status).toBe(409)
     await expect(response.json()).resolves.toEqual({
       error: '分類中に支出が変更されました',
     })
+  })
+
+  it('2分の失効後に引き継がれた旧tokenは分類保存できない', async () => {
+    const db = new FakeD1Database()
+    await acquireLeaseForTest(db, 'old-run')
+    const nextLease = await handleRequest(
+      createRequest('/ai-diagnoses/202602/lease', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ runToken: 'new-run' }),
+      }),
+      createEnv(db),
+      { now: vi.fn(() => new Date('2026-01-20T12:02:01.000Z')) }
+    )
+    expect(nextLease.status).toBe(200)
+
+    const staleSave = await handleRequest(
+      createRequest('/ai-diagnoses/categories', {
+        method: 'PATCH',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          month: '202601',
+          runToken: 'old-run',
+          assignments: [
+            { expenseIds: ['expense-1'], category: 'housing', expectedLabel: '家賃' },
+          ],
+        }),
+      }),
+      createEnv(db),
+      { now: vi.fn(() => new Date('2026-01-20T12:02:01.000Z')) }
+    )
+
+    expect(staleSave.status).toBe(409)
   })
 
   it.each([

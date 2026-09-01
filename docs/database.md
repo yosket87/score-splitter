@@ -38,7 +38,7 @@ AIカテゴリ3列は診断専用の内部情報であり、通常のExpense API
 
 ### ai_diagnoses（AI家計診断テーブル）
 
-月ごとの最新診断と同時実行制御を保持します。履歴は保存せず、月単位でupsertします。
+月ごとの最新診断と月単位の実行leaseを保持します。履歴は保存せず、月単位でupsertします。
 
 | カラム | 型 | 説明 |
 |-------|---|------|
@@ -52,9 +52,25 @@ AIカテゴリ3列は診断専用の内部情報であり、通常のExpense API
 | created_at | TEXT | 作成日時（ISO文字列） |
 | updated_at | TEXT | 最終更新日時（ISO文字列） |
 
-診断開始時はD1の条件付きUPDATEまたはINSERTで2分間のleaseを取得します。保存・解放は取得時と同じ`run_token`に限定し、期限切れ・別runの書き込みを409で拒否します。`input_hash`または`analysis_version`が現在値と異なる場合も保存結果は削除せず、期限切れとして明示的な再診断を促します。
+診断開始時はD1の条件付きUPDATEで2分間のleaseを取得します。保存・解放は取得時と同じ`run_token`に限定し、期限切れ・別runの書き込みを409で拒否します。分類保存も対象月と世帯全体guardのtoken・期限を同一SQL内で確認し、`id + expectedLabel + ai_category IS NULL`のcompare-and-setが全件成立する場合だけ更新します。`input_hash`または`analysis_version`が現在値と異なる場合も保存結果は削除せず、期限切れとして明示的な再診断を促します。
 
 診断context APIは担当者を除外し、収入は月別合計に必要な金額だけを扱います。AI内部カテゴリ、担当者、収入ラベル、認証情報、レコードIDは通常APIまたはOpenAIの診断文payloadへ露出しません。
+
+### ai_execution_guard（AI診断の世帯全体guard）
+
+単一行（`id = 1`）で、異なる月を含むAI診断の同時実行と利用回数を管理します。
+
+| カラム | 型 | 説明 |
+|-------|---|------|
+| id | INTEGER | 常に1となる主キー |
+| run_token | TEXT NULL | 現在の世帯全体実行所有者 |
+| run_expires_at | TEXT NULL | 世帯全体leaseの有効期限 |
+| last_started_at | TEXT NULL | 直近の診断開始日時 |
+| usage_date | TEXT | UTC基準の利用日（YYYY-MM-DD） |
+| daily_count | INTEGER | 利用日の開始回数 |
+| updated_at | TEXT | 最終更新日時（ISO文字列） |
+
+月leaseと世帯全体guardはD1 `batch()`のtransactionでまとめて条件付き取得します。同時実行は1件、cooldownは5秒、UTC日次上限は20回です。busyは409、cooldownまたは日次上限は`Retry-After`付き429を返します。診断保存または所有tokenによるlease解放で`ai_diagnoses.run_token`をNULLへ更新すると、triggerが同じtokenの世帯全体guardを解放します。
 
 ### carryovers（繰越テーブル）
 

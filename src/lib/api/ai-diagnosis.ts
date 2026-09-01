@@ -10,6 +10,7 @@ import {
   type SaveDiagnosisInput,
   type SavedDiagnosis,
 } from '@/features/ai-diagnosis/domain'
+import { AI_DIAGNOSIS_MAX_CATEGORY_EXPENSES } from '@/features/ai-diagnosis/limits'
 
 const monthSchema = z.string().regex(/^\d{6}$/).refine((month) => {
   const monthNumber = Number(month.slice(4, 6))
@@ -22,10 +23,17 @@ const expenseCategoryAssignmentsSchema = z
       (count, assignment) => count + assignment.expenseIds.length,
       0
     )
-    if (expenseCount > 100) {
+    if (expenseCount > AI_DIAGNOSIS_MAX_CATEGORY_EXPENSES) {
       context.addIssue({
         code: 'custom',
         message: '一度に分類できる支出は100件までです',
+      })
+    }
+    const expenseIds = assignments.flatMap((assignment) => assignment.expenseIds)
+    if (new Set(expenseIds).size !== expenseIds.length) {
+      context.addIssue({
+        code: 'custom',
+        message: '支出IDが重複しています',
       })
     }
   })
@@ -121,12 +129,20 @@ export async function acquireDiagnosisLease(month: string, runToken: string): Pr
 }
 
 export async function saveExpenseCategories(
+  month: string,
+  runToken: string,
   assignments: ExpenseCategoryAssignment[]
 ): Promise<void> {
+  const validatedMonth = monthSchema.parse(month)
+  const validatedRunToken = z.string().min(1).parse(runToken)
   const validatedAssignments = expenseCategoryAssignmentsSchema.parse(assignments)
   await apiRequest('/ai-diagnoses/categories', {
     method: 'PATCH',
-    body: { assignments: validatedAssignments },
+    body: {
+      month: validatedMonth,
+      runToken: validatedRunToken,
+      assignments: validatedAssignments,
+    },
     responseSchema: successSchema,
   })
 }

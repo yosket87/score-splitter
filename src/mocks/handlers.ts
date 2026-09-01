@@ -20,6 +20,11 @@ import {
   updateRows,
 } from './db'
 import { incrementAiDiagnosisMockStat } from './ai-diagnosis-stats'
+import {
+  AI_DIAGNOSIS_DAILY_LIMIT,
+  AI_DIAGNOSIS_GLOBAL_COOLDOWN_MS,
+  AI_DIAGNOSIS_LEASE_DURATION_MS,
+} from '@/features/ai-diagnosis/limits'
 
 const WORKER_API_URL =
   process.env.CLOUDFLARE_WORKER_API_URL || 'http://mock-worker.local'
@@ -160,19 +165,64 @@ export const handlers = [
     const month = parseAiDiagnosisMonth(params.month)
     const { runToken } = parseRunTokenInput(await readAiJson(request))
     const now = new Date()
+    const nowIso = now.toISOString()
     const diagnoses = getTable('ai_diagnoses')
     const existing = diagnoses.find((record) => record.month === month)
+    const guard = getTable('ai_execution_guard')[0]
     if (
-      existing?.run_token != null &&
-      typeof existing.run_expires_at === 'string' &&
-      existing.run_expires_at >= now.toISOString()
+      (existing?.run_token != null &&
+        typeof existing.run_expires_at === 'string' &&
+        existing.run_expires_at >= nowIso) ||
+      (guard?.run_token != null &&
+        typeof guard.run_expires_at === 'string' &&
+        guard.run_expires_at >= nowIso)
     ) {
-      return HttpResponse.json({ error: '診断を実行中です' }, { status: 409 })
+      return HttpResponse.json(
+        { error: '診断を実行中です' },
+        { status: 409, headers: { 'Retry-After': '120' } }
+      )
+    }
+    const usageDate = nowIso.slice(0, 10)
+    if (
+      guard?.usage_date === usageDate &&
+      Number(guard.daily_count) >= AI_DIAGNOSIS_DAILY_LIMIT
+    ) {
+      const tomorrow = new Date(`${usageDate}T00:00:00.000Z`)
+      tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
+      return HttpResponse.json(
+        { error: 'AI診断の利用上限に達しました' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(
+              Math.max(1, Math.ceil((tomorrow.getTime() - now.getTime()) / 1000))
+            ),
+          },
+        }
+      )
+    }
+    if (
+      typeof guard?.last_started_at === 'string' &&
+      new Date(guard.last_started_at).getTime() + AI_DIAGNOSIS_GLOBAL_COOLDOWN_MS >
+        now.getTime()
+    ) {
+      const retryAfter = Math.ceil(
+        (new Date(guard.last_started_at).getTime() +
+          AI_DIAGNOSIS_GLOBAL_COOLDOWN_MS -
+          now.getTime()) /
+          1000
+      )
+      return HttpResponse.json(
+        { error: 'AI診断の利用上限に達しました' },
+        { status: 429, headers: { 'Retry-After': String(Math.max(1, retryAfter)) } }
+      )
     }
     const lease = {
       run_token: runToken,
-      run_expires_at: new Date(now.getTime() + 2 * 60 * 1000).toISOString(),
-      updated_at: now.toISOString(),
+      run_expires_at: new Date(
+        now.getTime() + AI_DIAGNOSIS_LEASE_DURATION_MS
+      ).toISOString(),
+      updated_at: nowIso,
     }
     if (existing) Object.assign(existing, lease)
     else {
@@ -182,22 +232,52 @@ export const handlers = [
         result_json: null,
         input_hash: null,
         analysis_version: null,
-        created_at: now.toISOString(),
+        created_at: nowIso,
         ...lease,
       })
     }
+    Object.assign(guard, {
+      ...lease,
+      last_started_at: nowIso,
+      usage_date: usageDate,
+      daily_count:
+        guard.usage_date === usageDate ? Number(guard.daily_count) + 1 : 1,
+    })
     return HttpResponse.json({ success: true })
   })),
 
   http.patch(`${WORKER_API_URL}/ai-diagnoses/categories`, ({ request }) => handleAiWire(async () => {
     if (!isAuthorized(request)) return unauthorized()
-    const assignments = parseCategoryAssignments(await readAiJson(request))
+    const { month, runToken, assignments } = parseCategoryAssignments(
+      await readAiJson(request)
+    )
+    const lease = getTable('ai_diagnoses').find(
+      (record) => record.month === month && record.run_token === runToken
+    )
+    const guard = getTable('ai_execution_guard')[0]
+    const nowDate = new Date()
+    if (
+      !lease ||
+      typeof lease.run_expires_at !== 'string' ||
+      lease.run_expires_at < nowDate.toISOString() ||
+      guard?.run_token !== runToken ||
+      typeof guard.run_expires_at !== 'string' ||
+      guard.run_expires_at < nowDate.toISOString()
+    ) {
+      return HttpResponse.json(
+        { error: '分類の実行権限が失効しました' },
+        { status: 409 }
+      )
+    }
     const now = new Date().toISOString()
     const updates = assignments.flatMap((assignment) =>
       assignment.expenseIds.map((expenseId) => ({ expenseId, assignment }))
     ).map(({ expenseId, assignment }) => ({
       row: getTable('expenses').find(
-        ({ id, label }) => id === expenseId && label === assignment.expectedLabel
+        ({ id, label, ai_category }) =>
+          id === expenseId &&
+          label === assignment.expectedLabel &&
+          ai_category == null
       ),
       category: assignment.category,
     }))
@@ -209,10 +289,10 @@ export const handlers = [
     }
     for (const { row, category } of updates) {
       Object.assign(row!, {
-          ai_category: category,
-          ai_category_source: 'ai',
-          ai_categorized_at: now,
-          updated_at: now,
+        ai_category: category,
+        ai_category_source: 'ai',
+        ai_categorized_at: now,
+        updated_at: now,
       })
     }
     return HttpResponse.json({ success: true })
@@ -226,7 +306,17 @@ export const handlers = [
       throw new AiDiagnosisWireError('診断月が不正です')
     }
     const row = getTable('ai_diagnoses').find((record) => record.month === month)
-    if (!row || row.run_token !== body.runToken) {
+    const guard = getTable('ai_execution_guard')[0]
+    const nowIso = new Date().toISOString()
+    if (
+      !row ||
+      row.run_token !== body.runToken ||
+      typeof row.run_expires_at !== 'string' ||
+      row.run_expires_at < nowIso ||
+      guard?.run_token !== body.runToken ||
+      typeof guard.run_expires_at !== 'string' ||
+      guard.run_expires_at < nowIso
+    ) {
       return HttpResponse.json(
         { error: '診断リースが失効しているため保存できません' },
         { status: 409 }
@@ -241,6 +331,7 @@ export const handlers = [
       run_expires_at: null,
       updated_at: now,
     })
+    Object.assign(guard, { run_token: null, run_expires_at: null })
     incrementAiDiagnosisMockStat('diagnosisSaveCalls')
     return HttpResponse.json({ data: body.diagnosis })
   })),
@@ -257,6 +348,10 @@ export const handlers = [
       )
     }
     Object.assign(row, { run_token: null, run_expires_at: null })
+    const guard = getTable('ai_execution_guard')[0]
+    if (guard?.run_token === runToken) {
+      Object.assign(guard, { run_token: null, run_expires_at: null })
+    }
     return HttpResponse.json({ success: true })
   })),
 

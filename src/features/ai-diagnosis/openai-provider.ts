@@ -11,6 +11,7 @@ import {
   type DiagnosisCandidate,
   type NarrativeInput,
 } from './domain'
+import { AI_DIAGNOSIS_MAX_CLASSIFICATION_LABELS } from './limits'
 
 const DEFAULT_MODEL = 'gpt-5-mini'
 
@@ -18,7 +19,9 @@ const classificationResultSchema = z.object({
   assignments: z.array(categoryAssignmentSchema),
 }).strict()
 
-const classificationLabelsSchema = z.array(z.string().min(1).max(255)).max(100)
+const classificationLabelsSchema = z
+  .array(z.string().min(1).max(255))
+  .max(AI_DIAGNOSIS_MAX_CLASSIFICATION_LABELS)
 const safeNarrativeTextSchema = z.string().trim().min(1).max(400)
 const narrativeItemSchema = z.object({
   candidateId: z.string().min(1),

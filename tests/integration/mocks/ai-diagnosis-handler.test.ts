@@ -75,21 +75,23 @@ describe('AI家計診断のモックAPI', () => {
   })
 
   it('リース競合、分類の期待ラベル競合、runToken fenceを本番契約と同じ409で返す', async () => {
-    const acquire = (runToken: string) =>
-      fetch(`${API_URL}/ai-diagnoses/202602/lease`, {
+    const acquire = (month: string, runToken: string) =>
+      fetch(`${API_URL}/ai-diagnoses/${month}/lease`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ runToken }),
       })
 
-    expect((await acquire('run-1')).status).toBe(200)
-    expect((await acquire('run-2')).status).toBe(409)
+    expect((await acquire('202602', 'run-1')).status).toBe(200)
+    expect((await acquire('202601', 'run-2')).status).toBe(409)
 
     const expense = getTable('expenses').find(({ month }) => month === '202602')
     const categoryConflict = await fetch(`${API_URL}/ai-diagnoses/categories`, {
       method: 'PATCH',
       headers: jsonHeaders,
       body: JSON.stringify({
+        month: '202602',
+        runToken: 'run-1',
         assignments: [{
           expenseIds: [expense?.id],
           category: 'dining',
@@ -122,6 +124,39 @@ describe('AI家計診断のモックAPI', () => {
     expect(saveConflict.status).toBe(409)
   })
 
+  it('mockも5秒cooldown・UTC日次上限・reset後初期化を本番同形で再現する', async () => {
+    const acquire = (runToken: string) =>
+      fetch(`${API_URL}/ai-diagnoses/202602/lease`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ runToken }),
+      })
+
+    expect((await acquire('run-1')).status).toBe(200)
+    const released = await fetch(`${API_URL}/ai-diagnoses/202602/lease`, {
+      method: 'DELETE',
+      headers: jsonHeaders,
+      body: JSON.stringify({ runToken: 'run-1' }),
+    })
+    expect(released.status).toBe(200)
+    const cooldown = await acquire('run-2')
+    expect(cooldown.status).toBe(429)
+    expect(Number(cooldown.headers.get('Retry-After'))).toBeGreaterThan(0)
+
+    initStore()
+    const guard = getTable('ai_execution_guard')[0]
+    Object.assign(guard, {
+      usage_date: new Date().toISOString().slice(0, 10),
+      daily_count: 20,
+      last_started_at: '1970-01-01T00:00:00.000Z',
+    })
+    const daily = await acquire('run-3')
+    expect(daily.status).toBe(429)
+
+    initStore()
+    expect((await acquire('run-4')).status).toBe(200)
+  })
+
   it.each(invalidAiWireCases)('$nameを本番と同じ400で拒否する', async ({
     path,
     method,
@@ -138,11 +173,20 @@ describe('AI家計診断のモックAPI', () => {
   })
 
   it('後続assignmentが競合しても先行assignmentを部分更新しない', async () => {
+    const lease = await fetch(`${API_URL}/ai-diagnoses/202602/lease`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ runToken: 'run-1' }),
+    })
+    expect(lease.status).toBe(200)
     const expense = getTable('expenses').find(({ month }) => month === '202602')
+    const conflictingExpense = getTable('expenses').find(({ id }) => id !== expense?.id)
     const response = await fetch(`${API_URL}/ai-diagnoses/categories`, {
       method: 'PATCH',
       headers: jsonHeaders,
       body: JSON.stringify({
+        month: '202602',
+        runToken: 'run-1',
         assignments: [
           {
             expenseIds: [expense?.id],
@@ -150,7 +194,7 @@ describe('AI家計診断のモックAPI', () => {
             expectedLabel: expense?.label,
           },
           {
-            expenseIds: [expense?.id],
+            expenseIds: [conflictingExpense?.id],
             category: 'dining',
             expectedLabel: '更新後のラベル',
           },

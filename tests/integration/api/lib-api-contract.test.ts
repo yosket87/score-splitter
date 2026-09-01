@@ -596,12 +596,14 @@ describe('lib/api ai-diagnosis contract', () => {
       { expenseIds: ['expense-1'], category: 'housing' as const, expectedLabel: '家賃' },
     ]
 
-    await expect(saveExpenseCategories(assignments)).resolves.toBeUndefined()
+    await expect(
+      saveExpenseCategories('202601', 'run-1', assignments)
+    ).resolves.toBeUndefined()
     expect(capturedRequests[0]).toEqual(
       expect.objectContaining({
         method: 'PATCH',
         pathname: '/ai-diagnoses/categories',
-        body: { assignments },
+        body: { month: '202601', runToken: 'run-1', assignments },
       })
     )
   })
@@ -626,7 +628,9 @@ describe('lib/api ai-diagnosis contract', () => {
       },
     ]
 
-    await expect(saveExpenseCategories(assignments)).rejects.toBeDefined()
+    await expect(
+      saveExpenseCategories('202601', 'run-1', assignments)
+    ).rejects.toBeDefined()
     expect(capturedRequests).toHaveLength(0)
   })
 
@@ -650,8 +654,14 @@ describe('lib/api ai-diagnosis contract', () => {
       },
     ]
 
-    await expect(saveExpenseCategories(assignments)).resolves.toBeUndefined()
-    expect(capturedRequests[0]?.body).toEqual({ assignments })
+    await expect(
+      saveExpenseCategories('202601', 'run-1', assignments)
+    ).resolves.toBeUndefined()
+    expect(capturedRequests[0]?.body).toEqual({
+      month: '202601',
+      runToken: 'run-1',
+      assignments,
+    })
   })
 
   it('診断結果を月別パスへ保存してstrict検証済み結果を返す', async () => {
@@ -763,7 +773,7 @@ describe('lib/api ai-diagnosis contract', () => {
 
     const operation = method === 'POST'
       ? acquireDiagnosisLease('202601', 'run-1')
-      : saveExpenseCategories([
+      : saveExpenseCategories('202601', 'run-1', [
           { expenseIds: ['expense-1'], category: 'housing', expectedLabel: '家賃' },
         ])
     await expect(operation).rejects.toEqual(new ApiError('競合しました', 409))

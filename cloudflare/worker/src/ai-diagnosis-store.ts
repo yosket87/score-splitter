@@ -1,11 +1,13 @@
 import type { D1DatabaseLike, Runtime } from './d1'
 import { AI_CATEGORY_SET } from '../../../src/features/ai-diagnosis/categories'
+import {
+  AI_DIAGNOSIS_DAILY_LIMIT,
+  AI_DIAGNOSIS_GLOBAL_COOLDOWN_MS,
+  AI_DIAGNOSIS_LEASE_DURATION_MS,
+  AI_DIAGNOSIS_MAX_CATEGORY_EXPENSES,
+} from '../../../src/features/ai-diagnosis/limits'
 
-const DIAGNOSIS_LEASE_DURATION_MS = 2 * 60 * 1000
-const MAX_CATEGORY_EXPENSES = 100
-const MAX_D1_BOUND_PARAMETERS = 100
-const CATEGORY_FIXED_PARAMETER_COUNT = 4
-const CATEGORY_IDS_PER_STATEMENT = MAX_D1_BOUND_PARAMETERS - CATEGORY_FIXED_PARAMETER_COUNT
+const GLOBAL_GUARD_ID = 1
 
 export interface DiagnosisContextRow {
   targetMonth: string
@@ -63,6 +65,22 @@ type CarryoverContextD1Row = {
   is_cleared: number
 }
 
+type ExecutionGuardD1Row = {
+  run_token: string | null
+  run_expires_at: string | null
+  last_started_at: string | null
+  usage_date: string
+  daily_count: number
+}
+
+export type DiagnosisLeaseAcquireResult =
+  | { acquired: true }
+  | {
+      acquired: false
+      reason: 'busy' | 'cooldown' | 'daily_limit'
+      retryAfterSeconds: number
+    }
+
 export async function getDiagnosisContext(
   db: D1DatabaseLike,
   targetMonth: string
@@ -110,41 +128,101 @@ export async function acquireDiagnosisLease(
   runtime: Runtime,
   month: string,
   token: string
-): Promise<boolean> {
+): Promise<DiagnosisLeaseAcquireResult> {
   const now = runtime.now()
   const nowIso = now.toISOString()
-  const expiresAt = new Date(now.getTime() + DIAGNOSIS_LEASE_DURATION_MS).toISOString()
-  const updated = await db
-    .prepare(
-      `UPDATE ai_diagnoses
-SET run_token = ?, run_expires_at = ?, updated_at = ?
-WHERE month = ? AND (run_token IS NULL OR run_expires_at < ?)`
-    )
-    .bind(token, expiresAt, nowIso, month, nowIso)
-    .run()
-  if (updated.meta?.changes === 1) return true
+  const expiresAt = new Date(now.getTime() + AI_DIAGNOSIS_LEASE_DURATION_MS).toISOString()
+  const cooldownCutoff = new Date(
+    now.getTime() - AI_DIAGNOSIS_GLOBAL_COOLDOWN_MS
+  ).toISOString()
+  const usageDate = nowIso.slice(0, 10)
 
-  const inserted = await db
+  await db
     .prepare(
       `INSERT OR IGNORE INTO ai_diagnoses
 (id, month, result_json, input_hash, analysis_version, run_token, run_expires_at, created_at, updated_at)
-VALUES (?, ?, NULL, NULL, NULL, ?, ?, ?, ?)`
+VALUES (?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?)`
     )
-    .bind(runtime.randomUUID(), month, token, expiresAt, nowIso, nowIso)
+    .bind(runtime.randomUUID(), month, nowIso, nowIso)
     .run()
-  return inserted.meta?.changes === 1
+
+  const [guardResult, monthResult] = await db.batch([
+    db
+      .prepare(
+        `UPDATE ai_execution_guard
+SET run_token = ?, run_expires_at = ?, last_started_at = ?, usage_date = ?,
+    daily_count = CASE WHEN usage_date = ? THEN daily_count + 1 ELSE 1 END,
+    updated_at = ?
+WHERE id = ?
+  AND (run_token IS NULL OR run_expires_at < ?)
+  AND (last_started_at IS NULL OR last_started_at <= ?)
+  AND (usage_date <> ? OR daily_count < ?)
+  AND EXISTS (
+    SELECT 1 FROM ai_diagnoses
+    WHERE month = ? AND (run_token IS NULL OR run_expires_at < ?)
+  )`
+      )
+      .bind(
+        token,
+        expiresAt,
+        nowIso,
+        usageDate,
+        usageDate,
+        nowIso,
+        GLOBAL_GUARD_ID,
+        nowIso,
+        cooldownCutoff,
+        usageDate,
+        AI_DIAGNOSIS_DAILY_LIMIT,
+        month,
+        nowIso
+      ),
+    db
+      .prepare(
+        `UPDATE ai_diagnoses
+SET run_token = ?, run_expires_at = ?, updated_at = ?
+WHERE month = ?
+  AND (run_token IS NULL OR run_expires_at < ?)
+  AND EXISTS (
+    SELECT 1 FROM ai_execution_guard
+    WHERE id = ? AND run_token = ? AND run_expires_at = ?
+  )`
+      )
+      .bind(
+        token,
+        expiresAt,
+        nowIso,
+        month,
+        nowIso,
+        GLOBAL_GUARD_ID,
+        token,
+        expiresAt
+      ),
+  ])
+
+  if (guardResult.meta?.changes === 1 && monthResult.meta?.changes === 1) {
+    return { acquired: true }
+  }
+
+  if (guardResult.meta?.changes === 1) {
+    await releaseGlobalGuard(db, token)
+  }
+
+  return getLeaseRejection(db, now, month)
 }
 
 export async function saveExpenseCategories(
   db: D1DatabaseLike,
   runtime: Runtime,
+  month: string,
+  runToken: string,
   assignments: StoreCategoryAssignment[]
 ): Promise<void> {
   const expenseCount = assignments.reduce(
     (count, assignment) => count + assignment.expenseIds.length,
     0
   )
-  if (expenseCount > MAX_CATEGORY_EXPENSES) {
+  if (expenseCount > AI_DIAGNOSIS_MAX_CATEGORY_EXPENSES) {
     throw new Error('一度に分類できる支出は100件までです')
   }
   if (assignments.some(({ category }) => !AI_CATEGORY_SET.has(category))) {
@@ -156,6 +234,10 @@ export async function saveExpenseCategories(
   if (hasInvalidExpenseId) {
     throw new Error('支出IDが不正です')
   }
+  const expenseIds = assignments.flatMap(({ expenseIds: ids }) => ids)
+  if (new Set(expenseIds).size !== expenseIds.length) {
+    throw new Error('支出IDが重複しています')
+  }
   if (
     assignments.some(
       ({ expectedLabel }) => typeof expectedLabel !== 'string' || expectedLabel.length === 0
@@ -164,29 +246,151 @@ export async function saveExpenseCategories(
     throw new Error('期待ラベルが不正です')
   }
 
+  if (expenseCount === 0) return
   const now = runtime.now().toISOString()
-  const statements = assignments.flatMap(({ expenseIds, category, expectedLabel }) =>
-    chunk(expenseIds, CATEGORY_IDS_PER_STATEMENT).map((ids) => {
-      const placeholders = ids.map(() => '?').join(', ')
-      return db
-        .prepare(
-          `UPDATE expenses
-SET ai_category = ?, ai_category_source = 'ai', ai_categorized_at = ?, updated_at = ?
-WHERE id IN (${placeholders}) AND label = ?`
-        )
-        .bind(category, now, now, ...ids, expectedLabel)
-    })
+  const requestedJson = JSON.stringify(
+    assignments.flatMap(({ expenseIds: ids, category, expectedLabel }) =>
+      ids.map((expenseId) => ({ expenseId, category, expectedLabel }))
+    )
   )
-
-  if (statements.length === 0) return
-  const results = await db.batch(statements)
-  const updatedExpenseCount = results.reduce(
-    (count, result) => count + (result.meta?.changes ?? 0),
-    0
-  )
-  if (updatedExpenseCount !== expenseCount) {
+  const result = await db
+    .prepare(
+      `WITH requested AS (
+  SELECT
+    CAST(json_extract(value, '$.expenseId') AS TEXT) AS expense_id,
+    CAST(json_extract(value, '$.category') AS TEXT) AS category,
+    CAST(json_extract(value, '$.expectedLabel') AS TEXT) AS expected_label
+  FROM json_each(?)
+), ownership AS (
+  SELECT 1
+  FROM ai_diagnoses AS diagnosis
+  JOIN ai_execution_guard AS guard
+    ON guard.id = ? AND guard.run_token = diagnosis.run_token
+  WHERE diagnosis.month = ?
+    AND diagnosis.run_token = ?
+    AND diagnosis.run_expires_at >= ?
+    AND guard.run_expires_at >= ?
+), eligible AS (
+  SELECT COUNT(*) AS count
+  FROM requested
+  JOIN expenses
+    ON expenses.id = requested.expense_id
+   AND expenses.label = requested.expected_label
+   AND expenses.ai_category IS NULL
+)
+UPDATE expenses
+SET ai_category = (
+      SELECT requested.category FROM requested WHERE requested.expense_id = expenses.id
+    ),
+    ai_category_source = 'ai',
+    ai_categorized_at = ?,
+    updated_at = ?
+WHERE id IN (SELECT expense_id FROM requested)
+  AND EXISTS (SELECT 1 FROM ownership)
+  AND (SELECT count FROM eligible) = (SELECT COUNT(*) FROM requested)`
+    )
+    .bind(
+      requestedJson,
+      GLOBAL_GUARD_ID,
+      month,
+      runToken,
+      now,
+      now,
+      now,
+      now
+    )
+    .run()
+  if (result.meta?.changes !== expenseCount) {
     throw new Error('分類中に支出が変更されました')
   }
+}
+
+async function getLeaseRejection(
+  db: D1DatabaseLike,
+  now: Date,
+  month: string
+): Promise<Exclude<DiagnosisLeaseAcquireResult, { acquired: true }>> {
+  const nowIso = now.toISOString()
+  const guard = await db
+    .prepare(
+      `SELECT run_token, run_expires_at, last_started_at, usage_date, daily_count
+FROM ai_execution_guard WHERE id = ?`
+    )
+    .bind(GLOBAL_GUARD_ID)
+    .first<ExecutionGuardD1Row>()
+
+  if (
+    guard?.run_token !== null &&
+    guard?.run_token !== undefined &&
+    guard.run_expires_at !== null &&
+    guard.run_expires_at >= nowIso
+  ) {
+    return {
+      acquired: false,
+      reason: 'busy',
+      retryAfterSeconds: secondsUntil(guard.run_expires_at, now),
+    }
+  }
+
+  const usageDate = nowIso.slice(0, 10)
+  if (guard?.usage_date === usageDate && guard.daily_count >= AI_DIAGNOSIS_DAILY_LIMIT) {
+    const nextUtcDay = new Date(`${usageDate}T00:00:00.000Z`)
+    nextUtcDay.setUTCDate(nextUtcDay.getUTCDate() + 1)
+    return {
+      acquired: false,
+      reason: 'daily_limit',
+      retryAfterSeconds: Math.max(
+        1,
+        Math.ceil((nextUtcDay.getTime() - now.getTime()) / 1000)
+      ),
+    }
+  }
+
+  if (guard?.last_started_at !== null && guard?.last_started_at !== undefined) {
+    const cooldownEndsAt = new Date(
+      new Date(guard.last_started_at).getTime() + AI_DIAGNOSIS_GLOBAL_COOLDOWN_MS
+    )
+    if (cooldownEndsAt.getTime() > now.getTime()) {
+      return {
+        acquired: false,
+        reason: 'cooldown',
+        retryAfterSeconds: Math.max(
+          1,
+          Math.ceil((cooldownEndsAt.getTime() - now.getTime()) / 1000)
+        ),
+      }
+    }
+  }
+
+  const monthLease = await db
+    .prepare(
+      `SELECT run_token, run_expires_at FROM ai_diagnoses WHERE month = ?`
+    )
+    .bind(month)
+    .first<{ run_token: string | null; run_expires_at: string | null }>()
+  return {
+    acquired: false,
+    reason: 'busy',
+    retryAfterSeconds:
+      monthLease?.run_expires_at === null || monthLease?.run_expires_at === undefined
+        ? 1
+        : secondsUntil(monthLease.run_expires_at, now),
+  }
+}
+
+function secondsUntil(isoDate: string, now: Date): number {
+  return Math.max(1, Math.ceil((new Date(isoDate).getTime() - now.getTime()) / 1000))
+}
+
+async function releaseGlobalGuard(db: D1DatabaseLike, token: string): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE ai_execution_guard
+SET run_token = NULL, run_expires_at = NULL
+WHERE id = ? AND run_token = ?`
+    )
+    .bind(GLOBAL_GUARD_ID, token)
+    .run()
 }
 
 export async function getSavedDiagnosis(
@@ -219,20 +423,29 @@ export async function saveDiagnosis(
   month: string,
   input: StoreDiagnosisInput
 ): Promise<void> {
+  const now = runtime.now().toISOString()
   const result = await db
     .prepare(
       `UPDATE ai_diagnoses
 SET result_json = ?, input_hash = ?, analysis_version = ?,
     run_token = NULL, run_expires_at = NULL, updated_at = ?
-WHERE month = ? AND run_token = ?`
+WHERE month = ? AND run_token = ? AND run_expires_at >= ?
+  AND EXISTS (
+    SELECT 1 FROM ai_execution_guard
+    WHERE id = ? AND run_token = ? AND run_expires_at >= ?
+  )`
     )
     .bind(
       JSON.stringify(input.diagnosis),
       input.inputHash,
       input.analysisVersion,
-      runtime.now().toISOString(),
+      now,
       month,
-      input.runToken
+      input.runToken,
+      now,
+      GLOBAL_GUARD_ID,
+      input.runToken,
+      now
     )
     .run()
   if (result.meta?.changes !== 1) {
@@ -271,10 +484,4 @@ function getDiagnosisMonths(targetMonth: string): string[] {
     const calculatedMonth = (monthIndex % 12) + 1
     return `${calculatedYear}${String(calculatedMonth).padStart(2, '0')}`
   })
-}
-
-function chunk<T>(items: T[], size: number): T[][] {
-  return Array.from({ length: Math.ceil(items.length / size) }, (_, index) =>
-    items.slice(index * size, (index + 1) * size)
-  )
 }

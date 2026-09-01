@@ -109,8 +109,19 @@ export async function handleRequest(
     ) {
       const month = parseAiDiagnosisMonth(decodeURIComponent(parts[1]))
       const input = parseRunTokenInput(await readJson(request))
-      const acquired = await acquireDiagnosisLease(env.DB, runtime, month, input.runToken)
-      if (!acquired) throw new HttpError('診断を実行中です', 409)
+      const lease = await acquireDiagnosisLease(env.DB, runtime, month, input.runToken)
+      if (!lease.acquired) {
+        if (lease.reason === 'busy') {
+          return json(
+            { error: '診断を実行中です' },
+            { status: 409, headers: { 'Retry-After': String(lease.retryAfterSeconds) } }
+          )
+        }
+        return json(
+          { error: 'AI診断の利用上限に達しました' },
+          { status: 429, headers: { 'Retry-After': String(lease.retryAfterSeconds) } }
+        )
+      }
       return json({ success: true })
     }
 
@@ -166,9 +177,15 @@ export async function handleRequest(
       parts[1] === 'categories' &&
       request.method === 'PATCH'
     ) {
-      const assignments = parseCategoryAssignments(await readJson(request))
+      const input = parseCategoryAssignments(await readJson(request))
       try {
-        await saveExpenseCategories(env.DB, runtime, assignments)
+        await saveExpenseCategories(
+          env.DB,
+          runtime,
+          input.month,
+          input.runToken,
+          input.assignments
+        )
       } catch (error) {
         if (error instanceof Error && error.message === '分類中に支出が変更されました') {
           throw new HttpError(error.message, 409)

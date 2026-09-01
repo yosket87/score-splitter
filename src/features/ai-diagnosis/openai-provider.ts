@@ -1,4 +1,4 @@
-import OpenAI from 'openai'
+import OpenAI, { type ClientOptions } from 'openai'
 import { zodTextFormat } from 'openai/helpers/zod'
 import { z } from 'zod'
 
@@ -43,6 +43,10 @@ type StructuredResponsesClient = {
   parse(request: StructuredRequest): Promise<StructuredResponse>
 }
 
+type OpenAiClientFactory = (options: ClientOptions) => {
+  responses: StructuredResponsesClient
+}
+
 type StructuredRequest = {
   model: string
   store: false
@@ -55,10 +59,11 @@ export type CreateOpenAiDiagnosisProviderOptions = {
   classificationModel?: string
   diagnosisModel?: string
   responses?: StructuredResponsesClient
+  openAiClientFactory?: OpenAiClientFactory
 }
 
 export function createOpenAiDiagnosisProvider(options: CreateOpenAiDiagnosisProviderOptions) {
-  const responses = options.responses ?? createResponsesClient(options.apiKey)
+  const responses = options.responses ?? createResponsesClient(options.apiKey, options.openAiClientFactory)
 
   return {
     async classifyLabels(labels: string[]): Promise<CategoryAssignment[]> {
@@ -215,9 +220,11 @@ function isStructuredOutputError(error: unknown): boolean {
   return error instanceof StructuredOutputError || error instanceof z.ZodError || error instanceof SyntaxError
 }
 
-function createResponsesClient(apiKey: string): StructuredResponsesClient {
-  const client = new OpenAI({ apiKey, timeout: 15_000, maxRetries: 0 })
-  return {
-    parse: async (request) => client.responses.parse(request),
-  }
+function createResponsesClient(apiKey: string, clientFactory: OpenAiClientFactory = defaultClientFactory): StructuredResponsesClient {
+  return clientFactory({ apiKey, timeout: 15_000, maxRetries: 0, logLevel: 'off' }).responses
+}
+
+function defaultClientFactory(options: ClientOptions): { responses: StructuredResponsesClient } {
+  const client = new OpenAI(options)
+  return { responses: { parse: async (request) => client.responses.parse(request) } }
 }

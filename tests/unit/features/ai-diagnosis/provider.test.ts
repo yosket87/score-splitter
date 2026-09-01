@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { ClientOptions } from 'openai'
 
 import { createOpenAiDiagnosisProvider } from '@/features/ai-diagnosis/openai-provider'
 import { createAiDiagnosisProvider } from '@/features/ai-diagnosis/provider'
@@ -277,6 +278,29 @@ describe('OpenAI家計診断プロバイダー', () => {
     expect(responses.lastRequest?.model).toBe('classification-model')
     await provider.generateNarrative(narrativeInput)
     expect(responses.lastRequest?.model).toBe('diagnosis-model')
+  })
+
+  it('OPENAI_LOGがdebugでもSDKのログと自動再試行を無効にする', () => {
+    vi.stubEnv('OPENAI_LOG', 'debug')
+    vi.stubGlobal('window', undefined)
+    let receivedOptions: ClientOptions | undefined
+    const responses = new FakeResponsesClient()
+    const openAiClientFactory = (options: ClientOptions) => {
+      receivedOptions = options
+      return { responses }
+    }
+
+    createOpenAiDiagnosisProvider({
+      apiKey: ['constructor', 'test', 'key'].join('-'),
+      openAiClientFactory,
+    })
+
+    expect(receivedOptions).toBeDefined()
+    expect(typeof receivedOptions?.apiKey).toBe('string')
+    const safeOptions = Object.fromEntries(
+      Object.entries(receivedOptions ?? {}).filter(([key]) => key !== 'apiKey'),
+    )
+    expect(safeOptions).toEqual({ timeout: 15_000, maxRetries: 0, logLevel: 'off' })
   })
 })
 

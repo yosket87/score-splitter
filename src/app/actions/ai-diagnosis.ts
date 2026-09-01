@@ -22,13 +22,13 @@ import {
 import {
   createAiDiagnosisService,
   NoActualExpensesError,
+  SOURCE_REVISION_CONFLICT_MESSAGE,
+  SourceRevisionConflictError,
   type AiDiagnosisRepository,
   type AiDiagnosisService,
 } from '@/features/ai-diagnosis/service'
 import type { ActionResult } from '@/types'
 
-const SOURCE_REVISION_CONFLICT_MESSAGE =
-  '診断対象データが更新されたため保存できません'
 type GenerateAiDiagnosisResult = ActionResult<AiDiagnosisView> & {
   errorCode?: 'source_revision_conflict'
 }
@@ -64,9 +64,10 @@ export async function generateAiDiagnosis(
   } catch (error) {
     console.error('AI診断生成エラー')
     if (
-      error instanceof ApiError &&
-      error.status === 409 &&
-      error.message === SOURCE_REVISION_CONFLICT_MESSAGE
+      error instanceof SourceRevisionConflictError ||
+      (error instanceof ApiError &&
+        error.status === 409 &&
+        error.message === SOURCE_REVISION_CONFLICT_MESSAGE)
     ) {
       return {
         success: false,

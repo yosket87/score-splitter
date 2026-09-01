@@ -224,6 +224,41 @@ describe('AI家計診断Action', () => {
     expect(aiDiagnosisApiMock.acquireDiagnosisLease).toHaveBeenCalledOnce()
   })
 
+  it('分類待機中のsource revision競合を専用結果にして診断保存へ進まない', async () => {
+    aiDiagnosisApiMock.saveExpenseCategories.mockImplementationOnce(async () => {
+      aiDiagnosisApiMock.getDiagnosisContext.mockResolvedValue({
+        ...classifiedContext,
+        sourceRevision: 8,
+        expenses: [
+          ...classifiedContext.expenses,
+          {
+            id: 'inserted-during-classification',
+            month: '202604',
+            label: '新しい未分類支出',
+            amount: -8000,
+            isCarryover: false,
+            aiCategory: null,
+          },
+        ],
+      })
+    })
+
+    await expect(generateAiDiagnosis('202604')).resolves.toEqual({
+      success: false,
+      error: '家計データが更新されました。最新データで再診断してください',
+      errorCode: 'source_revision_conflict',
+    })
+
+    const provider = providerFactoryMock.mock.results[0]?.value
+    expect(provider.generateNarrative).not.toHaveBeenCalled()
+    expect(aiDiagnosisApiMock.getSavedDiagnosis).not.toHaveBeenCalled()
+    expect(aiDiagnosisApiMock.saveDiagnosis).not.toHaveBeenCalled()
+    expect(aiDiagnosisApiMock.releaseDiagnosisLease).toHaveBeenCalledWith(
+      '202604',
+      expect.any(String)
+    )
+  })
+
   it('fresh cacheもsource revision CASで確定し、競合時は専用結果へ変換する', async () => {
     const classifiedContext: DiagnosisContext = {
       ...context,

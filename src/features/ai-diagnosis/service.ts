@@ -17,6 +17,15 @@ import {
 } from './limits'
 
 const ANALYSIS_VERSION = 'v1'
+export const SOURCE_REVISION_CONFLICT_MESSAGE =
+  '診断対象データが更新されたため保存できません'
+
+export class SourceRevisionConflictError extends Error {
+  constructor() {
+    super(SOURCE_REVISION_CONFLICT_MESSAGE)
+    this.name = 'SourceRevisionConflictError'
+  }
+}
 
 export class NoActualExpensesError extends Error {
   constructor() {
@@ -84,6 +93,7 @@ export function createAiDiagnosisService(
           repository,
           runToken
         )
+        assertSourceRevisionUnchanged(context, classifiedContext)
         const inputHash = await createDiagnosisInputHash(classifiedContext)
         const saved = await repository.getSavedDiagnosis(month)
 
@@ -96,7 +106,7 @@ export function createAiDiagnosisService(
             inputHash,
             analysisVersion: ANALYSIS_VERSION,
             diagnosis: saved.diagnosis,
-            expectedSourceRevision: classifiedContext.sourceRevision,
+            expectedSourceRevision: context.sourceRevision,
           })
           leaseOwned = false
           return result
@@ -112,7 +122,7 @@ export function createAiDiagnosisService(
           inputHash,
           analysisVersion: ANALYSIS_VERSION,
           diagnosis,
-          expectedSourceRevision: classifiedContext.sourceRevision,
+          expectedSourceRevision: context.sourceRevision,
         })
         leaseOwned = false
         return result
@@ -127,6 +137,15 @@ export function createAiDiagnosisService(
         throw error
       }
     },
+  }
+}
+
+function assertSourceRevisionUnchanged(
+  initialContext: DiagnosisContext,
+  classifiedContext: DiagnosisContext
+): void {
+  if (classifiedContext.sourceRevision !== initialContext.sourceRevision) {
+    throw new SourceRevisionConflictError()
   }
 }
 

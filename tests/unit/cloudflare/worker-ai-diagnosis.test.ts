@@ -436,6 +436,99 @@ describe('Cloudflare Worker AI診断API', () => {
     })
   })
 
+  it('分類待機中の支出追加をrefetchへ反映し初期revisionの保存を拒否する', async () => {
+    const db = new FakeD1Database()
+    await acquireLeaseForTest(db)
+
+    const inserted = await handleRequest(
+      createRequest('/expenses', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          month: '202601',
+          label: '分類待機中の支出',
+          amount: -8000,
+          person: 'husband',
+          isCarryover: false,
+        }),
+      }),
+      createEnv(db),
+      {
+        randomUUID: vi.fn(() => 'inserted-during-classification'),
+        now: vi.fn(() => new Date('2026-01-20T12:00:01.000Z')),
+      }
+    )
+    expect(inserted.status).toBe(201)
+
+    const categorized = await handleRequest(
+      createRequest('/ai-diagnoses/categories', {
+        method: 'PATCH',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          month: '202601',
+          runToken: 'run-1',
+          assignments: [{
+            expenseIds: ['expense-1'],
+            category: 'housing',
+            expectedLabel: '家賃',
+          }],
+        }),
+      }),
+      createEnv(db),
+      { now: vi.fn(() => new Date('2026-01-20T12:00:02.000Z')) }
+    )
+    expect(categorized.status).toBe(200)
+
+    const contextResponse = await handleRequest(
+      createRequest('/ai-diagnoses/202601/context', {
+        headers: { authorization: 'Bearer secret-token' },
+      }),
+      createEnv(db)
+    )
+    const contextPayload = await contextResponse.json() as {
+      data: {
+        sourceRevision: number
+        expenses: Array<{ id: string; aiCategory: string | null }>
+      }
+    }
+    expect(contextPayload.data.sourceRevision).toBe(1)
+    expect(contextPayload.data.expenses).toContainEqual(
+      expect.objectContaining({
+        id: 'inserted-during-classification',
+        aiCategory: null,
+      })
+    )
+
+    const save = await handleRequest(
+      createRequest('/ai-diagnoses/202601', {
+        method: 'PUT',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          runToken: 'run-1',
+          inputHash: 'initial-context-hash',
+          analysisVersion: 'v1',
+          diagnosis: diagnosisView,
+          expectedSourceRevision: 0,
+        }),
+      }),
+      createEnv(db),
+      { now: vi.fn(() => new Date('2026-01-20T12:00:03.000Z')) }
+    )
+    expect(save.status).toBe(409)
+    await expect(save.json()).resolves.toEqual({
+      error: '診断対象データが更新されたため保存できません',
+    })
+  })
+
   it('失敗経路で所有中の診断リースを解放する', async () => {
     const db = new FakeD1Database()
     await acquireLeaseForTest(db)

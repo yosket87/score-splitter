@@ -211,4 +211,106 @@ describe('AI家計診断のモックAPI', () => {
     expect(response.status).toBe(409)
     expect(expense).not.toHaveProperty('ai_category')
   })
+
+  it('分類待機中の支出追加後は初期revisionでの診断保存を拒否してleaseを解放できる', async () => {
+    const lease = await fetch(`${API_URL}/ai-diagnoses/202602/lease`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ runToken: 'run-1' }),
+    })
+    expect(lease.status).toBe(200)
+
+    const initialContext = await fetch(
+      `${API_URL}/ai-diagnoses/202602/context`,
+      { headers: { authorization: AUTHORIZATION } }
+    )
+    const initialPayload = (await initialContext.json()) as {
+      data: { sourceRevision: number }
+    }
+    expect(initialPayload.data.sourceRevision).toBe(0)
+
+    const inserted = await fetch(`${API_URL}/expenses`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({
+        month: '202602',
+        label: '分類待機中の支出',
+        amount: -8000,
+        person: 'husband',
+        isCarryover: false,
+      }),
+    })
+    expect(inserted.status).toBe(201)
+
+    const expense = getTable('expenses').find(
+      ({ month, label }) => month === '202602' && label !== '分類待機中の支出'
+    )
+    expect(expense).toBeDefined()
+    const categorized = await fetch(`${API_URL}/ai-diagnoses/categories`, {
+      method: 'PATCH',
+      headers: jsonHeaders,
+      body: JSON.stringify({
+        month: '202602',
+        runToken: 'run-1',
+        assignments: [{
+          expenseIds: [expense?.id],
+          category: 'dining',
+          expectedLabel: expense?.label,
+        }],
+      }),
+    })
+    expect(categorized.status).toBe(200)
+
+    const refetchedContext = await fetch(
+      `${API_URL}/ai-diagnoses/202602/context`,
+      { headers: { authorization: AUTHORIZATION } }
+    )
+    const refetchedPayload = (await refetchedContext.json()) as {
+      data: {
+        sourceRevision: number
+        expenses: Array<{ label: string; aiCategory: string | null }>
+      }
+    }
+    expect(refetchedPayload.data.sourceRevision).toBe(1)
+    expect(refetchedPayload.data.expenses).toContainEqual(
+      expect.objectContaining({
+        label: '分類待機中の支出',
+        aiCategory: null,
+      })
+    )
+
+    const save = await fetch(`${API_URL}/ai-diagnoses/202602`, {
+      method: 'PUT',
+      headers: jsonHeaders,
+      body: JSON.stringify({
+        runToken: 'run-1',
+        inputHash: 'initial-context-hash',
+        analysisVersion: 'v1',
+        expectedSourceRevision: 0,
+        diagnosis: {
+          month: '202602',
+          summaryText: '古い診断',
+          currentExpenseTotal: 10000,
+          baselineExpenseAverage: null,
+          unresolvedCarryoverTotal: 0,
+          notableChanges: [],
+          positivePoints: [],
+          suggestions: [],
+          dataSufficiency: 'current_only',
+        },
+      }),
+    })
+    expect(save.status).toBe(409)
+    await expect(save.json()).resolves.toEqual({
+      error: '診断対象データが更新されたため保存できません',
+    })
+
+    const released = await fetch(`${API_URL}/ai-diagnoses/202602/lease`, {
+      method: 'DELETE',
+      headers: jsonHeaders,
+      body: JSON.stringify({ runToken: 'run-1' }),
+    })
+    expect(released.status).toBe(200)
+    expect(getTable('ai_execution_guard')[0]?.run_token).toBeNull()
+  })
 })

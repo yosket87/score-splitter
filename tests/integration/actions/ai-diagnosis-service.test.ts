@@ -221,6 +221,41 @@ describe('AI家計診断サービス', () => {
     )
   })
 
+  it('分類待機中に未分類支出が増えてrevisionが変わったら診断前に中断する', async () => {
+    const dependencies = createDependencies()
+    dependencies.provider.classifyLabels.mockImplementation(async () => {
+      dependencies.setContext({
+        ...context,
+        sourceRevision: 8,
+        expenses: [
+          ...context.expenses,
+          {
+            id: 'inserted-during-classification',
+            month: '202604',
+            label: '新しい未分類支出',
+            amount: -8000,
+            isCarryover: false,
+            aiCategory: null,
+          },
+        ],
+      })
+      return [{ label: 'Uber Eats', category: 'dining' }]
+    })
+
+    await expect(
+      createAiDiagnosisService(dependencies).run('202604')
+    ).rejects.toThrow('診断対象データが更新されたため保存できません')
+
+    expect(dependencies.repository.getContext).toHaveBeenCalledTimes(2)
+    expect(dependencies.repository.getSavedDiagnosis).not.toHaveBeenCalled()
+    expect(dependencies.provider.generateNarrative).not.toHaveBeenCalled()
+    expect(dependencies.repository.saveDiagnosis).not.toHaveBeenCalled()
+    expect(dependencies.repository.releaseLease).toHaveBeenCalledWith(
+      '202604',
+      'run-token'
+    )
+  })
+
   it('同一ラベル101件は分類を1回に保ち、保存を100件以下へ分割する', async () => {
     const dependencies = createDependencies()
     dependencies.setContext({

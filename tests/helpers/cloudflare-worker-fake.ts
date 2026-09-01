@@ -480,6 +480,18 @@ export class FakeD1Database implements D1DatabaseLike {
         updated_at: params[6] as string,
       })
     }
+    if (query.startsWith('INSERT INTO expenses')) {
+      this.expenseRows.push({
+        id: params[0] as string,
+        month: params[1] as string,
+        label: params[2] as string,
+        amount: params[3] as number,
+        person: params[4] as 'husband' | 'wife',
+        is_carryover: params[5] as number,
+        created_at: params[6] as string,
+        updated_at: params[7] as string,
+      })
+    }
     if (query.startsWith('INSERT INTO carryovers')) {
       this.carryoverRows.push({
         id: params[0] as string,

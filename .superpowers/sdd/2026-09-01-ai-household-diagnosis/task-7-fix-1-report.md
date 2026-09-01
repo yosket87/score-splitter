@@ -17,7 +17,7 @@
 ### 1. MSW 6 endpointのstrict wire contract
 
 - `src/features/ai-diagnosis/wire.ts`に、React/Next/OpenAI SDK非依存のstrict parserを抽出した。
-- context、saved GET、lease POST/DELETE、categories PATCH、diagnosis PUTの6 endpointが、本番Worker/MSWで同じvalidatorを使う。
+- **修正ラウンド2での訂正**: ラウンド1完了時点では、saved GETは受信月だけが共通validator対象で、MSWの保存済み`result_json`/必須metaは未検証だった。現在は本番Worker/MSWの両方が保存済み診断に`parseDiagnosisView`を使い、`input_hash`/`analysis_version`も必須として検証する。
 - 15件の同一request tableを本番`handleRequest`とMSWへ流し、すべて400で拒否することを確認した。Workerは不正request時のDB実行0件も検証した。
 - MSW分類は全assignmentのwire/ID/expectedLabel検証が通った後だけ一括mutationする。後続競合時は409で、先行更新は0件。
 

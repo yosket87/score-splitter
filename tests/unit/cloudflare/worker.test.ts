@@ -6,6 +6,7 @@ import type {
   D1ResultLike,
 } from '../../../cloudflare/worker/src/d1'
 import { invalidAiWireCases } from '../../fixtures/ai-diagnosis-wire-cases'
+import { savedDiagnosisGetCases } from '../../fixtures/saved-diagnosis-get-cases'
 
 class FakeStatement implements D1PreparedStatementLike {
   constructor(
@@ -548,29 +549,37 @@ describe('Cloudflare Worker API', () => {
     })
   })
 
-  it('保存済み診断もstrict検証しpersonをAPIへ露出しない', async () => {
+  it.each(savedDiagnosisGetCases)('$nameをMSW GETと同じstatus/bodyで返す', async ({
+    path,
+    seedMonth,
+    diagnosis,
+    inputHash,
+    analysisVersion,
+    expectedStatus,
+    expectedBody,
+  }) => {
     const db = new FakeD1Database({
       diagnoses: [
         {
-          month: '202601',
-          result_json: JSON.stringify({ ...diagnosisView, person: 'husband' }),
-          input_hash: 'hash-1',
-          analysis_version: 'v1',
+          month: seedMonth,
+          result_json: JSON.stringify(diagnosis),
+          input_hash: inputHash,
+          analysis_version: analysisVersion,
           updated_at: '2026-01-20T12:00:00.000Z',
         },
       ],
     })
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const response = await handleRequest(
-      createRequest('/ai-diagnoses/202601', {
+      createRequest(path, {
         headers: { authorization: 'Bearer secret-token' },
       }),
       createEnv(db)
     )
     consoleError.mockRestore()
 
-    expect(response.status).toBe(500)
-    await expect(response.json()).resolves.toEqual({ error: '内部エラーが発生しました' })
+    expect(response.status).toBe(expectedStatus)
+    await expect(response.json()).resolves.toEqual(expectedBody)
   })
 
   it('有効な実行リースがある場合は409を返す', async () => {

@@ -7,6 +7,7 @@ import {
   AiDiagnosisWireError,
   parseAiDiagnosisMonth,
   parseCategoryAssignments,
+  parseDiagnosisView,
   parseRunTokenInput,
   parseSaveDiagnosisInput,
 } from '@/features/ai-diagnosis/wire'
@@ -132,9 +133,21 @@ export const handlers = [
     const month = parseAiDiagnosisMonth(params.month)
     const row = getTable('ai_diagnoses').find((record) => record.month === month)
     if (!row || row.result_json == null) return HttpResponse.json({ data: null })
+    if (
+      typeof row.input_hash !== 'string' ||
+      typeof row.analysis_version !== 'string'
+    ) {
+      return internalError()
+    }
+    let diagnosis: ReturnType<typeof parseDiagnosisView>
+    try {
+      diagnosis = parseDiagnosisView(row.result_json)
+    } catch {
+      return internalError()
+    }
     return HttpResponse.json({
       data: {
-        diagnosis: row.result_json,
+        diagnosis,
         inputHash: row.input_hash,
         analysisVersion: row.analysis_version,
         updatedAt: row.updated_at,
@@ -370,6 +383,10 @@ function unauthorized() {
 
 function notFound() {
   return HttpResponse.json({ error: 'エンドポイントが見つかりません' }, { status: 404 })
+}
+
+function internalError() {
+  return HttpResponse.json({ error: '内部エラーが発生しました' }, { status: 500 })
 }
 
 async function readAiJson(request: Request): Promise<unknown> {

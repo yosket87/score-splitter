@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getTable, initStore } from '@/mocks/db'
 import { server } from '@/mocks/server'
 import { invalidAiWireCases } from '../../fixtures/ai-diagnosis-wire-cases'
+import { savedDiagnosisGetCases } from '../../fixtures/saved-diagnosis-get-cases'
 
 const API_URL = 'http://mock-worker.local'
 const AUTHORIZATION = 'Bearer mock-worker-token'
@@ -46,6 +47,31 @@ describe('AI家計診断のモックAPI', () => {
 
     expect(response.status).toBe(200)
     expect(JSON.stringify(payload)).not.toMatch(/aiCategory|ai_category|categorized/i)
+  })
+
+  it.each(savedDiagnosisGetCases)('$nameを本番GETと同じstatus/bodyで返す', async ({
+    path,
+    seedMonth,
+    diagnosis,
+    inputHash,
+    analysisVersion,
+    expectedStatus,
+    expectedBody,
+  }) => {
+    getTable('ai_diagnoses').push({
+      month: seedMonth,
+      result_json: diagnosis,
+      input_hash: inputHash,
+      analysis_version: analysisVersion,
+      updated_at: '2026-01-20T12:00:00.000Z',
+    })
+
+    const response = await fetch(`${API_URL}${path}`, {
+      headers: { authorization: AUTHORIZATION },
+    })
+
+    expect(response.status).toBe(expectedStatus)
+    await expect(response.json()).resolves.toEqual(expectedBody)
   })
 
   it('リース競合、分類の期待ラベル競合、runToken fenceを本番契約と同じ409で返す', async () => {

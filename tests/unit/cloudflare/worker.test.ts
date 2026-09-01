@@ -82,6 +82,14 @@ type FakeChallengeRow = {
   created_at: string
 }
 
+type FakeDiagnosisRow = {
+  month: string
+  result_json: string | null
+  input_hash: string | null
+  analysis_version: string | null
+  updated_at: string
+}
+
 class FakeD1Database implements D1DatabaseLike {
   readonly executed: Array<{ query: string; params: unknown[] }> = []
   readonly batched: Array<Array<{ query: string; params: unknown[] }>> = []
@@ -134,6 +142,8 @@ class FakeD1Database implements D1DatabaseLike {
     },
   ]
   private challengeRows: FakeChallengeRow[] = []
+  private diagnosisRows: FakeDiagnosisRow[] = []
+  private diagnosisLeases = new Map<string, { runToken: string; expiresAt: string }>()
 
   constructor(rows: {
     incomes?: FakeIncomeRow[]
@@ -143,6 +153,7 @@ class FakeD1Database implements D1DatabaseLike {
     sessions?: FakeSessionRow[]
     passkeys?: FakePasskeyRow[]
     challenges?: FakeChallengeRow[]
+    diagnoses?: FakeDiagnosisRow[]
   } = {}) {
     this.incomeRows = rows.incomes ?? this.incomeRows
     this.expenseRows = rows.expenses ?? this.expenseRows
@@ -151,6 +162,7 @@ class FakeD1Database implements D1DatabaseLike {
     this.sessionRows = rows.sessions ?? this.sessionRows
     this.passkeyRows = rows.passkeys ?? this.passkeyRows
     this.challengeRows = rows.challenges ?? this.challengeRows
+    this.diagnosisRows = rows.diagnoses ?? this.diagnosisRows
   }
 
   prepare(query: string): D1PreparedStatementLike {
@@ -166,14 +178,20 @@ class FakeD1Database implements D1DatabaseLike {
       }
     })
     this.batched.push(batch)
+    const results: D1ResultLike[] = []
     for (const item of batch) {
-      await this.run(item.query, item.params)
+      results.push(await this.run(item.query, item.params))
     }
-    return batch.map(() => ({ success: true }))
+    return results
   }
 
   async first<T>(query: string, params: unknown[]): Promise<T | null> {
     this.executed.push({ query, params })
+    if (query.includes('FROM ai_diagnoses')) {
+      return (
+        this.diagnosisRows.find((row) => row.month === params[0]) ?? null
+      ) as T | null
+    }
     if (query.includes('FROM incomes')) {
       return (this.incomeRows.find((row) => row.id === params[0]) ?? null) as T | null
     }
@@ -242,6 +260,61 @@ class FakeD1Database implements D1DatabaseLike {
 
   async run(query: string, params: unknown[]): Promise<D1ResultLike> {
     this.executed.push({ query, params })
+    if (query.startsWith('UPDATE ai_diagnoses\nSET result_json')) {
+      const month = params.at(-2) as string
+      const runToken = params.at(-1) as string
+      const current = this.diagnosisLeases.get(month)
+      if (!current || current.runToken !== runToken) {
+        return { success: true, meta: { changes: 0 } }
+      }
+      this.diagnosisLeases.delete(month)
+      return { success: true, meta: { changes: 1 } }
+    }
+    if (query.startsWith('UPDATE ai_diagnoses\nSET run_token = NULL')) {
+      const month = params[0] as string
+      const runToken = params[1] as string
+      const current = this.diagnosisLeases.get(month)
+      if (!current || current.runToken !== runToken) {
+        return { success: true, meta: { changes: 0 } }
+      }
+      this.diagnosisLeases.delete(month)
+      return { success: true, meta: { changes: 1 } }
+    }
+    if (query.startsWith('UPDATE ai_diagnoses\nSET run_token = ?, run_expires_at = ?')) {
+      const month = params[3] as string
+      const now = params[4] as string
+      const current = this.diagnosisLeases.get(month)
+      if (current && current.expiresAt >= now) {
+        return { success: true, meta: { changes: 0 } }
+      }
+      if (!current) {
+        return { success: true, meta: { changes: 0 } }
+      }
+      this.diagnosisLeases.set(month, {
+        runToken: params[0] as string,
+        expiresAt: params[1] as string,
+      })
+      return { success: true, meta: { changes: 1 } }
+    }
+    if (query.startsWith('INSERT OR IGNORE INTO ai_diagnoses')) {
+      const month = params[1] as string
+      if (this.diagnosisLeases.has(month)) {
+        return { success: true, meta: { changes: 0 } }
+      }
+      this.diagnosisLeases.set(month, {
+        runToken: params[2] as string,
+        expiresAt: params[3] as string,
+      })
+      return { success: true, meta: { changes: 1 } }
+    }
+    if (query.startsWith('UPDATE expenses\nSET ai_category')) {
+      const expectedLabel = params.at(-1) as string
+      const expenseIds = params.slice(3, -1) as string[]
+      const changes = expenseIds.filter((expenseId) =>
+        this.expenseRows.some((row) => row.id === expenseId && row.label === expectedLabel)
+      ).length
+      return { success: true, meta: { changes } }
+    }
     if (query.startsWith('INSERT INTO incomes')) {
       this.incomeRows.push({
         id: params[0] as string,
@@ -366,6 +439,38 @@ function createEnv(db = new FakeD1Database()) {
   }
 }
 
+const diagnosisView = {
+  month: '202601',
+  summaryText: '今月の家計は安定しています',
+  currentExpenseTotal: 120000,
+  baselineExpenseAverage: 115000,
+  unresolvedCarryoverTotal: 10000,
+  notableChanges: [],
+  positivePoints: [],
+  suggestions: [],
+  dataSufficiency: 'full',
+} as const
+
+async function acquireLeaseForTest(db: FakeD1Database, runToken = 'run-1'): Promise<void> {
+  const response = await handleRequest(
+    createRequest('/ai-diagnoses/202601/lease', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer secret-token',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ runToken }),
+    }),
+    createEnv(db),
+    {
+      randomUUID: vi.fn(() => 'diagnosis-id'),
+      now: vi.fn(() => new Date('2026-01-20T12:00:00.000Z')),
+    }
+  )
+  expect(response.status).toBe(200)
+  db.executed.length = 0
+}
+
 describe('Cloudflare Worker API', () => {
   it('共有シークレットがないリクエストを拒否する', async () => {
     const response = await handleRequest(createRequest('/incomes?month=202601'), createEnv())
@@ -374,6 +479,310 @@ describe('Cloudflare Worker API', () => {
     await expect(response.json()).resolves.toEqual({
       error: '認証に失敗しました',
     })
+  })
+
+  it('診断コンテキストを担当者なしで返す', async () => {
+    const response = await handleRequest(
+      createRequest('/ai-diagnoses/202601/context', {
+        headers: { authorization: 'Bearer secret-token' },
+      }),
+      createEnv()
+    )
+
+    expect(response.status).toBe(200)
+    const payload = await response.json() as { data: { expenses: unknown[] } }
+    expect(payload.data.expenses[0]).toEqual({
+      id: 'expense-1',
+      month: '202601',
+      label: '家賃',
+      amount: -120000,
+      isCarryover: false,
+      aiCategory: null,
+    })
+    expect(payload.data.expenses[0]).not.toHaveProperty('person')
+  })
+
+  it('保存済み診断がない月はnullを返す', async () => {
+    const response = await handleRequest(
+      createRequest('/ai-diagnoses/202601', {
+        headers: { authorization: 'Bearer secret-token' },
+      }),
+      createEnv()
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ data: null })
+  })
+
+  it('strict検証済みの保存済み診断を返す', async () => {
+    const db = new FakeD1Database({
+      diagnoses: [
+        {
+          month: '202601',
+          result_json: JSON.stringify(diagnosisView),
+          input_hash: 'hash-1',
+          analysis_version: 'v1',
+          updated_at: '2026-01-20T12:00:00.000Z',
+        },
+      ],
+    })
+    const response = await handleRequest(
+      createRequest('/ai-diagnoses/202601', {
+        headers: { authorization: 'Bearer secret-token' },
+      }),
+      createEnv(db)
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      data: {
+        diagnosis: diagnosisView,
+        inputHash: 'hash-1',
+        analysisVersion: 'v1',
+        updatedAt: '2026-01-20T12:00:00.000Z',
+      },
+    })
+  })
+
+  it('保存済み診断もstrict検証しpersonをAPIへ露出しない', async () => {
+    const db = new FakeD1Database({
+      diagnoses: [
+        {
+          month: '202601',
+          result_json: JSON.stringify({ ...diagnosisView, person: 'husband' }),
+          input_hash: 'hash-1',
+          analysis_version: 'v1',
+          updated_at: '2026-01-20T12:00:00.000Z',
+        },
+      ],
+    })
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const response = await handleRequest(
+      createRequest('/ai-diagnoses/202601', {
+        headers: { authorization: 'Bearer secret-token' },
+      }),
+      createEnv(db)
+    )
+    consoleError.mockRestore()
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({ error: '内部エラーが発生しました' })
+  })
+
+  it('有効な実行リースがある場合は409を返す', async () => {
+    const db = new FakeD1Database()
+    const requestLease = (runToken: string) =>
+      handleRequest(
+        createRequest('/ai-diagnoses/202601/lease', {
+          method: 'POST',
+          headers: {
+            authorization: 'Bearer secret-token',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ runToken }),
+        }),
+        createEnv(db),
+        {
+          randomUUID: vi.fn(() => 'diagnosis-id'),
+          now: vi.fn(() => new Date('2026-01-20T12:00:00.000Z')),
+        }
+      )
+
+    const first = await requestLease('first-run')
+    const second = await requestLease('second-run')
+
+    expect(first.status).toBe(200)
+    await expect(first.json()).resolves.toEqual({ success: true })
+    expect(second.status).toBe(409)
+    await expect(second.json()).resolves.toEqual({ error: '診断を実行中です' })
+  })
+
+  it('支出カテゴリを期待ラベルとの楽観ロック付きで保存する', async () => {
+    const db = new FakeD1Database()
+    const response = await handleRequest(
+      createRequest('/ai-diagnoses/categories', {
+        method: 'PATCH',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          assignments: [
+            { expenseIds: ['expense-1'], category: 'housing', expectedLabel: '家賃' },
+          ],
+        }),
+      }),
+      createEnv(db),
+      { now: vi.fn(() => new Date('2026-01-20T12:00:00.000Z')) }
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ success: true })
+    expect(db.batched[0][0].params).toEqual([
+      'housing',
+      '2026-01-20T12:00:00.000Z',
+      '2026-01-20T12:00:00.000Z',
+      'expense-1',
+      '家賃',
+    ])
+  })
+
+  it('runTokenが一致する診断を保存し、成功後にリース解放を重ねない', async () => {
+    const db = new FakeD1Database()
+    await acquireLeaseForTest(db)
+    const response = await handleRequest(
+      createRequest('/ai-diagnoses/202601', {
+        method: 'PUT',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          runToken: 'run-1',
+          inputHash: 'hash-1',
+          analysisVersion: 'v1',
+          diagnosis: diagnosisView,
+        }),
+      }),
+      createEnv(db),
+      { now: vi.fn(() => new Date('2026-01-20T12:00:00.000Z')) }
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ data: diagnosisView })
+    const diagnosisUpdates = db.executed.filter(({ query }) =>
+      query.startsWith('UPDATE ai_diagnoses')
+    )
+    expect(diagnosisUpdates).toHaveLength(1)
+    expect(diagnosisUpdates[0].params.slice(-2)).toEqual(['202601', 'run-1'])
+  })
+
+  it('失敗経路で所有中の診断リースを解放する', async () => {
+    const db = new FakeD1Database()
+    await acquireLeaseForTest(db)
+    const response = await handleRequest(
+      createRequest('/ai-diagnoses/202601/lease', {
+        method: 'DELETE',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ runToken: 'run-1' }),
+      }),
+      createEnv(db)
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ success: true })
+    expect(db.executed.at(-1)).toEqual({
+      query: `UPDATE ai_diagnoses
+SET run_token = NULL, run_expires_at = NULL
+WHERE month = ? AND run_token = ?`,
+      params: ['202601', 'run-1'],
+    })
+  })
+
+  it('分類対象のラベルが変わっていた場合は409を返す', async () => {
+    const response = await handleRequest(
+      createRequest('/ai-diagnoses/categories', {
+        method: 'PATCH',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          assignments: [
+            { expenseIds: ['expense-1'], category: 'housing', expectedLabel: '旧家賃' },
+          ],
+        }),
+      }),
+      createEnv()
+    )
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: '分類中に支出が変更されました',
+    })
+  })
+
+  it.each([
+    [
+      'expectedLabel欠落',
+      '/ai-diagnoses/categories',
+      'PATCH',
+      { assignments: [{ expenseIds: ['expense-1'], category: 'housing' }] },
+    ],
+    [
+      'person混入',
+      '/ai-diagnoses/202601',
+      'PUT',
+      {
+        runToken: 'run-1',
+        inputHash: 'hash-1',
+        analysisVersion: 'v1',
+        diagnosis: { ...diagnosisView, person: 'husband' },
+      },
+    ],
+    [
+      'リースbodyの未知キー',
+      '/ai-diagnoses/202601/lease',
+      'POST',
+      { runToken: 'run-1', person: 'husband' },
+    ],
+  ])('%sをstrict body検証で400にする', async (_name, path, method, body) => {
+    const response = await handleRequest(
+      createRequest(path, {
+        method,
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      }),
+      createEnv()
+    )
+
+    expect(response.status).toBe(400)
+  })
+
+  it.each([
+    ['保存', '/ai-diagnoses/202601', 'PUT', {
+      runToken: 'missing-run',
+      inputHash: 'hash-1',
+      analysisVersion: 'v1',
+      diagnosis: diagnosisView,
+    }],
+    ['解放', '/ai-diagnoses/202601/lease', 'DELETE', { runToken: 'missing-run' }],
+  ])('失効リースの%sを409にする', async (_name, path, method, body) => {
+    const response = await handleRequest(
+      createRequest(path, {
+        method,
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      }),
+      createEnv()
+    )
+
+    expect(response.status).toBe(409)
+  })
+
+  it('診断APIでもBearer認証と月形式を検証する', async () => {
+    const unauthorized = await handleRequest(
+      createRequest('/ai-diagnoses/202601/context'),
+      createEnv()
+    )
+    const invalidMonth = await handleRequest(
+      createRequest('/ai-diagnoses/2026-01/context', {
+        headers: { authorization: 'Bearer secret-token' },
+      }),
+      createEnv()
+    )
+
+    expect(unauthorized.status).toBe(401)
+    expect(invalidMonth.status).toBe(400)
   })
 
   it('指定月の収入一覧を返す', async () => {

@@ -30,7 +30,22 @@ import {
   recordFailedLoginAttempt,
   resetLoginAttempts,
 } from './login-attempts'
-import { parseMonth } from './validation'
+import {
+  acquireDiagnosisLease,
+  getDiagnosisContext,
+  getSavedDiagnosis,
+  releaseDiagnosisLease,
+  saveDiagnosis,
+  saveExpenseCategories,
+  type StoreCategoryAssignment,
+} from './ai-diagnosis-store'
+import { assertObject, parseMonth, parseString } from './validation'
+import type {
+  AiCategory,
+  AiDiagnosisView,
+  DiagnosisViewItem,
+  SaveDiagnosisInput,
+} from '../../../src/features/ai-diagnosis/domain'
 
 const worker = {
   fetch(request: Request, env: Env): Promise<Response> {
@@ -59,6 +74,108 @@ export async function handleRequest(
     }
 
     assertAuth(request, env.WORKER_API_TOKEN)
+
+    if (
+      parts.length === 3 &&
+      parts[0] === 'ai-diagnoses' &&
+      parts[2] === 'context' &&
+      request.method === 'GET'
+    ) {
+      const month = parseMonth(decodeURIComponent(parts[1]))
+      return json({ data: await getDiagnosisContext(env.DB, month) })
+    }
+
+    if (
+      parts.length === 2 &&
+      parts[0] === 'ai-diagnoses' &&
+      request.method === 'GET'
+    ) {
+      const month = parseMonth(decodeURIComponent(parts[1]))
+      const saved = await getSavedDiagnosis(env.DB, month)
+      if (saved === null) return json({ data: null })
+      try {
+        return json({ data: { ...saved, diagnosis: parseDiagnosisView(saved.diagnosis) } })
+      } catch {
+        throw new Error('保存済み診断の形式が不正です')
+      }
+    }
+
+    if (
+      parts.length === 3 &&
+      parts[0] === 'ai-diagnoses' &&
+      parts[2] === 'lease' &&
+      request.method === 'POST'
+    ) {
+      const month = parseMonth(decodeURIComponent(parts[1]))
+      const input = parseRunTokenInput(await readJson(request))
+      const acquired = await acquireDiagnosisLease(env.DB, runtime, month, input.runToken)
+      if (!acquired) throw new HttpError('診断を実行中です', 409)
+      return json({ success: true })
+    }
+
+    if (
+      parts.length === 3 &&
+      parts[0] === 'ai-diagnoses' &&
+      parts[2] === 'lease' &&
+      request.method === 'DELETE'
+    ) {
+      const month = parseMonth(decodeURIComponent(parts[1]))
+      const input = parseRunTokenInput(await readJson(request))
+      try {
+        await releaseDiagnosisLease(env.DB, month, input.runToken)
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message === '診断リースが失効しているため解放できません'
+        ) {
+          throw new HttpError(error.message, 409)
+        }
+        throw error
+      }
+      return json({ success: true })
+    }
+
+    if (
+      parts.length === 2 &&
+      parts[0] === 'ai-diagnoses' &&
+      request.method === 'PUT'
+    ) {
+      const month = parseMonth(decodeURIComponent(parts[1]))
+      const input = parseSaveDiagnosisInput(await readJson(request))
+      if (input.diagnosis.month !== month) {
+        throw new HttpError('診断月が不正です', 400)
+      }
+      try {
+        await saveDiagnosis(env.DB, runtime, month, input)
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message === '診断リースが失効しているため保存できません'
+        ) {
+          throw new HttpError(error.message, 409)
+        }
+        throw error
+      }
+      return json({ data: input.diagnosis })
+    }
+
+    if (
+      parts.length === 2 &&
+      parts[0] === 'ai-diagnoses' &&
+      parts[1] === 'categories' &&
+      request.method === 'PATCH'
+    ) {
+      const assignments = parseCategoryAssignments(await readJson(request))
+      try {
+        await saveExpenseCategories(env.DB, runtime, assignments)
+      } catch (error) {
+        if (error instanceof Error && error.message === '分類中に支出が変更されました') {
+          throw new HttpError(error.message, 409)
+        }
+        throw error
+      }
+      return json({ success: true })
+    }
 
     if (parts.length === 1 && isRecordPath(parts[0])) {
       const type = recordTypeFromPath(parts[0])
@@ -220,4 +337,150 @@ function recordTypeFromPath(path: 'incomes' | 'expenses' | 'carryovers') {
   if (path === 'expenses') return 'expense'
   if (path === 'carryovers') return 'carryover'
   return 'income'
+}
+
+function parseRunTokenInput(value: unknown): { runToken: string } {
+  const input = assertObject(value)
+  assertExactKeys(input, ['runToken'])
+  return { runToken: parseString(input.runToken, 'runToken') }
+}
+
+function assertExactKeys(input: Record<string, unknown>, allowedKeys: string[]): void {
+  if (Object.keys(input).some((key) => !allowedKeys.includes(key))) {
+    throw new HttpError('リクエスト形式が不正です', 400)
+  }
+}
+
+const AI_CATEGORIES = new Set([
+  'groceries', 'dining', 'household', 'housing', 'utilities',
+  'communications', 'transportation', 'healthcare', 'clothing_beauty',
+  'entertainment', 'subscriptions', 'social_gifts', 'travel', 'other',
+])
+
+function parseCategoryAssignments(value: unknown): StoreCategoryAssignment[] {
+  const input = assertObject(value)
+  assertExactKeys(input, ['assignments'])
+  if (!Array.isArray(input.assignments)) {
+    throw new HttpError('assignmentsが不正です', 400)
+  }
+  return input.assignments.map((assignment) => {
+    const item = assertObject(assignment)
+    assertExactKeys(item, ['expenseIds', 'category', 'expectedLabel'])
+    if (!Array.isArray(item.expenseIds)) {
+      throw new HttpError('expenseIdsが不正です', 400)
+    }
+    const expenseIds = item.expenseIds.map((id) => parseString(id, 'expenseIds'))
+    const category = parseString(item.category, 'category')
+    if (!AI_CATEGORIES.has(category)) {
+      throw new HttpError('categoryが不正です', 400)
+    }
+    return {
+      expenseIds,
+      category,
+      expectedLabel: parseString(item.expectedLabel, 'expectedLabel'),
+    }
+  })
+}
+
+function parseSaveDiagnosisInput(value: unknown): SaveDiagnosisInput {
+  const input = assertObject(value)
+  assertExactKeys(input, ['runToken', 'inputHash', 'analysisVersion', 'diagnosis'])
+  return {
+    runToken: parseString(input.runToken, 'runToken'),
+    inputHash: parseString(input.inputHash, 'inputHash'),
+    analysisVersion: parseString(input.analysisVersion, 'analysisVersion'),
+    diagnosis: parseDiagnosisView(input.diagnosis),
+  }
+}
+
+function parseDiagnosisView(value: unknown): AiDiagnosisView {
+  const input = assertObject(value)
+  assertExactKeys(input, [
+    'month', 'summaryText', 'currentExpenseTotal', 'baselineExpenseAverage',
+    'unresolvedCarryoverTotal', 'notableChanges', 'positivePoints', 'suggestions',
+    'dataSufficiency',
+  ])
+  return {
+    month: parseMonth(input.month),
+    summaryText: parseString(input.summaryText, 'summaryText'),
+    currentExpenseTotal: parseNumber(input.currentExpenseTotal, 'currentExpenseTotal'),
+    baselineExpenseAverage: parseNullableNumber(
+      input.baselineExpenseAverage,
+      'baselineExpenseAverage'
+    ),
+    unresolvedCarryoverTotal: parseNumber(
+      input.unresolvedCarryoverTotal,
+      'unresolvedCarryoverTotal'
+    ),
+    notableChanges: parseDiagnosisViewItems(input.notableChanges, 'notableChanges'),
+    positivePoints: parseDiagnosisViewItems(input.positivePoints, 'positivePoints'),
+    suggestions: parseDiagnosisViewItems(input.suggestions, 'suggestions'),
+    dataSufficiency: parseDataSufficiency(input.dataSufficiency),
+  }
+}
+
+function parseDiagnosisViewItems(value: unknown, name: string): DiagnosisViewItem[] {
+  if (!Array.isArray(value)) throw new HttpError(`${name}が不正です`, 400)
+  return value.map((item) => parseDiagnosisViewItem(item))
+}
+
+function parseDiagnosisViewItem(value: unknown): DiagnosisViewItem {
+  const input = assertObject(value)
+  assertExactKeys(input, [
+    'id', 'kind', 'category', 'currentAmount', 'baselineAmount', 'differenceAmount',
+    'differenceRate', 'potentialAmount', 'contributingLabels', 'isLikelyOneOff',
+    'commentary',
+  ])
+  if (!Array.isArray(input.contributingLabels)) {
+    throw new HttpError('contributingLabelsが不正です', 400)
+  }
+  if (typeof input.isLikelyOneOff !== 'boolean') {
+    throw new HttpError('isLikelyOneOffが不正です', 400)
+  }
+  return {
+    id: parseString(input.id, 'id'),
+    kind: parseDiagnosisKind(input.kind),
+    category: parseAiCategory(input.category),
+    currentAmount: parseNumber(input.currentAmount, 'currentAmount'),
+    baselineAmount: parseNullableNumber(input.baselineAmount, 'baselineAmount'),
+    differenceAmount: parseNumber(input.differenceAmount, 'differenceAmount'),
+    differenceRate: parseNullableNumber(input.differenceRate, 'differenceRate'),
+    potentialAmount: parseNullableNumber(input.potentialAmount, 'potentialAmount'),
+    contributingLabels: input.contributingLabels.map((label) =>
+      parseString(label, 'contributingLabels')
+    ),
+    isLikelyOneOff: input.isLikelyOneOff,
+    commentary: parseString(input.commentary, 'commentary'),
+  }
+}
+
+function parseNumber(value: unknown, name: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new HttpError(`${name}が不正です`, 400)
+  }
+  return value
+}
+
+function parseNullableNumber(value: unknown, name: string): number | null {
+  return value === null ? null : parseNumber(value, name)
+}
+
+function parseAiCategory(value: unknown): AiCategory {
+  const category = parseString(value, 'category')
+  if (!AI_CATEGORIES.has(category)) throw new HttpError('categoryが不正です', 400)
+  return category as AiCategory
+}
+
+function parseDiagnosisKind(value: unknown): DiagnosisViewItem['kind'] {
+  if (value !== 'increase' && value !== 'positive' && value !== 'suggestion') {
+    throw new HttpError('kindが不正です', 400)
+  }
+  return value
+}
+
+function parseDataSufficiency(value: unknown): AiDiagnosisView['dataSufficiency'] {
+  if (value !== 'current_only' && value !== 'reference' && value !== 'full') {
+    throw new HttpError('dataSufficiencyが不正です', 400)
+  }
+  return value
 }

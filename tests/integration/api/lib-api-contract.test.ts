@@ -32,10 +32,29 @@ import {
   checkLoginRateLimit,
   recordFailedLoginAttempt,
 } from '@/lib/api/login-attempts'
+import {
+  acquireDiagnosisLease,
+  getDiagnosisContext,
+  getSavedDiagnosis,
+  releaseDiagnosisLease,
+  saveDiagnosis,
+  saveExpenseCategories,
+} from '@/lib/api/ai-diagnosis'
 import type { CopyMonthOptions } from '@/types'
 
 const WORKER_URL = 'https://worker.example.test'
 const WORKER_TOKEN = 'worker-secret'
+const diagnosisView = {
+  month: '202601',
+  summaryText: '今月の家計は安定しています',
+  currentExpenseTotal: 120000,
+  baselineExpenseAverage: 115000,
+  unresolvedCarryoverTotal: 10000,
+  notableChanges: [],
+  positivePoints: [],
+  suggestions: [],
+  dataSufficiency: 'full' as const,
+}
 
 interface CapturedRequest {
   method: string
@@ -424,6 +443,222 @@ describe('lib/api records contract', () => {
       { isCleared: true },
       undefined,
     ])
+  })
+})
+
+describe('lib/api ai-diagnosis contract', () => {
+  it('診断コンテキストをBearer認証付き月別パスから取得する', async () => {
+    server.use(
+      http.get(`${WORKER_URL}/ai-diagnoses/:month/context`, ({ params, request }) => {
+        captureRequest(request)
+        return HttpResponse.json({
+          data: {
+            targetMonth: params.month,
+            incomes: [{ month: params.month, amount: 300000 }],
+            expenses: [
+              {
+                id: 'expense-1',
+                month: params.month,
+                label: '家賃',
+                amount: -120000,
+                isCarryover: false,
+                aiCategory: 'housing',
+              },
+            ],
+            carryovers: [],
+          },
+        })
+      })
+    )
+
+    await expect(getDiagnosisContext('202601')).resolves.toEqual(
+      expect.objectContaining({ targetMonth: '202601' })
+    )
+    expect(capturedRequests[0]).toEqual(
+      expect.objectContaining({
+        method: 'GET',
+        pathname: '/ai-diagnoses/202601/context',
+        authorization: `Bearer ${WORKER_TOKEN}`,
+      })
+    )
+  })
+
+  it('保存済み診断を検証し、未保存のnullを許可する', async () => {
+    server.use(
+      http.get(`${WORKER_URL}/ai-diagnoses/:month`, ({ params }) =>
+        HttpResponse.json({
+          data: params.month === '202601'
+            ? {
+                diagnosis: diagnosisView,
+                inputHash: 'hash-1',
+                analysisVersion: 'v1',
+                updatedAt: '2026-01-20T12:00:00.000Z',
+              }
+            : null,
+        })
+      )
+    )
+
+    await expect(getSavedDiagnosis('202601')).resolves.toEqual(
+      expect.objectContaining({ diagnosis: diagnosisView, inputHash: 'hash-1' })
+    )
+    await expect(getSavedDiagnosis('202602')).resolves.toBeNull()
+  })
+
+  it('診断リースを月別パスへJSON bodyで送る', async () => {
+    server.use(
+      http.post(`${WORKER_URL}/ai-diagnoses/:month/lease`, async ({ request }) => {
+        await captureRequest(request)
+        return HttpResponse.json({ success: true })
+      })
+    )
+
+    await expect(acquireDiagnosisLease('202601', 'run-1')).resolves.toBeUndefined()
+    expect(capturedRequests[0]).toEqual(
+      expect.objectContaining({
+        method: 'POST',
+        pathname: '/ai-diagnoses/202601/lease',
+        authorization: `Bearer ${WORKER_TOKEN}`,
+        contentType: 'application/json',
+        body: { runToken: 'run-1' },
+      })
+    )
+  })
+
+  it('expectedLabelを含む支出カテゴリ分類を送る', async () => {
+    server.use(
+      http.patch(`${WORKER_URL}/ai-diagnoses/categories`, async ({ request }) => {
+        await captureRequest(request)
+        return HttpResponse.json({ success: true })
+      })
+    )
+    const assignments = [
+      { expenseIds: ['expense-1'], category: 'housing' as const, expectedLabel: '家賃' },
+    ]
+
+    await expect(saveExpenseCategories(assignments)).resolves.toBeUndefined()
+    expect(capturedRequests[0]).toEqual(
+      expect.objectContaining({
+        method: 'PATCH',
+        pathname: '/ai-diagnoses/categories',
+        body: { assignments },
+      })
+    )
+  })
+
+  it('診断結果を月別パスへ保存してstrict検証済み結果を返す', async () => {
+    server.use(
+      http.put(`${WORKER_URL}/ai-diagnoses/:month`, async ({ request }) => {
+        const body = await request.clone().json() as { diagnosis: unknown }
+        await captureRequest(request)
+        return HttpResponse.json({ data: body.diagnosis })
+      })
+    )
+    const input = {
+      runToken: 'run-1',
+      inputHash: 'hash-1',
+      analysisVersion: 'v1',
+      diagnosis: diagnosisView,
+    }
+
+    await expect(saveDiagnosis('202601', input)).resolves.toEqual(diagnosisView)
+    expect(capturedRequests[0]).toEqual(
+      expect.objectContaining({
+        method: 'PUT',
+        pathname: '/ai-diagnoses/202601',
+        body: input,
+      })
+    )
+  })
+
+  it('失敗経路の診断リース解放にDELETEとrunTokenを使う', async () => {
+    server.use(
+      http.delete(`${WORKER_URL}/ai-diagnoses/:month/lease`, async ({ request }) => {
+        await captureRequest(request)
+        return HttpResponse.json({ success: true })
+      })
+    )
+
+    await expect(releaseDiagnosisLease('202601', 'run-1')).resolves.toBeUndefined()
+    expect(capturedRequests[0]).toEqual(
+      expect.objectContaining({
+        method: 'DELETE',
+        pathname: '/ai-diagnoses/202601/lease',
+        body: { runToken: 'run-1' },
+      })
+    )
+  })
+
+  it('診断レスポンスへのperson混入と未知キーを502で拒否する', async () => {
+    server.use(
+      http.get(`${WORKER_URL}/ai-diagnoses/202601/context`, () =>
+        HttpResponse.json({
+          data: {
+            targetMonth: '202601',
+            incomes: [],
+            expenses: [
+              {
+                id: 'expense-1',
+                month: '202601',
+                label: '家賃',
+                amount: -120000,
+                isCarryover: false,
+                aiCategory: 'housing',
+                person: 'husband',
+              },
+            ],
+            carryovers: [],
+          },
+        })
+      ),
+      http.get(`${WORKER_URL}/ai-diagnoses/202602`, () =>
+        HttpResponse.json({
+          data: {
+            diagnosis: { ...diagnosisView, month: '202602', person: 'wife' },
+            inputHash: 'hash-2',
+            analysisVersion: 'v1',
+            updatedAt: '2026-02-20T12:00:00.000Z',
+          },
+        })
+      )
+    )
+
+    await expect(getDiagnosisContext('202601')).rejects.toEqual(
+      new ApiError('Worker APIレスポンスの形式が不正です', 502)
+    )
+    await expect(getSavedDiagnosis('202602')).rejects.toEqual(
+      new ApiError('Worker APIレスポンスの形式が不正です', 502)
+    )
+  })
+
+  it('保存入力へのperson混入を送信前に拒否する', async () => {
+    const input = {
+      runToken: 'run-1',
+      inputHash: 'hash-1',
+      analysisVersion: 'v1',
+      diagnosis: { ...diagnosisView, person: 'husband' },
+    } as unknown as Parameters<typeof saveDiagnosis>[1]
+
+    await expect(saveDiagnosis('202601', input)).rejects.toBeDefined()
+    expect(capturedRequests).toHaveLength(0)
+  })
+
+  it.each([
+    ['リース競合', 'POST', '/ai-diagnoses/202601/lease'],
+    ['分類競合', 'PATCH', '/ai-diagnoses/categories'],
+  ])('%sを成功扱いしない', async (_name, method, path) => {
+    server.use(
+      http.all(`${WORKER_URL}${path}`, () =>
+        HttpResponse.json({ error: '競合しました' }, { status: 409 })
+      )
+    )
+
+    const operation = method === 'POST'
+      ? acquireDiagnosisLease('202601', 'run-1')
+      : saveExpenseCategories([
+          { expenseIds: ['expense-1'], category: 'housing', expectedLabel: '家賃' },
+        ])
+    await expect(operation).rejects.toEqual(new ApiError('競合しました', 409))
   })
 })
 

@@ -85,7 +85,11 @@ export type AiDiagnosisView = z.infer<typeof aiDiagnosisViewSchema>
 export const categoryAssignmentSchema = z.object({ label: z.string(), category: aiCategorySchema })
 export type CategoryAssignment = z.infer<typeof categoryAssignmentSchema>
 
-export const expenseCategoryAssignmentSchema = z.object({ expenseIds: z.array(z.string()), category: aiCategorySchema })
+export const expenseCategoryAssignmentSchema = z.object({
+  expenseIds: z.array(z.string()),
+  category: aiCategorySchema,
+  expectedLabel: z.string(),
+}).strict()
 export type ExpenseCategoryAssignment = z.infer<typeof expenseCategoryAssignmentSchema>
 
 export type NarrativeInput = DiagnosisAnalysis

@@ -37,6 +37,7 @@ interface MonthlyOverviewProps {
   month: number
   summary: MonthlyOverviewSummary
   summaries: MonthlySummary[]
+  aiDiagnosisAvailable?: boolean
 }
 
 function toCurrentMonth(year: number, month: number): string {
@@ -76,6 +77,7 @@ export function MonthlyOverview({
   month,
   summary,
   summaries,
+  aiDiagnosisAvailable = true,
 }: MonthlyOverviewProps) {
   const router = useRouter()
   const { reduced } = useMotionPrefs()
@@ -176,11 +178,13 @@ export function MonthlyOverview({
               expenses={expenses}
               carryovers={carryovers}
             />
-            <AiDiagnosisDialog
-              key={createDiagnosisDataVersion(summary)}
-              month={currentMonth}
-              hasActualExpenses={expenses.some((expense) => !expense.isCarryover)}
-            />
+            {aiDiagnosisAvailable && (
+              <AiDiagnosisDialog
+                key={createDiagnosisDataVersion(summary)}
+                month={currentMonth}
+                hasActualExpenses={expenses.some((expense) => !expense.isCarryover)}
+              />
+            )}
           </div>
         </div>
 

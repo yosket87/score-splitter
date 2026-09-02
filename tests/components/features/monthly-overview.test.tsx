@@ -198,4 +198,20 @@ describe('MonthlyOverview', () => {
       screen.getByRole('button', { name: 'AIで今月を振り返る' })
     ).toHaveAttribute('data-has-actual-expenses', 'false')
   })
+
+  it('AIプロバイダーが利用できない場合は診断起点を表示しない', () => {
+    render(
+      <MonthlyOverview
+        year={2026}
+        month={4}
+        summary={{ incomes, expenses, carryovers: [] }}
+        summaries={summaries}
+        aiDiagnosisAvailable={false}
+      />
+    )
+
+    expect(
+      screen.queryByRole('button', { name: 'AIで今月を振り返る' })
+    ).not.toBeInTheDocument()
+  })
 })

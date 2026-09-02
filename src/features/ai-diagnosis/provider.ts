@@ -46,6 +46,13 @@ export function createAiDiagnosisProvider(): AiDiagnosisProvider {
   })
 }
 
+export function isAiDiagnosisAvailable(): boolean {
+  const provider = String(process.env.AI_PROVIDER ?? '')
+  if (provider === 'mock') return true
+
+  return Boolean(process.env.OPENAI_API_KEY?.trim())
+}
+
 export class MockAiDiagnosisProvider implements AiDiagnosisProvider {
   async classifyLabels(labels: string[]): Promise<CategoryAssignment[]> {
     incrementAiDiagnosisMockStat('categoryProviderCalls')

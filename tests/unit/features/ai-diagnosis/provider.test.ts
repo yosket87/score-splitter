@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ClientOptions } from 'openai'
 
 import { createOpenAiDiagnosisProvider } from '@/features/ai-diagnosis/openai-provider'
-import { createAiDiagnosisProvider } from '@/features/ai-diagnosis/provider'
+import {
+  createAiDiagnosisProvider,
+  isAiDiagnosisAvailable,
+} from '@/features/ai-diagnosis/provider'
 import type { NarrativeInput } from '@/features/ai-diagnosis/domain'
 
 type Request = {
@@ -435,6 +438,19 @@ describe('家計診断プロバイダーfactory', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
     vi.unstubAllGlobals()
+  })
+
+  it('モックはキー不要、OpenAIは空でないAPIキーがある場合だけ利用可能と判定する', () => {
+    vi.stubEnv('AI_PROVIDER', 'mock')
+    vi.stubEnv('OPENAI_API_KEY', '')
+    expect(isAiDiagnosisAvailable()).toBe(true)
+
+    vi.stubEnv('AI_PROVIDER', 'openai')
+    vi.stubEnv('OPENAI_API_KEY', '   ')
+    expect(isAiDiagnosisAvailable()).toBe(false)
+
+    vi.stubEnv('OPENAI_API_KEY', 'configured-key')
+    expect(isAiDiagnosisAvailable()).toBe(true)
   })
 
   it('mock設定をfactory呼び出し時に読み決定的な結果を返す', async () => {

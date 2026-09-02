@@ -1,7 +1,7 @@
 # Worker一本化とPRプレビュー開発環境 設計ドキュメント
 
 - 日付: 2026-09-02
-- ステータス: レビュー待ち
+- ステータス: 承認済み
 - 目的: Next.jsとD1アクセスを1つのCloudflare Workerへ統合し、PRごとに本番から隔離されたブランチプレビューで動作確認できるようにする
 
 ## 決定事項
@@ -13,6 +13,7 @@
 | 開発URL | 固定Custom Domainは作らず、Workers BuildsのPRブランチPreview URLを使う |
 | 開発データ | すべてのPRプレビューで同じ開発D1を共有する |
 | パスキー | 可変Preview URLでは動作確認対象外。パスワードログインを使う |
+| 本番バックアップ | 本番切替直前にTime Travel復元地点と全量SQLを保存し、チェックサムと復元テストを通す |
 | 本番切替 | Web Workerへ本番D1を直接バインドしてから一本化版をデプロイする |
 | ロールバック | 旧API Workerと共有Bearer設定を本番安定確認まで残す |
 
@@ -134,6 +135,21 @@ WorkersのブランチPreview URLはブランチごとにホスト名が変わ�
 
 マイグレーションはWorkerのビルド・デプロイへ自動連結しない。対象DBを確認できる独立した操作として実行する。
 
+### 本番D1バックアップ
+
+本番D1へ影響する操作と本番一本化デプロイの前に、次のバックアップゲートを必ず通す。
+
+1. `wrangler d1 info` でDB名 `score-splitter` とUUID `7f8d3531-a833-4474-84d5-cee3ac98ee96` の一致を確認する
+2. D1 Time Travelの現在の復元地点と生成されたrestoreコマンドを記録する
+3. schemaとdataを含む全量SQLを `/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/<UTC日時>/` へエクスポートする
+4. SQLファイルのSHA-256チェックサム、ファイルサイズ、主要8テーブルの件数をmanifestへ記録する
+5. SQLを一時ローカルSQLiteへ投入し、構文と主要8テーブルの件数がmanifestと一致することを確認する
+6. バックアップディレクトリを所有者だけが参照できる権限にする
+
+SQLとmanifestには本番データまたは復元情報が含まれるためGitへ追加しない。バックアップ先は一時ディレクトリやこのworktree配下にせず、ブランチ作業終了後も残る永続パスを使う。
+
+SQLエクスポート中は本番D1への他のリクエストが一時的にブロックされる可能性があるため、PRプレビュー確認後、本番切替直前の低利用時間帯に実施する。Time Travelのrestoreは破壊的操作として扱い、障害時にもユーザーの明示承認なしでは実行しない。
+
 ## 8. エラー処理とセキュリティ
 
 - D1例外をブラウザへ露出せず、既存の固定ユーザー向けエラーへ変換する
@@ -181,11 +197,12 @@ npm run preview
 2. 開発D1を作成してmigrationを適用する
 3. `score-splitter-dev` を作成し、一本化版をデプロイする
 4. Workers Buildsの非本番ブランチを有効にし、PR Preview URLで確認する
-5. 本番Web Workerへ本番D1 bindingを含む一本化版をデプロイする
-6. 本番の主要フローを確認する
-7. 安定確認期間中は旧 `score-splitter-api` とAPI用シークレットを残す
-8. 問題時は本番Web Workerを旧Versionへ戻す
-9. 安定確認後、別変更で旧API Worker、Custom Domain、共有Bearer設定、HTTPクライアントを削除する
+5. 本番D1のTime Travel復元地点と全量SQLバックアップを取得・検証する
+6. 本番Web Workerへ本番D1 bindingを含む一本化版をデプロイする
+7. 本番の主要フローを確認する
+8. 安定確認期間中は旧 `score-splitter-api` とAPI用シークレットを残す
+9. 問題時は本番Web Workerを旧Versionへ戻す。D1 restoreはデータ破損時だけ明示承認を得て実行する
+10. 安定確認後、別変更で旧API Worker、Custom Domain、共有Bearer設定、HTTPクライアントを削除する
 
 ## 11. 完了条件
 
@@ -193,6 +210,7 @@ npm run preview
 - Preview URLからパスワードでログインできる
 - Preview上で収入・支出・繰越、月コピー、月別集計、ウェイトリストが開発D1へ保存される
 - Previewから本番D1へ読み書きできない
+- 本番切替前のTime Travel復元地点、全量SQL、SHA-256、件数manifestが永続パスに保存され、ローカル復元検証が成功する
 - Cloudflare上の開発環境はWeb/APIを兼ねる1 Workerだけで構成される
 - 本番Web WorkerもD1を直接呼び、公開HTTP経由でAPI Workerを呼ばない
 - 既存の認証、計算、データ保存、ホストルーティングの挙動が維持される

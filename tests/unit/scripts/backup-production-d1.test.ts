@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -232,6 +233,10 @@ describe('本番D1バックアップの対象確認', () => {
     expect(() => selectProductionDatabase(databaseList)).toThrow(/一意/)
   })
 
+  it('d1 listが配列でなければ拒否する', () => {
+    expect(() => selectProductionDatabase({})).toThrow(/配列/)
+  })
+
   it.each([
     [{ ...VALID_DATABASE_INFO, name: 'score-splitter-db-dev' }, /DB名/],
     [{ ...VALID_DATABASE_INFO, uuid: '51457bd5-8e0e-4645-ad34-86634285af2c' }, /UUID/],
@@ -257,6 +262,7 @@ describe('本番D1バックアップのWrangler引数', () => {
     expect(normalizeWranglerVersion('4.107.0\n')).toBe(EXPECTED_WRANGLER_VERSION)
     expect(() => normalizeWranglerVersion('4.107.1\n')).toThrow(/4\.107\.0/)
     expect(() => normalizeWranglerVersion('wrangler 4.107.0\n')).toThrow(/4\.107\.0/)
+    expect(() => normalizeWranglerVersion(undefined)).toThrow(/取得不能/)
   })
 
   it('exportは固定本番DB・remote・非対話確認・.part出力を使う', () => {
@@ -352,6 +358,7 @@ describe('本番D1バックアップの内容検証', () => {
     expect(normalizeGitHeadSha(`${VALID_GIT_HEAD_SHA}\n`)).toBe(VALID_GIT_HEAD_SHA)
     expect(() => normalizeGitHeadSha('main')).toThrow(/Git HEAD/)
     expect(() => normalizeGitHeadSha(VALID_GIT_HEAD_SHA.toUpperCase())).toThrow(/Git HEAD/)
+    expect(() => normalizeGitHeadSha(undefined)).toThrow(/Git HEAD/)
   })
 
   it('Wranglerのresultsを8テーブルの件数へ正規化する', () => {
@@ -361,6 +368,9 @@ describe('本番D1バックアップの内容検証', () => {
     }))
 
     expect(normalizeRemoteCounts([{ success: true, results }])).toEqual(EXPECTED_COUNTS)
+    expect(normalizeRemoteCounts({ success: true, results })).toEqual(EXPECTED_COUNTS)
+    expect(() => normalizeRemoteCounts([])).toThrow(/結果件数/)
+    expect(() => normalizeRemoteCounts([{ success: false, results }])).toThrow(/成功/)
   })
 
   it('SQLiteのJSONを8テーブルの件数へ正規化する', () => {
@@ -379,6 +389,7 @@ describe('本番D1バックアップの内容検証', () => {
         { table_name: 'expenses', row_count: 0 },
       ])
     ).toThrow(/件数/)
+    expect(() => normalizeLocalCounts([null])).toThrow(/行/)
   })
 
   it('nullなど数値以外の件数を0件として扱わない', () => {
@@ -660,6 +671,21 @@ describe('本番切替直前のバックアップ実体再検証', () => {
     }
   })
 
+  it('相対要素で正規化前後が変わるmanifest絶対パスを拒否する', () => {
+    const fixture = createReleaseBackupFixture()
+    try {
+      const redundantPath = `${fixture.backupDirectory}/../20260902T090000Z/manifest.json`
+      expect(() =>
+        parseReleaseVerificationArguments(
+          ['--verify-release-manifest', redundantPath],
+          fixture.backupRoot
+        )
+      ).toThrow(/相対要素/)
+    } finally {
+      rmSync(fixture.backupRoot, { recursive: true, force: true })
+    }
+  })
+
   it('引数の不足・余剰・別フラグを安全側で拒否する', () => {
     const fixture = createReleaseBackupFixture()
     try {
@@ -781,6 +807,26 @@ describe('本番切替直前のバックアップ実体再検証', () => {
       ).toThrow(/bookmark/)
     } finally {
       rmSync(mismatchFixture.backupRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('manifestのsymlinkを通常ファイルとして受け入れない', () => {
+    const fixture = createReleaseBackupFixture()
+    try {
+      const realManifestPath = path.join(fixture.backupDirectory, 'manifest.real.json')
+      writeFileSync(realManifestPath, `${JSON.stringify(fixture.manifest)}\n`, { mode: 0o600 })
+      rmSync(fixture.manifestPath)
+      symlinkSync(realManifestPath, fixture.manifestPath)
+
+      expect(() =>
+        verifyReleaseBackupArtifacts(fixture.manifestPath, {
+          backupRoot: fixture.backupRoot,
+          expectedGitHeadSha: VALID_GIT_HEAD_SHA,
+          now: '2026-09-02T09:34:59.000Z',
+        })
+      ).toThrow(/通常ファイル/)
+    } finally {
+      rmSync(fixture.backupRoot, { recursive: true, force: true })
     }
   })
 })

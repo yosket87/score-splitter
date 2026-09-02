@@ -321,20 +321,23 @@ export function verifyMatchingCounts(remoteCounts, localCounts) {
   return normalizedRemote
 }
 
-export function buildManifest({
-  startedAt,
-  completedAt,
-  gitHeadSha,
-  wranglerVersion,
-  database,
-  bookmark,
-  sqlPath,
-  sqlBytes,
-  sqlSha256,
-  remoteCounts,
-  localCounts,
-  integrityCheck,
-}, { backupRoot = BACKUP_ROOT } = {}) {
+export function buildManifest(
+  {
+    startedAt,
+    completedAt,
+    gitHeadSha,
+    wranglerVersion,
+    database,
+    bookmark,
+    sqlPath,
+    sqlBytes,
+    sqlSha256,
+    remoteCounts,
+    localCounts,
+    integrityCheck,
+  },
+  { backupRoot = BACKUP_ROOT } = {}
+) {
   const verifiedDatabase = normalizeDatabaseInfo(database)
   const verifiedTimeTravel = normalizeTimeTravelInfo({ bookmark })
   const verifiedCounts = verifyMatchingCounts(remoteCounts, localCounts)

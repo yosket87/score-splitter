@@ -165,7 +165,7 @@ export function MonthlyOverview({
             </button>
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-start gap-2">
             <CopyMonthDialog
               currentMonth={currentMonth}
               previousMonth={previousMonth}

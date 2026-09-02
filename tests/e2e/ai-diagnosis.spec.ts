@@ -117,6 +117,32 @@ test('実支出0件月は診断起点を無効にして理由を表示する', a
   await expect(page.getByText('実支出がある月で利用できます')).toBeVisible()
 })
 
+test('1196px幅でAI診断起点が月次要約カード内に収まる', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1196, height: 768 })
+  await login(page)
+  await page.goto('/2026/03')
+  await page.waitForLoadState('networkidle')
+
+  const overviewCard = page
+    .getByRole('region', { name: '月次要約' })
+    .locator('.app-glass-heavy')
+  const trigger = page.getByRole('button', { name: 'AIで今月を振り返る' })
+  const [cardBox, triggerBox] = await Promise.all([
+    overviewCard.boundingBox(),
+    trigger.boundingBox(),
+  ])
+
+  expect(cardBox).not.toBeNull()
+  expect(triggerBox).not.toBeNull()
+  expect(triggerBox!.x + triggerBox!.width).toBeLessThanOrEqual(
+    cardBox!.x + cardBox!.width
+  )
+  await page.screenshot({
+    path: testInfo.outputPath('monthly-overview-actions-1196.png'),
+    animations: 'disabled',
+  })
+})
+
 test('390x844ではDrawerの閉じる操作が44px以上で起点へfocusを戻す', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await login(page)

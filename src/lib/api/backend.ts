@@ -13,7 +13,7 @@ export function isWorkerApiMockEnabled(): boolean {
 }
 
 export function getDatabase(): D1DatabaseLike {
-  const database = (getCloudflareContext().env as unknown as { DB?: D1DatabaseLike }).DB
+  const database = getCloudflareContext().env.DB
   if (!database) {
     throw new Error('D1データベースの設定が見つかりません')
   }

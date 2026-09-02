@@ -55,6 +55,8 @@ npx wrangler secret put APP_PASSWORD_HASH_BASE64
 npx wrangler secret put APP_PASSWORD_HASH_BASE64 --env dev
 ```
 
+開発パスワードは本番と共有せず、macOSのキーチェーンアクセスで項目名 `score-splitter-dev`（アカウント `development`）から確認する。平文はGit・PR・ビルド変数へ保存しない。CloudflareにはbcryptハッシュをBase64化した値のみ設定する。
+
 旧API Workerの共有シークレットは切り戻しが必要な期間だけ保持し、新しい通常経路の設定として追加しない。
 
 ## 手動デプロイ

@@ -24,10 +24,12 @@
 
 | 技術 | バージョン | 用途 |
 |-----|----------|------|
-| Cloudflare Workers | - | フロントエンド・APIのホスティング |
+| Cloudflare Workers | - | Next.js/OpenNext Workerのホスティング（本番・開発をnamed environmentで分離） |
 | @opennextjs/cloudflare | 1.20.x | Next.jsをWorkers上で動かすアダプタ |
 | Cloudflare D1 | - | SQLiteベースの永続データベース |
 | Wrangler | 4.x | Cloudflare CLI（デプロイ・ローカル実行） |
+
+本番・開発の通常リクエストは、Next.js/OpenNext WorkerのD1 bindingから `cloudflare/worker/src/` のD1ドメイン関数を呼び出す。`cloudflare/worker/src/index.ts` のHTTP入口とHTTPクライアントは、`USE_MOCKS=true` のMSWテストまたは旧APIへの切り戻し用に残す。
 
 ## 認証・セキュリティ
 
@@ -74,7 +76,10 @@
   "start": "next start",                // プロダクションサーバー起動
   "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",  // workerd上でローカル実行
   "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",    // フロントエンドをデプロイ
-  "deploy:worker": "wrangler deploy --config cloudflare/worker/wrangler.jsonc",  // Worker APIをデプロイ
+  "deploy:dev": "opennextjs-cloudflare build --env dev && opennextjs-cloudflare deploy --env dev",  // 開発Workerをデプロイ
+  "upload:dev": "opennextjs-cloudflare build --env dev && opennextjs-cloudflare upload --env dev",  // 手動のVersion Previewへupload
+  "migrate:dev": "wrangler d1 migrations apply score-splitter-db-dev --remote --env dev",  // 開発D1へmigration
+  "backup:d1:production": "node scripts/backup-production-d1.mjs",  // 本番D1のバックアップと復元検証
   "cf-typegen": "wrangler types --env-interface CloudflareEnv --include-runtime=false cloudflare-env.d.ts",  // 環境変数の型生成
   "lint": "eslint",                     // ESLintチェック
   "test": "vitest",                     // Vitestウォッチモード
@@ -84,3 +89,5 @@
   "test:e2e:ui": "playwright test --ui" // Playwright UIモード
 }
 ```
+
+通常の本番・開発リクエストはWorkerからD1へ直接アクセスする。HTTP APIクライアントは `USE_MOCKS=true` のMSWテストと旧API切り戻し用にのみ残す。

@@ -2,7 +2,7 @@
 
 ## 概要
 
-Cloudflare D1（SQLite）を使用したデータベース設計です。アプリ本体はD1へ直接接続せず、Cloudflare Worker API経由でアクセスします。
+Cloudflare D1（SQLite）を使用したデータベース設計です。本番・開発とも、Next.js/OpenNextのWorkerが `DB` bindingでD1へ直接アクセスします。D1ドメイン関数は `cloudflare/worker/src/` と共有し、同ディレクトリの `index.ts`（HTTP入口）経由のアクセスは `USE_MOCKS=true` のモックテストまたは切り戻し用に限定します。
 
 ## テーブル構造
 
@@ -70,7 +70,7 @@ Cookieにはトークンのみを保存し、期限・認証方式・personはD1
 
 ### passkey_credentials（パスキークレデンシャルテーブル）
 
-WebAuthnの公開鍵はJSON APIで扱いやすいように`public_key_base64`へBase64文字列として保存します。
+WebAuthnの公開鍵はD1操作で扱いやすいように`public_key_base64`へBase64文字列として保存します。
 
 | カラム | 型 | 説明 |
 |-------|---|------|
@@ -84,7 +84,7 @@ WebAuthnの公開鍵はJSON APIで扱いやすいように`public_key_base64`へ
 
 ### webauthn_challenges（WebAuthnチャレンジテーブル）
 
-パスキー登録・認証用の短命チャレンジを保存します。期限切れデータはWorker API側で削除します。
+パスキー登録・認証用の短命チャレンジを保存します。期限切れデータはServer ActionからD1操作を通じて削除します。
 
 | カラム | 型 | 説明 |
 |-------|---|------|
@@ -112,11 +112,20 @@ WebAuthnの公開鍵はJSON APIで扱いやすいように`public_key_base64`へ
 
 D1にはRLSがないため、以下で保護します。
 
-- Worker APIの共有シークレット認証
-- ブラウザにWorker APIトークンを出さない
-- 用途別のドメインAPI
+- D1 bindingへのアクセスをWorkerのサーバー側処理に限定する
+- ブラウザにD1資格情報や旧Worker APIトークンを出さない
+- セッションCookie、入力検証、ログイン試行制限
 - D1のCHECK制約
 
 ## マイグレーション
 
 D1マイグレーションは `cloudflare/worker/migrations/` に配置しています。
+
+## 環境分離とバックアップ
+
+- 本番Worker `score-splitter-web` は本番D1 `score-splitter` に接続する
+- 開発Worker `score-splitter-dev` は開発D1 `score-splitter-db-dev` に接続する
+- PR Previewは共有の開発D1を使用し、本番D1のデータを開発環境へコピーしない
+- 本番D1へbindingを変更・デプロイする前に、必ず `npm run backup:d1:production -- --confirm-production-d1 <本番D1 UUID>` を実行する
+- バックアップscriptはTime Travel bookmark、全量SQL、SHA-256、SQLite復元の整合性・全8テーブルの件数照合を検証し、`PASS` manifestを作成する。PASSがない状態で本番PRをReadyに変更・merge・本番デプロイしてはならない
+- バックアップはGit管理外の `/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/` に保存する。Time Travelのrestoreはデータ破損時にユーザーが明示承認した場合だけ実行する

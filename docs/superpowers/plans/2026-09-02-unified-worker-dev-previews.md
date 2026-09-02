@@ -635,83 +635,150 @@ Run:
 
 ```bash
 git push -u origin feature/create-dev-env
-gh pr create --base main --title "feat: Workerを一本化してPRプレビュー環境を追加" --body-file /tmp/score-splitter-pr-body.md
+gh pr create --draft --base main --title "feat: Workerを一本化してPRプレビュー環境を追加" --body-file /tmp/score-splitter-pr-body.md
 ```
 
-Expected: CloudflareがPRコメントへブランチAlias Preview URLを投稿する。Preview URLでパスワードログイン、収入・支出・繰越CRUD、月コピー、月別集計、waitlistを確認し、D1 `score-splitter-db-dev` のみが更新される。パスキーは確認しない。
+Expected: Draft PRとして作成され、CloudflareがPRコメントへブランチAlias Preview URLを投稿する。Preview URLでパスワードログイン、収入・支出・繰越CRUD、月コピー、月別集計、waitlistを確認し、D1 `score-splitter-db-dev` のみが更新される。パスキーは確認しない。
 
-PR本文は `/tmp/score-splitter-pr-body.md` に日本語で作成し、概要、変更点、テスト結果、Preview URL確認項目、本番切替前バックアップゲート、ロールバック手順を記載する。PRのマージはこのタスクでは行わない。
+PR本文は `/tmp/score-splitter-pr-body.md` に日本語で作成し、概要、変更点、テスト結果、Preview URL確認項目、本番切替前バックアップゲート、ロールバック手順を記載する。さらに「Preview確認済み」「30分以内のPASS manifest」「manifestのGit HEAD SHAとPR HEAD一致」「ユーザーの本番切替承認」の必須チェック欄を設ける。
+
+Draft維持はこのリポジトリ内のコードだけでは技術的に強制できず、GitHub側のRuleset設定もこの変更へ含めない。そのため、必須チェック欄がすべて完了し、ユーザーが明示承認するまでReady for reviewへ変更せず、マージもしない運用ゲートとする。
 
 ---
 
 ### Task 6: 本番切替直前のD1バックアップゲート
 
 **Files:**
-- Create outside repository: `/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/<UTC日時>/score-splitter.sql`
-- Create outside repository: `/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/<UTC日時>/time-travel.txt`
-- Create outside repository: `/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/<UTC日時>/manifest.txt`
+- Create: `scripts/backup-production-d1.mjs`
+- Create: `tests/unit/scripts/backup-production-d1.test.ts`
+- Modify: `package.json`
+- Runtime output outside repository: `/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/<UTC日時>/score-splitter.sql`
+- Runtime output outside repository: `/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/<UTC日時>/time-travel.json`
+- Runtime output outside repository: `/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/<UTC日時>/manifest.json`
 
 **Interfaces:**
-- Consumes: 本番D1 `score-splitter`、本番D1 UUID、Wrangler認証、ローカルSQLite
-- Produces: worktree外の全量SQL、Time Travel復元地点、SHA-256・サイズ・8テーブル件数を記録したmanifest
+- Consumes: CLI引数 `--confirm-production-d1 7f8d3531-a833-4474-84d5-cee3ac98ee96`、本番D1、Wrangler認証、ローカルSQLite
+- Produces: worktree外の全量SQL、Time Travel復元地点、SHA-256・サイズ・本番/復元先の8テーブル件数を記録したPASS manifest
 
-- [ ] **Step 1: 実行タイミングと対象DBを確認する**
+- [ ] **Step 1: バックアップ検証関数の失敗テストを書く**
 
-PRプレビュー確認後、本番切替直前の低利用時間帯に実施する。SQL exportはD1アクセスを一時的にブロックし得るため、実行開始前にユーザーへ通知する。
-
-Run:
-
-```bash
-npx wrangler d1 info score-splitter --config cloudflare/worker/wrangler.jsonc
-```
-
-Expected: DB名が `score-splitter`、UUIDが `7f8d3531-a833-4474-84d5-cee3ac98ee96`。一致しない場合は以降を実行しない。
-
-- [ ] **Step 2: 永続バックアップディレクトリを作る**
-
-UTC日時を `YYYYMMDDTHHMMSSZ` 形式で取得し、`/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/` 直下へ同名ディレクトリを作る。ディレクトリ権限は `700` にする。コマンド実行時は展開後の絶対パスを再表示して確認し、worktreeや一時ディレクトリを指していないことを確認する。
-
-- [ ] **Step 3: Time Travel復元地点を保存する**
-
-Run:
-
-```bash
-npx wrangler d1 time-travel info score-splitter --config cloudflare/worker/wrangler.jsonc
-```
-
-Expected: 現在のbookmarkとrestoreコマンドが得られる。出力を `time-travel.txt` へ保存し、権限を `600` にする。この計画ではrestoreコマンドを実行しない。
-
-- [ ] **Step 4: schemaとdataを全量exportする**
-
-Run:
-
-```bash
-npx wrangler d1 export score-splitter --remote --config cloudflare/worker/wrangler.jsonc --output=/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/<UTC日時>/score-splitter.sql
-```
-
-Expected: コマンドexit 0、SQLファイルが非空。ファイル権限を `600` にし、`CREATE TABLE` と `INSERT INTO` を含むことを確認する。
-
-- [ ] **Step 5: checksumとテーブル件数を検証する**
-
-本番D1で `incomes`、`expenses`、`carryovers`、`sessions`、`passkey_credentials`、`webauthn_challenges`、`login_attempts`、`waitlist_entries` の `COUNT(*)` を取得する。SQLを `mktemp` で作成したローカルSQLiteへ投入し、同じ8件数が一致することを確認する。
-
-`manifest.txt` へ次だけを保存する。
+`tests/unit/scripts/backup-production-d1.test.ts` に次を追加する。
 
 ```text
-取得UTC日時
-本番D1名とUUID
-SQLファイルの絶対パス
-SQLファイルサイズ
-SHA-256
-8テーブルの本番件数とローカル復元後件数
-検証結果
+固定UUIDのCLI確認が無い、または異なるUUIDなら拒否する
+d1 listから固定name+UUIDの一意entryを選び、version=productionでない場合を拒否する
+Time Travel bookmarkが空なら拒否する
+Time Travel bookmarkに英数字・underscore・hyphen以外が含まれたら拒否する
+SQLが空、CREATE TABLEなし、INSERT INTOなしなら拒否する
+SQLにSQLiteの行頭ドットコマンドが含まれたら拒否する
+リポジトリ内Wranglerのversionが4.107.0以外なら拒否する
+Git HEAD SHAが40文字の小文字hexでなければ拒否する
+8テーブルの不足・不正件数を拒否する
+本番件数とローカル復元件数の不一致をテーブル名付きで拒否する
+開始/完了時刻、Git HEAD SHA、restore引数配列を持つ場合だけverification=PASSのmanifestを生成・検証する
+manifest完了から30分超過、またはPR HEAD SHA不一致なら本番切替を拒否する
+一時SQLite削除失敗時はmanifest.jsonを残さずcleanup-failed.partへ退避する
 ```
 
-Expected: 8テーブルすべて一致し、manifestの検証結果が `PASS`。一時SQLiteだけを削除し、SQL・Time Travel情報・manifestは残す。
+- [ ] **Step 2: REDを確認する**
 
-- [ ] **Step 6: 本番切替を解放する**
+Run:
 
-バックアップ3ファイルの存在、所有者限定権限、非空、checksum、件数一致を再確認する。すべて満たした場合だけ本番デプロイを許可する。満たさない場合は本番Workerを変更せず、原因を報告する。
+```bash
+npx vitest run tests/unit/scripts/backup-production-d1.test.ts
+```
+
+Expected: `scripts/backup-production-d1.mjs` が存在しないためFAILする。
+
+- [ ] **Step 3: 安全側に失敗するバックアップスクリプトを実装する**
+
+`scripts/backup-production-d1.mjs` はmainとして実行されたときだけ外部コマンドを起動し、純粋なnormalize/検証/manifest生成関数はexportする。次の順序を固定する。
+
+```text
+1. CLIで固定本番UUIDを明示確認する
+2. `node_modules/.bin/wrangler --version` が厳密に4.107.0であることを確認する
+3. Git HEAD SHAと開始UTC日時を取得する
+4. wrangler d1 list --jsonから固定name+UUIDの一意entryを選び、version=productionを機械検証する
+5. Time Travel info --jsonのbookmarkを文字種まで検証してtime-travel.json.partへ保存後renameする
+6. export先をscore-splitter.sql.partにし、非空・CREATE TABLE・INSERT INTO・行頭ドットコマンド不在を検証後renameする
+7. 本番8テーブルの件数をwrangler d1 execute --remote --jsonで取得する
+8. `sqlite3 -safe -bail` で一時SQLiteへSQLを復元し、integrity_check=okと8テーブル件数一致を検証する
+9. Node cryptoでSHA-256を計算する
+10. Git HEAD SHA、開始/完了UTC日時、restore実行ファイルと引数配列を含むmanifest.json.partを再parse・検証する
+11. manifest.jsonへrenameした後だけ一時SQLiteを削除する。cleanup失敗時はmanifest.cleanup-failed.partへ戻して非0終了する
+```
+
+固定値はDB名 `score-splitter`、UUID `7f8d3531-a833-4474-84d5-cee3ac98ee96`、Wrangler version `4.107.0`、設定 `cloudflare/worker/wrangler.jsonc`、保存root `/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1` とする。`npx` は使わずリポジトリ内の固定Wranglerを直接実行する。D1一覧で照合した後のTime Travel、export、件数取得とmanifestに記録する手動restoreコマンドは、DB名ではなく固定UUIDを引数に使い、名前の付け替えによる対象ずれを防ぐ。ディレクトリは700、SQL・Time Travel・manifest・cleanup失敗情報は600にする。すべての子プロセスは引数配列と `shell: false` で起動する。Time Travel restoreコマンドは文字列に加えて実行ファイルと引数配列をmanifestへ記録するだけで、絶対に実行しない。
+
+`package.json` のWrangler指定は `^4.107.0` のため、将来のinstallで別versionになった場合はスクリプトが安全側に拒否する。更新時は新versionのD1 JSON契約を検証し、依存versionとスクリプト内の期待versionを同じPRで更新する。
+
+失敗時は `manifest.json` を確定しない。一時SQLiteを調査用に残してパスを報告し、本番デプロイを解放しない。
+
+`package.json` へ次を追加する。
+
+```json
+"backup:d1:production": "node scripts/backup-production-d1.mjs"
+```
+
+- [ ] **Step 4: GREEN、型、静的安全性を確認する**
+
+Run:
+
+```bash
+npx vitest run tests/unit/scripts/backup-production-d1.test.ts
+npm run typecheck
+rg -n "time-travel.*restore" scripts/backup-production-d1.mjs
+```
+
+Expected: テストと型チェックがPASSする。restore文字列・引数配列はmanifest生成箇所だけに存在し、子プロセス実行には渡されない。スクリプト内に `npx` がなく、SQLite復元引数に `-safe` がある。
+
+- [ ] **Step 5: バックアップ実装をコミットしてDraft PRへpushする**
+
+```bash
+git add scripts/backup-production-d1.mjs tests/unit/scripts/backup-production-d1.test.ts package.json docs/superpowers/plans/2026-09-02-unified-worker-dev-previews.md docs/superpowers/specs/2026-09-02-unified-worker-dev-previews-design.md
+git commit -m "feat: 本番D1バックアップゲートを追加"
+git push
+```
+
+Expected: バックアップゲート実装がDraft PRに含まれる。push後も `manifest.json` がPASSになるまではDraftを解除しない。
+
+- [ ] **Step 6: PRプレビュー確認後、低利用時間帯にバックアップを実行する**
+
+SQL exportは本番D1アクセスを一時的にブロックし得るうえ、export後の本番件数と復元件数を比較するには書込み停止が必要である。開始前にユーザーへ通知し、アプリ利用者が書込みを止めた明示的なmaintenance windowへ入る。maintenance windowはPASS manifest確定まで継続する。本番コマンドをユニットテストや実装確認中に試し打ちしない。
+
+Run:
+
+```bash
+npm run backup:d1:production -- --confirm-production-d1 7f8d3531-a833-4474-84d5-cee3ac98ee96
+```
+
+Expected: exit 0で `本番D1バックアップ検証 PASS` と永続ディレクトリが表示される。そこに完成ファイル `score-splitter.sql`、`time-travel.json`、`manifest.json` があり、`.part` は無い。cleanupを含む失敗時は成功表示も `manifest.json` もなく、本番Workerを変更しない。
+
+- [ ] **Step 7: manifestで本番切替ゲートを再確認する**
+
+スクリプトが表示した絶対パスの `manifest.json` を読み、次を確認する。
+
+```text
+verification = PASS
+startedAt / completedAt = 正規化済みUTC日時
+completedAt = 本番切替確認時刻から30分以内
+gitHeadSha = 現在のPR HEAD SHA
+wranglerVersion = 4.107.0
+database.name = score-splitter
+database.uuid = 7f8d3531-a833-4474-84d5-cee3ac98ee96
+database.version = production
+sqliteIntegrityCheck = ok
+counts.remote と counts.restored の8テーブルが一致
+timeTravel.restoreCommandArgs = 検証済みbookmarkを含む固定引数配列
+SQLの実ファイルSHA-256とmanifest.sql.sha256が一致
+ディレクトリ700、3ファイル600
+```
+
+`counts.remote` はexport完了後に取得するため、`counts.restored` との一致はmaintenance window中の補助検証である。D1 export時点と件数照会時点が同一スナップショットであること自体を保証するものではない。書込みが発生した、30分を超過した、またはPR HEADが変わった場合はバックアップを再取得する。
+
+- [ ] **Step 8: Draft解除を解放する**
+
+PR本文の必須チェックをすべて満たし、完了後30分以内かつPR HEAD SHA一致の `manifest.json` があり、ユーザーが本番切替を明示承認した場合だけPRをReady for reviewへ変更できる。どれか1つでも満たさない場合はDraftのままにし、マージと本番デプロイを禁止する。これは運用ゲートでありGitHub設定による技術的強制ではない。PRのマージ自体はこのタスクでは行わない。
 
 ---
 

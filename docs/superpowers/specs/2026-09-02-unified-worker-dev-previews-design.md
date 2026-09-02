@@ -113,6 +113,9 @@ root `wrangler.jsonc` のトップレベルは本番 `score-splitter-web` を表
 - PRへ追加コミットした場合も同じブランチAliasが最新Versionを指す
 - Preview Versionはすべて `score-splitter-db-dev` を参照する
 - Preview URLは公開URLであるため、本番データや本番シークレットを割り当てない
+- 初回PRはDraftで作成し、PR本文の必須チェック、30分以内かつPR HEAD SHA一致のPASS manifest、ユーザーの明示承認が揃うまでReady for reviewへ変更しない
+
+Draft維持はリポジトリ内のコードでは技術的に強制できず、GitHub Rulesetの変更も今回は行わない。PR本文へ「Preview確認済み」「30分以内のPASS manifest」「manifestのGit HEAD SHAとPR HEAD一致」「ユーザー承認」の必須チェック欄を設け、すべて完了するまでReady化・マージしない運用ゲートとする。
 
 複数PRが同じ開発D1を共有する点は許容する。テストデータの衝突を避ける必要が生じた場合は、世帯分離やPR別DBをこの変更へ追加せず、別設計として扱う。
 
@@ -137,18 +140,33 @@ WorkersのブランチPreview URLはブランチごとにホスト名が変わ�
 
 ### 本番D1バックアップ
 
-本番D1へ影響する操作と本番一本化デプロイの前に、次のバックアップゲートを必ず通す。
+本番D1へ影響する操作と本番一本化デプロイの前に、専用スクリプトを次の固定UUID確認付きで実行し、バックアップゲートを必ず通す。
 
-1. `wrangler d1 info` でDB名 `score-splitter` とUUID `7f8d3531-a833-4474-84d5-cee3ac98ee96` の一致を確認する
-2. D1 Time Travelの現在の復元地点と生成されたrestoreコマンドを記録する
-3. schemaとdataを含む全量SQLを `/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/<UTC日時>/` へエクスポートする
-4. SQLファイルのSHA-256チェックサム、ファイルサイズ、主要8テーブルの件数をmanifestへ記録する
-5. SQLを一時ローカルSQLiteへ投入し、構文と主要8テーブルの件数がmanifestと一致することを確認する
-6. バックアップディレクトリを所有者だけが参照できる権限にする
+```bash
+npm run backup:d1:production -- --confirm-production-d1 7f8d3531-a833-4474-84d5-cee3ac98ee96
+```
+
+1. `wrangler d1 list --json` からDB名 `score-splitter` とUUID `7f8d3531-a833-4474-84d5-cee3ac98ee96` に一致する一意entryを選び、`version=production` を機械検証する（Wrangler 4.107の `d1 info --json` はversionを出力しないため使用しない）
+2. リポジトリ内の `node_modules/.bin/wrangler` が厳密にversion 4.107.0であることをCloudflare操作前に検証する
+3. D1 Time Travelの現在のbookmarkを英数字・underscore・hyphenだけに制限してJSON保存し、手動restoreの実行ファイル・引数配列・表示用コマンドをmanifestへ記録する
+4. schemaとdataを含む全量SQLを `/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/<UTC日時>/` へエクスポートし、SQLite行頭ドットコマンドがないことを検証する
+5. SQLファイルのSHA-256チェックサム、ファイルサイズ、本番8テーブルの件数、Git HEAD SHA、開始/完了UTC日時をJSON manifestへ記録する
+6. SQLを `sqlite3 -safe -bail` で一時ローカルSQLiteへ投入し、`integrity_check=ok` と8テーブルの本番/復元後件数一致を確認する
+7. バックアップディレクトリを700、SQL・Time Travel情報・manifest・cleanup失敗情報を600にする
+
+一覧照合後のTime Travel、export、本番件数取得とmanifestに記録する手動restoreコマンドには、DB名ではなく固定UUIDを渡す。これにより、照合後に同名DBの参照先が変わっても別DBをバックアップ・復元しない。
+
+SQLとmanifestは最初に `.part` へ書き、内容検証後にだけ完成名へrenameする。全項目が通った場合だけ `verification=PASS` の `manifest.json` を確定し、一時SQLiteを削除する。cleanupを含む失敗時は成功表示を出さず、`manifest.json` は `manifest.cleanup-failed.part` 等へ退避し、一時SQLiteを調査用に残して本番切替を禁止する。
+
+スクリプトの子プロセスはすべて引数配列と `shell: false` で起動する。`npx` は使わず固定したローカルWranglerを直接実行する。Time Travel restoreは実行ファイル・引数配列・表示用文字列を記録するだけで、バックアップスクリプトからは実行しない。
+
+Wranglerのsemver rangeによりinstall後の実体が4.107.0以外になった場合、バックアップは開始前に拒否する。Wrangler更新時はD1 JSON出力を再検証し、依存versionとバックアップスクリプトの期待versionを同時に更新する。
 
 SQLとmanifestには本番データまたは復元情報が含まれるためGitへ追加しない。バックアップ先は一時ディレクトリやこのworktree配下にせず、ブランチ作業終了後も残る永続パスを使う。
 
-SQLエクスポート中は本番D1への他のリクエストが一時的にブロックされる可能性があるため、PRプレビュー確認後、本番切替直前の低利用時間帯に実施する。Time Travelのrestoreは破壊的操作として扱い、障害時にもユーザーの明示承認なしでは実行しない。
+SQLエクスポート中は本番D1への他のリクエストが一時的にブロックされる可能性があるため、PRプレビュー確認後、本番切替直前に利用者の書込みを明示的に止めたmaintenance windowで実施する。PASS manifest確定までは書込み停止を維持する。
+
+本番件数はexport完了後に別クエリで取得するため、復元後件数との一致はmaintenance window中の補助検証であり、export時点以後の同一性を単独では保証しない。本番切替時はmanifestの `completedAt` から30分以内で、`gitHeadSha` がPR HEAD SHAと一致することを再確認する。書込み発生、30分超過、PR HEAD更新のいずれかがあれば再取得する。Time Travelのrestoreは破壊的操作として扱い、障害時にもユーザーの明示承認なしでは実行しない。
 
 ## 8. エラー処理とセキュリティ
 
@@ -196,13 +214,14 @@ npm run preview
 1. ローカルでD1直接化を実装し、全テストを通す
 2. 開発D1を作成してmigrationを適用する
 3. `score-splitter-dev` を作成し、一本化版をデプロイする
-4. Workers Buildsの非本番ブランチを有効にし、PR Preview URLで確認する
-5. 本番D1のTime Travel復元地点と全量SQLバックアップを取得・検証する
-6. 本番Web Workerへ本番D1 bindingを含む一本化版をデプロイする
-7. 本番の主要フローを確認する
-8. 安定確認期間中は旧 `score-splitter-api` とAPI用シークレットを残す
-9. 問題時は本番Web Workerを旧Versionへ戻す。D1 restoreはデータ破損時だけ明示承認を得て実行する
-10. 安定確認後、別変更で旧API Worker、Custom Domain、共有Bearer設定、HTTPクライアントを削除する
+4. Workers Buildsの非本番ブランチを有効にし、Draft PRのPreview URLで確認する
+5. 利用者の書込みを止めたmaintenance windowで本番D1のTime Travel復元地点と全量SQLバックアップを取得し、PASS manifestを確定する
+6. PR本文の必須チェック、30分以内かつPR HEAD SHA一致のPASS manifest、ユーザーの明示承認が揃った場合だけPRをReady for reviewへ変更する
+7. 本番Web Workerへ本番D1 bindingを含む一本化版をデプロイする
+8. 本番の主要フローを確認する
+9. 安定確認期間中は旧 `score-splitter-api` とAPI用シークレットを残す
+10. 問題時は本番Web Workerを旧Versionへ戻す。D1 restoreはデータ破損時だけ明示承認を得て実行する
+11. 安定確認後、別変更で旧API Worker、Custom Domain、共有Bearer設定、HTTPクライアントを削除する
 
 ## 11. 完了条件
 
@@ -211,6 +230,7 @@ npm run preview
 - Preview上で収入・支出・繰越、月コピー、月別集計、ウェイトリストが開発D1へ保存される
 - Previewから本番D1へ読み書きできない
 - 本番切替前のTime Travel復元地点、全量SQL、SHA-256、件数manifestが永続パスに保存され、ローカル復元検証が成功する
+- バックアップmanifestがPASSでも、30分以内・PR HEAD SHA一致・PR本文必須チェック・ユーザー明示承認が揃うまではPRがDraftのままで、マージと本番デプロイが行われない
 - Cloudflare上の開発環境はWeb/APIを兼ねる1 Workerだけで構成される
 - 本番Web WorkerもD1を直接呼び、公開HTTP経由でAPI Workerを呼ばない
 - 既存の認証、計算、データ保存、ホストルーティングの挙動が維持される

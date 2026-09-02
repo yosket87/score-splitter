@@ -13,6 +13,7 @@
     "upload:dev": "opennextjs-cloudflare build --env dev && opennextjs-cloudflare upload --env dev",
     "deploy:worker": "wrangler deploy --config cloudflare/worker/wrangler.jsonc",
     "migrate:dev": "wrangler d1 migrations apply score-splitter-db-dev --remote --env dev",
+    "backup:d1:production": "node scripts/backup-production-d1.mjs",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv --include-runtime=false cloudflare-env.d.ts",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",

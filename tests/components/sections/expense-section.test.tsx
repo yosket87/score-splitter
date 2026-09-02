@@ -14,6 +14,9 @@ vi.mock('@/app/actions/expense', () => ({
   toggleExpenseCarryover: vi.fn(),
 }))
 
+vi.mock('@/app/actions/income', () => ({ createIncome: vi.fn() }))
+vi.mock('@/app/actions/carryover', () => ({ createCarryover: vi.fn() }))
+
 vi.mock('sonner', () => ({
   toast: {
     error: vi.fn(),

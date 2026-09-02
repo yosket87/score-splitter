@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import {
   chmodSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -10,7 +11,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
@@ -20,7 +21,7 @@ export const EXPECTED_DATABASE_ID = '7f8d3531-a833-4474-84d5-cee3ac98ee96'
 export const EXPECTED_DATABASE_VERSION = 'production'
 export const EXPECTED_WRANGLER_VERSION = '4.107.0'
 export const CONFIG_PATH = 'cloudflare/worker/wrangler.jsonc'
-export const BACKUP_ROOT = '/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1'
+export const BACKUP_ROOT = path.join(homedir(), 'Documents', 'Backups', 'score-splitter', 'd1')
 export const BACKUP_TABLES = Object.freeze([
   'incomes',
   'expenses',
@@ -57,16 +58,52 @@ function parseJson(value, label) {
 }
 
 export function parseConfirmedDatabaseId(args) {
-  const flagIndex = args.indexOf('--confirm-production-d1')
-  const confirmedId = flagIndex >= 0 ? args[flagIndex + 1] : undefined
+  const confirmedId = Array.isArray(args) && args.length === 2 ? args[1] : undefined
 
-  if (confirmedId !== EXPECTED_DATABASE_ID) {
+  if (args?.[0] !== '--confirm-production-d1' || confirmedId !== EXPECTED_DATABASE_ID) {
     throw new Error(
       `本番D1の固定UUIDを --confirm-production-d1 ${EXPECTED_DATABASE_ID} で明示してください`
     )
   }
 
   return confirmedId
+}
+
+function normalizeReleaseManifestPath(manifestPath, backupRoot) {
+  if (typeof manifestPath !== 'string' || !path.isAbsolute(manifestPath)) {
+    throw new Error('再検証するmanifestは絶対パスで指定してください')
+  }
+  if (path.normalize(manifestPath) !== manifestPath) {
+    throw new Error('再検証するmanifestパスに冗長な区切りや相対要素は使用できません')
+  }
+
+  const relativePath = path.relative(backupRoot, manifestPath)
+  const pathParts = relativePath.split(path.sep)
+  if (
+    relativePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativePath) ||
+    pathParts.length !== 2 ||
+    !/^\d{8}T\d{6}Z$/.test(pathParts[0]) ||
+    pathParts[1] !== 'manifest.json'
+  ) {
+    throw new Error('manifestは固定保存root直下のバックアップdirから指定してください')
+  }
+
+  return manifestPath
+}
+
+export function parseReleaseVerificationArguments(args, backupRoot = BACKUP_ROOT) {
+  if (
+    !Array.isArray(args) ||
+    args.length !== 2 ||
+    args[0] !== '--verify-release-manifest'
+  ) {
+    throw new Error(
+      '再検証の引数は --verify-release-manifest <manifest.jsonの絶対パス> のみ指定できます'
+    )
+  }
+
+  return normalizeReleaseManifestPath(args[1], backupRoot)
 }
 
 export function normalizeDatabaseInfo(value) {
@@ -297,7 +334,7 @@ export function buildManifest({
   remoteCounts,
   localCounts,
   integrityCheck,
-}) {
+}, { backupRoot = BACKUP_ROOT } = {}) {
   const verifiedDatabase = normalizeDatabaseInfo(database)
   const verifiedTimeTravel = normalizeTimeTravelInfo({ bookmark })
   const verifiedCounts = verifyMatchingCounts(remoteCounts, localCounts)
@@ -335,10 +372,10 @@ export function buildManifest({
     sqliteIntegrityCheck: integrityCheck,
   }
 
-  return validateManifest(manifest)
+  return validateManifest(manifest, { backupRoot })
 }
 
-export function validateManifest(value) {
+export function validateManifest(value, { backupRoot = BACKUP_ROOT } = {}) {
   const manifest = asObject(value, 'manifest')
   if (manifest.schemaVersion !== 2 || manifest.verification !== 'PASS') {
     throw new Error('manifestのschemaVersionまたはverificationが不正です')
@@ -370,7 +407,7 @@ export function validateManifest(value) {
   }
   const sql = asObject(manifest.sql, 'manifest.sql')
   const relativeSqlPath =
-    typeof sql.path === 'string' ? path.relative(BACKUP_ROOT, sql.path) : undefined
+    typeof sql.path === 'string' ? path.relative(backupRoot, sql.path) : undefined
   if (
     typeof sql.path !== 'string' ||
     sql.path.length === 0 ||
@@ -405,8 +442,11 @@ function normalizeIsoTimestamp(value, label) {
   return normalized
 }
 
-export function validateReleaseManifest(value, { expectedGitHeadSha, now }) {
-  const manifest = validateManifest(value)
+export function validateReleaseManifest(
+  value,
+  { expectedGitHeadSha, now, backupRoot = BACKUP_ROOT }
+) {
+  const manifest = validateManifest(value, { backupRoot })
   const verifiedExpectedGitHeadSha = normalizeGitHeadSha(expectedGitHeadSha)
   if (manifest.gitHeadSha !== verifiedExpectedGitHeadSha) {
     throw new Error(
@@ -421,6 +461,88 @@ export function validateReleaseManifest(value, { expectedGitHeadSha, now }) {
   }
 
   return manifest
+}
+
+function readPrivateRegularFile(filePath, label) {
+  let stats
+  try {
+    stats = lstatSync(filePath)
+  } catch (error) {
+    throw new Error(`${label}が見つからないか参照できません: ${filePath}`, { cause: error })
+  }
+  if (stats.isSymbolicLink() || !stats.isFile()) {
+    throw new Error(`${label}は通常ファイルである必要があります: ${filePath}`)
+  }
+  if ((stats.mode & 0o777) !== 0o600) {
+    throw new Error(`${label}の権限は0600である必要があります: ${filePath}`)
+  }
+
+  return { contents: readFileSync(filePath), stats }
+}
+
+function verifyPrivateDirectory(directoryPath, label) {
+  let stats
+  try {
+    stats = lstatSync(directoryPath)
+  } catch (error) {
+    throw new Error(`${label}が見つからないか参照できません: ${directoryPath}`, {
+      cause: error,
+    })
+  }
+  if (stats.isSymbolicLink() || !stats.isDirectory()) {
+    throw new Error(`${label}は通常ディレクトリである必要があります: ${directoryPath}`)
+  }
+  if ((stats.mode & 0o777) !== 0o700) {
+    throw new Error(`${label}の権限は0700である必要があります: ${directoryPath}`)
+  }
+}
+
+export function verifyReleaseBackupArtifacts(
+  manifestPath,
+  { expectedGitHeadSha, now, backupRoot = BACKUP_ROOT }
+) {
+  const verifiedManifestPath = normalizeReleaseManifestPath(manifestPath, backupRoot)
+  const backupDirectory = path.dirname(verifiedManifestPath)
+  verifyPrivateDirectory(backupRoot, 'バックアップ保存root')
+  verifyPrivateDirectory(backupDirectory, 'バックアップdir')
+
+  const manifestFile = readPrivateRegularFile(verifiedManifestPath, 'manifest')
+  const manifest = validateReleaseManifest(
+    parseJson(manifestFile.contents.toString('utf8'), 'manifest'),
+    { expectedGitHeadSha, now, backupRoot }
+  )
+
+  const sqlPath = path.join(backupDirectory, 'score-splitter.sql')
+  if (manifest.sql.path !== sqlPath) {
+    throw new Error('manifestのSQLパスが同じバックアップdirの固定ファイルと一致しません')
+  }
+  const sqlFile = readPrivateRegularFile(sqlPath, 'SQL')
+  if (sqlFile.stats.size !== manifest.sql.bytes) {
+    throw new Error(
+      `SQL実サイズがmanifestと一致しません: ${sqlFile.stats.size} != ${manifest.sql.bytes}`
+    )
+  }
+  const actualSqlSha256 = createHash('sha256').update(sqlFile.contents).digest('hex')
+  if (actualSqlSha256 !== manifest.sql.sha256) {
+    throw new Error('SQL実体のSHA-256がmanifestと一致しません')
+  }
+
+  const timeTravelPath = path.join(backupDirectory, 'time-travel.json')
+  const timeTravelFile = readPrivateRegularFile(timeTravelPath, 'Time Travel情報')
+  const timeTravel = normalizeTimeTravelInfo(
+    parseJson(timeTravelFile.contents.toString('utf8'), 'Time Travel情報')
+  )
+  if (timeTravel.bookmark !== manifest.timeTravel.bookmark) {
+    throw new Error('Time Travel bookmarkがmanifestと一致しません')
+  }
+
+  return {
+    manifest,
+    manifestPath: verifiedManifestPath,
+    backupDirectory,
+    sqlPath,
+    timeTravelPath,
+  }
 }
 
 function runCommand(executable, args, { input, label } = {}) {
@@ -443,6 +565,26 @@ function runCommand(executable, args, { input, label } = {}) {
   }
 
   return Buffer.isBuffer(result.stdout) ? result.stdout.toString('utf8') : result.stdout
+}
+
+export function runReleaseBackupVerification(
+  args = process.argv.slice(2),
+  {
+    backupRoot = BACKUP_ROOT,
+    clock = () => new Date(),
+    commandRunner = runCommand,
+  } = {}
+) {
+  const manifestPath = parseReleaseVerificationArguments(args, backupRoot)
+  const gitHeadSha = normalizeGitHeadSha(
+    commandRunner('git', ['rev-parse', 'HEAD'], { label: 'Git HEAD SHA取得' })
+  )
+
+  return verifyReleaseBackupArtifacts(manifestPath, {
+    backupRoot,
+    expectedGitHeadSha: gitHeadSha,
+    now: clock().toISOString(),
+  })
 }
 
 function writePrivateFile(filePath, value) {
@@ -479,55 +621,64 @@ export function finalizeBackupFiles({ manifestPartPath, manifestPath, restoreDir
   }
 }
 
-export function runProductionBackup(args = process.argv.slice(2), clock = () => new Date()) {
+export function runProductionBackup(
+  args = process.argv.slice(2),
+  {
+    backupRoot = BACKUP_ROOT,
+    clock = () => new Date(),
+    commandRunner = runCommand,
+    wranglerExecutable = WRANGLER_EXECUTABLE,
+  } = {}
+) {
   const startedAt = clock().toISOString()
   parseConfirmedDatabaseId(args)
   if (!existsSync(path.join(repositoryRoot, CONFIG_PATH))) {
     throw new Error(`固定Wrangler設定が見つかりません: ${CONFIG_PATH}`)
   }
-  if (!existsSync(WRANGLER_EXECUTABLE)) {
-    throw new Error(`固定Wrangler実行ファイルが見つかりません: ${WRANGLER_EXECUTABLE}`)
+  if (!existsSync(wranglerExecutable)) {
+    throw new Error(`固定Wrangler実行ファイルが見つかりません: ${wranglerExecutable}`)
   }
 
   const wranglerVersion = normalizeWranglerVersion(
-    runCommand(WRANGLER_EXECUTABLE, ['--version'], {
+    commandRunner(wranglerExecutable, ['--version'], {
       label: 'Wranglerバージョン検証',
     })
   )
   const gitHeadSha = normalizeGitHeadSha(
-    runCommand('git', ['rev-parse', 'HEAD'], { label: 'Git HEAD SHA取得' })
+    commandRunner('git', ['rev-parse', 'HEAD'], { label: 'Git HEAD SHA取得' })
   )
 
-  const databaseListOutput = runCommand(
-    WRANGLER_EXECUTABLE,
+  const databaseListOutput = commandRunner(
+    wranglerExecutable,
     buildDatabaseListArguments(),
     { label: 'D1一覧の取得' }
   )
   const database = selectProductionDatabase(parseJson(databaseListOutput, 'D1一覧'))
 
-  process.umask(0o077)
-  mkdirSync(BACKUP_ROOT, { recursive: true, mode: 0o700 })
-  chmodSync(BACKUP_ROOT, 0o700)
-  const backupDirectory = path.join(BACKUP_ROOT, createTimestamp(new Date(startedAt)))
-  mkdirSync(backupDirectory, { mode: 0o700 })
-  chmodSync(backupDirectory, 0o700)
-
-  let restoreDirectory
+  const previousUmask = process.umask(0o077)
   try {
-    const timeTravelOutput = runCommand(WRANGLER_EXECUTABLE, buildTimeTravelArguments(), {
-      label: 'Time Travel情報の取得',
-    })
-    const parsedTimeTravel = parseJson(timeTravelOutput, 'Time Travel情報')
-    const { bookmark } = normalizeTimeTravelInfo(parsedTimeTravel)
-    const timeTravelPartPath = path.join(backupDirectory, 'time-travel.json.part')
-    const timeTravelPath = path.join(backupDirectory, 'time-travel.json')
-    writePrivateFile(timeTravelPartPath, `${JSON.stringify(parsedTimeTravel, null, 2)}\n`)
-    renameSync(timeTravelPartPath, timeTravelPath)
-    chmodSync(timeTravelPath, 0o600)
+    mkdirSync(backupRoot, { recursive: true, mode: 0o700 })
+    chmodSync(backupRoot, 0o700)
+    const backupDirectory = path.join(backupRoot, createTimestamp(new Date(startedAt)))
+    mkdirSync(backupDirectory, { mode: 0o700 })
+    chmodSync(backupDirectory, 0o700)
+
+    let restoreDirectory
+    try {
+      const timeTravelOutput = commandRunner(wranglerExecutable, buildTimeTravelArguments(), {
+        label: 'Time Travel情報の取得',
+      })
+      const parsedTimeTravel = parseJson(timeTravelOutput, 'Time Travel情報')
+      const { bookmark } = normalizeTimeTravelInfo(parsedTimeTravel)
+      const timeTravelPartPath = path.join(backupDirectory, 'time-travel.json.part')
+      const timeTravelPath = path.join(backupDirectory, 'time-travel.json')
+      writePrivateFile(timeTravelPartPath, `${JSON.stringify(parsedTimeTravel, null, 2)}\n`)
+      renameSync(timeTravelPartPath, timeTravelPath)
+      chmodSync(timeTravelPath, 0o600)
 
     const sqlPartPath = path.join(backupDirectory, 'score-splitter.sql.part')
     const sqlPath = path.join(backupDirectory, 'score-splitter.sql')
-    runCommand(WRANGLER_EXECUTABLE, buildExportArguments(sqlPartPath), {
+    commandRunner(wranglerExecutable, buildExportArguments(sqlPartPath), {
       label: '本番D1の全量export',
     })
     if (!existsSync(sqlPartPath)) {
@@ -538,8 +689,8 @@ export function runProductionBackup(args = process.argv.slice(2), clock = () => 
     renameSync(sqlPartPath, sqlPath)
     chmodSync(sqlPath, 0o600)
 
-    const remoteCountOutput = runCommand(
-      WRANGLER_EXECUTABLE,
+    const remoteCountOutput = commandRunner(
+      wranglerExecutable,
       buildRemoteCountArguments(),
       {
         label: '本番D1のテーブル件数取得',
@@ -552,17 +703,17 @@ export function runProductionBackup(args = process.argv.slice(2), clock = () => 
     restoreDirectory = mkdtempSync(path.join(tmpdir(), 'score-splitter-backup-verify-'))
     chmodSync(restoreDirectory, 0o700)
     const restoreDatabasePath = path.join(restoreDirectory, 'restored.sqlite')
-    runCommand('sqlite3', buildSqliteRestoreArguments(restoreDatabasePath), {
+    commandRunner('sqlite3', buildSqliteRestoreArguments(restoreDatabasePath), {
       input: readFileSync(sqlPath),
       label: 'SQLiteへのバックアップ復元',
     })
     chmodSync(restoreDatabasePath, 0o600)
-    const integrityCheck = runCommand(
+    const integrityCheck = commandRunner(
       'sqlite3',
       ['-safe', restoreDatabasePath, 'PRAGMA integrity_check;'],
       { label: 'SQLite integrity_check' }
     ).trim()
-    const localCountOutput = runCommand(
+    const localCountOutput = commandRunner(
       'sqlite3',
       ['-safe', '-json', restoreDatabasePath, `${countSql};`],
       { label: '復元SQLiteのテーブル件数取得' }
@@ -574,28 +725,34 @@ export function runProductionBackup(args = process.argv.slice(2), clock = () => 
 
     const sqlStats = statSync(sqlPath)
     const completedAt = clock().toISOString()
-    const manifest = buildManifest({
-      startedAt,
-      completedAt,
-      gitHeadSha,
-      wranglerVersion,
-      database,
-      bookmark,
-      sqlPath,
-      sqlBytes: sqlStats.size,
-      sqlSha256: sha256File(sqlPath),
-      remoteCounts,
-      localCounts,
-      integrityCheck,
-    })
+    const manifest = buildManifest(
+      {
+        startedAt,
+        completedAt,
+        gitHeadSha,
+        wranglerVersion,
+        database,
+        bookmark,
+        sqlPath,
+        sqlBytes: sqlStats.size,
+        sqlSha256: sha256File(sqlPath),
+        remoteCounts,
+        localCounts,
+        integrityCheck,
+      },
+      { backupRoot }
+    )
     validateReleaseManifest(manifest, {
       expectedGitHeadSha: gitHeadSha,
       now: completedAt,
+      backupRoot,
     })
     const manifestPartPath = path.join(backupDirectory, 'manifest.json.part')
     const manifestPath = path.join(backupDirectory, 'manifest.json')
     writePrivateFile(manifestPartPath, `${JSON.stringify(manifest, null, 2)}\n`)
-    validateManifest(parseJson(readFileSync(manifestPartPath, 'utf8'), 'manifest'))
+    validateManifest(parseJson(readFileSync(manifestPartPath, 'utf8'), 'manifest'), {
+      backupRoot,
+    })
     const finalization = finalizeBackupFiles({
       manifestPartPath,
       manifestPath,
@@ -603,15 +760,18 @@ export function runProductionBackup(args = process.argv.slice(2), clock = () => 
     })
     restoreDirectory = undefined
 
-    return { backupDirectory, manifestPath, ...finalization }
-  } catch (error) {
-    if (restoreDirectory !== undefined) {
-      throw new Error(
-        `${error instanceof Error ? error.message : String(error)}\n検証失敗時の一時SQLite: ${restoreDirectory}`,
-        { cause: error }
-      )
+      return { backupDirectory, manifestPath, ...finalization }
+    } catch (error) {
+      if (restoreDirectory !== undefined) {
+        throw new Error(
+          `${error instanceof Error ? error.message : String(error)}\n検証失敗時の一時SQLite: ${restoreDirectory}`,
+          { cause: error }
+        )
+      }
+      throw error
     }
-    throw error
+  } finally {
+    process.umask(previousUmask)
   }
 }
 
@@ -621,8 +781,13 @@ const isMain =
 
 if (isMain) {
   try {
-    const result = runProductionBackup()
-    console.log(`本番D1バックアップ検証 PASS: ${result.backupDirectory}`)
+    if (process.argv[2] === '--verify-release-manifest') {
+      const result = runReleaseBackupVerification()
+      console.log(`本番D1バックアップ実体の再検証 PASS: ${result.manifestPath}`)
+    } else {
+      const result = runProductionBackup()
+      console.log(`本番D1バックアップ検証 PASS: ${result.backupDirectory}`)
+    }
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error))
     process.exitCode = 1

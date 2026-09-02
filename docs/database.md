@@ -128,4 +128,4 @@ D1マイグレーションは `cloudflare/worker/migrations/` に配置してい
 - PR Previewは共有の開発D1を使用し、本番D1のデータを開発環境へコピーしない
 - 本番D1へbindingを変更・デプロイする前に、必ず `npm run backup:d1:production -- --confirm-production-d1 <本番D1 UUID>` を実行する
 - バックアップscriptはTime Travel bookmark、全量SQL、SHA-256、SQLite復元の整合性・全8テーブルの件数照合を検証し、`PASS` manifestを作成する。PASSがない状態で本番PRをReadyに変更・merge・本番デプロイしてはならない
-- バックアップはGit管理外の `/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/` に保存する。Time Travelのrestoreはデータ破損時にユーザーが明示承認した場合だけ実行する
+- バックアップはGit管理外の `~/Documents/Backups/score-splitter/d1/` に保存する。Time Travelのrestoreはデータ破損時にユーザーが明示承認した場合だけ実行する

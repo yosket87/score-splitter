@@ -23,7 +23,7 @@
 - `USE_MOCKS=true` のPlaywright E2Eと `/api/mock/reset` は維持する。
 - 旧本番API Worker、`api.yamawake.app`、共有Bearer設定、API用ソースは初回リリースで削除しない。
 - 本番D1への操作と本番一本化デプロイは、Time Travel復元地点・全量SQL・SHA-256・件数manifest・ローカル復元検証が揃うまで実行しない。
-- 本番バックアップはworktree外の `/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/` に保存し、Gitへ追加しない。
+- 本番バックアップはworktree外の `~/Documents/Backups/score-splitter/d1/` に保存し、Gitへ追加しない。
 - D1 Time Travelのrestoreはユーザーの明示承認なしでは実行しない。
 - 新規production関数はRED → GREEN → REFACTORで追加し、statements / branches / functions / linesの全てで80%以上を維持する。
 - ユーザー所有の未追跡 `refactor-instructions.md` を編集・追加・削除・コミットしない。
@@ -652,13 +652,13 @@ Draft維持はこのリポジトリ内のコードだけでは技術的に強制
 - Create: `scripts/backup-production-d1.mjs`
 - Create: `tests/unit/scripts/backup-production-d1.test.ts`
 - Modify: `package.json`
-- Runtime output outside repository: `/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/<UTC日時>/score-splitter.sql`
-- Runtime output outside repository: `/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/<UTC日時>/time-travel.json`
-- Runtime output outside repository: `/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/<UTC日時>/manifest.json`
+- Runtime output outside repository: `~/Documents/Backups/score-splitter/d1/<UTC日時>/score-splitter.sql`
+- Runtime output outside repository: `~/Documents/Backups/score-splitter/d1/<UTC日時>/time-travel.json`
+- Runtime output outside repository: `~/Documents/Backups/score-splitter/d1/<UTC日時>/manifest.json`
 
 **Interfaces:**
-- Consumes: CLI引数 `--confirm-production-d1 7f8d3531-a833-4474-84d5-cee3ac98ee96`、本番D1、Wrangler認証、ローカルSQLite
-- Produces: worktree外の全量SQL、Time Travel復元地点、SHA-256・サイズ・本番/復元先の8テーブル件数を記録したPASS manifest
+- Consumes: CLI引数 `--confirm-production-d1 7f8d3531-a833-4474-84d5-cee3ac98ee96` または `--verify-release-manifest <絶対manifestパス>`、本番D1、Wrangler認証、ローカルSQLite
+- Produces: worktree外の全量SQL、Time Travel復元地点、SHA-256・サイズ・本番/復元先の8テーブル件数を記録したPASS manifest、およびCloudflareへ接続しない切替直前の実体再検証結果
 
 - [ ] **Step 1: バックアップ検証関数の失敗テストを書く**
 
@@ -677,6 +677,9 @@ Git HEAD SHAが40文字の小文字hexでなければ拒否する
 本番件数とローカル復元件数の不一致をテーブル名付きで拒否する
 開始/完了時刻、Git HEAD SHA、restore引数配列を持つ場合だけverification=PASSのmanifestを生成・検証する
 manifest完了から30分超過、またはPR HEAD SHA不一致なら本番切替を拒否する
+相対パス、固定保存root外、直下のバックアップdirより深いmanifestパスを拒否する
+SQL実体の欠落・実サイズ・SHA-256不一致を拒否する
+保存rootとバックアップdirが0700、SQL・Time Travel・manifestが0600でなければ拒否する
 一時SQLite削除失敗時はmanifest.jsonを残さずcleanup-failed.partへ退避する
 ```
 
@@ -708,7 +711,9 @@ Expected: `scripts/backup-production-d1.mjs` が存在しないためFAILする�
 11. manifest.jsonへrenameした後だけ一時SQLiteを削除する。cleanup失敗時はmanifest.cleanup-failed.partへ戻して非0終了する
 ```
 
-固定値はDB名 `score-splitter`、UUID `7f8d3531-a833-4474-84d5-cee3ac98ee96`、Wrangler version `4.107.0`、設定 `cloudflare/worker/wrangler.jsonc`、保存root `/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1` とする。`npx` は使わずリポジトリ内の固定Wranglerを直接実行する。D1一覧で照合した後のTime Travel、export、件数取得とmanifestに記録する手動restoreコマンドは、DB名ではなく固定UUIDを引数に使い、名前の付け替えによる対象ずれを防ぐ。ディレクトリは700、SQL・Time Travel・manifest・cleanup失敗情報は600にする。すべての子プロセスは引数配列と `shell: false` で起動する。Time Travel restoreコマンドは文字列に加えて実行ファイルと引数配列をmanifestへ記録するだけで、絶対に実行しない。
+固定値はDB名 `score-splitter`、UUID `7f8d3531-a833-4474-84d5-cee3ac98ee96`、Wrangler version `4.107.0`、設定 `cloudflare/worker/wrangler.jsonc`、保存root `homedir()/Documents/Backups/score-splitter/d1` とする。`npx` は使わずリポジトリ内の固定Wranglerを直接実行する。D1一覧で照合した後のTime Travel、export、件数取得とmanifestに記録する手動restoreコマンドは、DB名ではなく固定UUIDを引数に使い、名前の付け替えによる対象ずれを防ぐ。ディレクトリは700、SQL・Time Travel・manifest・cleanup失敗情報は600にする。すべての子プロセスは引数配列と `shell: false` で起動する。Time Travel restoreコマンドは文字列に加えて実行ファイルと引数配列をmanifestへ記録するだけで、絶対に実行しない。
+
+`runProductionBackup` の統合テストではコマンド実行器と保存rootだけを差し替え、偽Wrangler/SQLiteで `list → bookmark → export → remote count → SQLite復元・検証` の順序、Time Travel restore非実行、途中失敗時にPASS manifestが存在しないことを確認する。実際のCloudflareコマンドはテストから起動しない。
 
 `package.json` のWrangler指定は `^4.107.0` のため、将来のinstallで別versionになった場合はスクリプトが安全側に拒否する。更新時は新versionのD1 JSON契約を検証し、依存versionとスクリプト内の期待versionを同じPRで更新する。
 
@@ -717,7 +722,8 @@ Expected: `scripts/backup-production-d1.mjs` が存在しないためFAILする�
 `package.json` へ次を追加する。
 
 ```json
-"backup:d1:production": "node scripts/backup-production-d1.mjs"
+"backup:d1:production": "node scripts/backup-production-d1.mjs",
+"verify:d1:production-backup": "node scripts/backup-production-d1.mjs --verify-release-manifest"
 ```
 
 - [ ] **Step 4: GREEN、型、静的安全性を確認する**
@@ -756,7 +762,13 @@ Expected: exit 0で `本番D1バックアップ検証 PASS` と永続ディレ�
 
 - [ ] **Step 7: manifestで本番切替ゲートを再確認する**
 
-スクリプトが表示した絶対パスの `manifest.json` を読み、次を確認する。
+スクリプトが表示した絶対パスの `manifest.json` を使い、Cloudflareへ接続しない再検証CLIを実行する。相対パスや固定保存root外のパスは使用しない。
+
+```bash
+npm run verify:d1:production-backup -- ~/Documents/Backups/score-splitter/d1/<UTC日時>/manifest.json
+```
+
+CLIが次をすべて確認してPASSすることを確認する。
 
 ```text
 verification = PASS

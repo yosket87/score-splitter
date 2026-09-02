@@ -1,9 +1,19 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import {
+  BACKUP_ROOT,
   BACKUP_TABLES,
   EXPECTED_DATABASE_ID,
   EXPECTED_WRANGLER_VERSION,
@@ -22,10 +32,14 @@ import {
   normalizeTimeTravelInfo,
   normalizeWranglerVersion,
   parseConfirmedDatabaseId,
+  parseReleaseVerificationArguments,
+  runProductionBackup,
+  runReleaseBackupVerification,
   selectProductionDatabase,
   validateBackupSql,
   validateManifest,
   validateReleaseManifest,
+  verifyReleaseBackupArtifacts,
   verifyMatchingCounts,
 } from '../../../scripts/backup-production-d1.mjs'
 
@@ -49,6 +63,135 @@ const VALID_GIT_HEAD_SHA = 'a89c23cb841fca439bfc79a2393efcdbc872c46d'
 const STARTED_AT = '2026-09-02T09:00:00.000Z'
 const COMPLETED_AT = '2026-09-02T09:05:00.000Z'
 
+function createReleaseBackupFixture() {
+  const backupRoot = mkdtempSync(path.join(tmpdir(), 'score-splitter-release-test-'))
+  chmodSync(backupRoot, 0o700)
+  const backupDirectory = path.join(backupRoot, '20260902T090000Z')
+  mkdirSync(backupDirectory, { mode: 0o700 })
+  chmodSync(backupDirectory, 0o700)
+
+  const sqlPath = path.join(backupDirectory, 'score-splitter.sql')
+  const sql = Buffer.from(
+    "CREATE TABLE incomes (id TEXT PRIMARY KEY);\nINSERT INTO incomes VALUES ('1');\n"
+  )
+  writeFileSync(sqlPath, sql, { mode: 0o600 })
+  chmodSync(sqlPath, 0o600)
+
+  const bookmark = '00000000-0000000a-00004c9e'
+  const timeTravelPath = path.join(backupDirectory, 'time-travel.json')
+  writeFileSync(timeTravelPath, `${JSON.stringify({ bookmark })}\n`, { mode: 0o600 })
+  chmodSync(timeTravelPath, 0o600)
+
+  const restoreCommandArgs = [
+    'd1',
+    'time-travel',
+    'restore',
+    EXPECTED_DATABASE_ID,
+    '--config',
+    'cloudflare/worker/wrangler.jsonc',
+    `--bookmark=${bookmark}`,
+  ]
+  const manifest = {
+    schemaVersion: 2,
+    verification: 'PASS',
+    startedAt: STARTED_AT,
+    completedAt: COMPLETED_AT,
+    gitHeadSha: VALID_GIT_HEAD_SHA,
+    wranglerVersion: EXPECTED_WRANGLER_VERSION,
+    configPath: 'cloudflare/worker/wrangler.jsonc',
+    database: VALID_DATABASE_INFO,
+    timeTravel: {
+      bookmark,
+      restoreExecutable: 'node_modules/.bin/wrangler',
+      restoreCommandArgs,
+      restoreCommand: ['node_modules/.bin/wrangler', ...restoreCommandArgs].join(' '),
+    },
+    sql: {
+      path: sqlPath,
+      bytes: sql.byteLength,
+      sha256: createHash('sha256').update(sql).digest('hex'),
+    },
+    counts: {
+      remote: EXPECTED_COUNTS,
+      restored: { ...EXPECTED_COUNTS },
+    },
+    sqliteIntegrityCheck: 'ok',
+  }
+  const manifestPath = path.join(backupDirectory, 'manifest.json')
+  writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`, { mode: 0o600 })
+  chmodSync(manifestPath, 0o600)
+
+  return {
+    backupRoot,
+    backupDirectory,
+    manifest,
+    manifestPath,
+    sqlPath,
+    timeTravelPath,
+  }
+}
+
+function createFakeBackupCommandRunner({ failAt }: { failAt?: string } = {}) {
+  const executionOrder: string[] = []
+  const countRows = BACKUP_TABLES.map((tableName) => ({
+    table_name: tableName,
+    row_count: EXPECTED_COUNTS[tableName],
+  }))
+
+  const commandRunner = (
+    executable: string,
+    args: string[],
+    options: { input?: Buffer } = {}
+  ) => {
+    let operation: string
+    let output: string
+    if (args.length === 1 && args[0] === '--version') {
+      operation = 'wrangler-version'
+      output = '4.107.0\n'
+    } else if (executable === 'git') {
+      operation = 'git-head'
+      output = `${VALID_GIT_HEAD_SHA}\n`
+    } else if (args[0] === 'd1' && args[1] === 'list') {
+      operation = 'd1-list'
+      output = JSON.stringify([VALID_DATABASE_INFO])
+    } else if (args[0] === 'd1' && args[1] === 'time-travel' && args[2] === 'info') {
+      operation = 'bookmark'
+      output = JSON.stringify({ bookmark: '00000000-0000000a-00004c9e' })
+    } else if (args[0] === 'd1' && args[1] === 'export') {
+      operation = 'export'
+      const outputPath = args[args.indexOf('--output') + 1]
+      writeFileSync(
+        outputPath,
+        "CREATE TABLE incomes (id TEXT PRIMARY KEY);\nINSERT INTO incomes VALUES ('1');\n"
+      )
+      output = ''
+    } else if (args[0] === 'd1' && args[1] === 'execute') {
+      operation = 'remote-count'
+      output = JSON.stringify([{ success: true, results: countRows }])
+    } else if (executable === 'sqlite3' && args.includes('-bail')) {
+      operation = 'sqlite-restore'
+      writeFileSync(args.at(-1) as string, options.input ?? Buffer.from('sqlite'))
+      output = ''
+    } else if (executable === 'sqlite3' && args.includes('PRAGMA integrity_check;')) {
+      operation = 'sqlite-integrity'
+      output = 'ok\n'
+    } else if (executable === 'sqlite3' && args.includes('-json')) {
+      operation = 'sqlite-count'
+      output = JSON.stringify(countRows)
+    } else {
+      throw new Error(`想定外のコマンドです: ${executable} ${args.join(' ')}`)
+    }
+
+    executionOrder.push(operation)
+    if (operation === failAt) {
+      throw new Error(`${operation}のテスト失敗`)
+    }
+    return output
+  }
+
+  return { commandRunner, executionOrder }
+}
+
 describe('本番D1バックアップの対象確認', () => {
   it('CLIで固定UUIDを明示した場合だけ実行を許可する', () => {
     expect(
@@ -60,6 +203,7 @@ describe('本番D1バックアップの対象確認', () => {
     [[]],
     [['--confirm-production-d1']],
     [['--confirm-production-d1', '51457bd5-8e0e-4645-ad34-86634285af2c']],
+    [['--confirm-production-d1', EXPECTED_DATABASE_ID, '--extra']],
   ])('UUID確認が無いか不一致なら拒否する: %j', (args) => {
     expect(() => parseConfirmedDatabaseId(args)).toThrow(/UUID/)
   })
@@ -265,8 +409,7 @@ describe('本番D1バックアップmanifest', () => {
       wranglerVersion: '4.107.0',
       database: VALID_DATABASE_INFO,
       bookmark: '00000000-0000000a-00004c9e',
-      sqlPath:
-        '/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/20260902T090000Z/score-splitter.sql',
+      sqlPath: path.join(BACKUP_ROOT, '20260902T090000Z', 'score-splitter.sql'),
       sqlBytes: 2048,
       sqlSha256: 'a'.repeat(64),
       remoteCounts: EXPECTED_COUNTS,
@@ -426,8 +569,7 @@ describe('本番D1バックアップmanifest', () => {
       wranglerVersion: '4.107.0',
       database: VALID_DATABASE_INFO,
       bookmark: '00000000-0000000a-00004c9e',
-      sqlPath:
-        '/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/20260902T090000Z/score-splitter.sql',
+      sqlPath: path.join(BACKUP_ROOT, '20260902T090000Z', 'score-splitter.sql'),
       sqlBytes: 2048,
       sqlSha256: 'a'.repeat(64),
       remoteCounts: EXPECTED_COUNTS,
@@ -444,5 +586,277 @@ describe('本番D1バックアップmanifest', () => {
     expect(() => buildManifest({ ...base, integrityCheck: 'malformed' })).toThrow(
       /integrity/
     )
+  })
+})
+
+describe('本番切替直前のバックアップ実体再検証', () => {
+  it('再検証モードはGit HEAD取得とローカル実体検証だけを実行する', () => {
+    const fixture = createReleaseBackupFixture()
+    const commands: Array<{ executable: string; args: string[] }> = []
+    try {
+      const result = runReleaseBackupVerification(
+        ['--verify-release-manifest', fixture.manifestPath],
+        {
+          backupRoot: fixture.backupRoot,
+          clock: () => new Date('2026-09-02T09:34:59.000Z'),
+          commandRunner: (executable: string, args: string[]) => {
+            commands.push({ executable, args })
+            if (executable === 'git' && args.join(' ') === 'rev-parse HEAD') {
+              return `${VALID_GIT_HEAD_SHA}\n`
+            }
+            throw new Error(`許可していない外部操作です: ${executable}`)
+          },
+        }
+      )
+
+      expect(result.manifestPath).toBe(fixture.manifestPath)
+      expect(commands).toEqual([{ executable: 'git', args: ['rev-parse', 'HEAD'] }])
+    } finally {
+      rmSync(fixture.backupRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('manifestとSQL実体・Time Travel情報・権限をまとめて再検証する', () => {
+    const fixture = createReleaseBackupFixture()
+    try {
+      expect(
+        verifyReleaseBackupArtifacts(fixture.manifestPath, {
+          backupRoot: fixture.backupRoot,
+          expectedGitHeadSha: VALID_GIT_HEAD_SHA,
+          now: '2026-09-02T09:34:59.000Z',
+        })
+      ).toMatchObject({
+        manifest: fixture.manifest,
+        backupDirectory: fixture.backupDirectory,
+        sqlPath: fixture.sqlPath,
+        timeTravelPath: fixture.timeTravelPath,
+      })
+    } finally {
+      rmSync(fixture.backupRoot, { recursive: true, force: true })
+    }
+  })
+
+  it.each([
+    ['相対パス', '20260902T090000Z/manifest.json'],
+    ['保存root外', '/tmp/score-splitter-outside/manifest.json'],
+    ['root直下', 'manifest.json'],
+    ['深すぎる階層', '20260902T090000Z/nested/manifest.json'],
+  ])('%sのmanifestパスをCLI引数として拒否する', (_label, candidate) => {
+    const fixture = createReleaseBackupFixture()
+    try {
+      const manifestPath = path.isAbsolute(candidate)
+        ? candidate
+        : candidate === '20260902T090000Z/manifest.json'
+          ? candidate
+          : path.join(fixture.backupRoot, candidate)
+      expect(() =>
+        parseReleaseVerificationArguments(
+          ['--verify-release-manifest', manifestPath],
+          fixture.backupRoot
+        )
+      ).toThrow(/manifest|絶対パス|保存root/)
+    } finally {
+      rmSync(fixture.backupRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('引数の不足・余剰・別フラグを安全側で拒否する', () => {
+    const fixture = createReleaseBackupFixture()
+    try {
+      expect(() => parseReleaseVerificationArguments([], fixture.backupRoot)).toThrow(/引数/)
+      expect(() =>
+        parseReleaseVerificationArguments(
+          ['--verify-release-manifest', fixture.manifestPath, '--extra'],
+          fixture.backupRoot
+        )
+      ).toThrow(/引数/)
+      expect(() =>
+        parseReleaseVerificationArguments(
+          ['--manifest', fixture.manifestPath],
+          fixture.backupRoot
+        )
+      ).toThrow(/引数/)
+    } finally {
+      rmSync(fixture.backupRoot, { recursive: true, force: true })
+    }
+  })
+
+  it.each([
+    ['保存root', 'backupRoot', 0o755],
+    ['バックアップdir', 'backupDirectory', 0o755],
+    ['SQL', 'sqlPath', 0o644],
+    ['Time Travel', 'timeTravelPath', 0o644],
+    ['manifest', 'manifestPath', 0o644],
+  ])('%sの権限が規定値でなければ拒否する', (_label, key, mode) => {
+    const fixture = createReleaseBackupFixture()
+    try {
+      chmodSync(fixture[key as keyof typeof fixture] as string, mode)
+      expect(() =>
+        verifyReleaseBackupArtifacts(fixture.manifestPath, {
+          backupRoot: fixture.backupRoot,
+          expectedGitHeadSha: VALID_GIT_HEAD_SHA,
+          now: '2026-09-02T09:34:59.000Z',
+        })
+      ).toThrow(/権限/)
+    } finally {
+      rmSync(fixture.backupRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('SQL実体が無い場合と実サイズがmanifestと違う場合を拒否する', () => {
+    const missingFixture = createReleaseBackupFixture()
+    try {
+      rmSync(missingFixture.sqlPath)
+      expect(() =>
+        verifyReleaseBackupArtifacts(missingFixture.manifestPath, {
+          backupRoot: missingFixture.backupRoot,
+          expectedGitHeadSha: VALID_GIT_HEAD_SHA,
+          now: '2026-09-02T09:34:59.000Z',
+        })
+      ).toThrow(/SQL/)
+    } finally {
+      rmSync(missingFixture.backupRoot, { recursive: true, force: true })
+    }
+
+    const sizeFixture = createReleaseBackupFixture()
+    try {
+      writeFileSync(sizeFixture.sqlPath, 'short', { mode: 0o600 })
+      expect(() =>
+        verifyReleaseBackupArtifacts(sizeFixture.manifestPath, {
+          backupRoot: sizeFixture.backupRoot,
+          expectedGitHeadSha: VALID_GIT_HEAD_SHA,
+          now: '2026-09-02T09:34:59.000Z',
+        })
+      ).toThrow(/サイズ/)
+    } finally {
+      rmSync(sizeFixture.backupRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('同じサイズでもSQL実体のSHA-256がmanifestと違えば拒否する', () => {
+    const fixture = createReleaseBackupFixture()
+    try {
+      const originalBytes = statSync(fixture.sqlPath).size
+      writeFileSync(fixture.sqlPath, Buffer.alloc(originalBytes, 0x78), { mode: 0o600 })
+      expect(() =>
+        verifyReleaseBackupArtifacts(fixture.manifestPath, {
+          backupRoot: fixture.backupRoot,
+          expectedGitHeadSha: VALID_GIT_HEAD_SHA,
+          now: '2026-09-02T09:34:59.000Z',
+        })
+      ).toThrow(/SHA-256/)
+    } finally {
+      rmSync(fixture.backupRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('Time Travelファイルが無い場合とbookmarkがmanifestと違う場合を拒否する', () => {
+    const missingFixture = createReleaseBackupFixture()
+    try {
+      rmSync(missingFixture.timeTravelPath)
+      expect(() =>
+        verifyReleaseBackupArtifacts(missingFixture.manifestPath, {
+          backupRoot: missingFixture.backupRoot,
+          expectedGitHeadSha: VALID_GIT_HEAD_SHA,
+          now: '2026-09-02T09:34:59.000Z',
+        })
+      ).toThrow(/Time Travel/)
+    } finally {
+      rmSync(missingFixture.backupRoot, { recursive: true, force: true })
+    }
+
+    const mismatchFixture = createReleaseBackupFixture()
+    try {
+      writeFileSync(
+        mismatchFixture.timeTravelPath,
+        `${JSON.stringify({ bookmark: 'different-bookmark' })}\n`,
+        { mode: 0o600 }
+      )
+      expect(() =>
+        verifyReleaseBackupArtifacts(mismatchFixture.manifestPath, {
+          backupRoot: mismatchFixture.backupRoot,
+          expectedGitHeadSha: VALID_GIT_HEAD_SHA,
+          now: '2026-09-02T09:34:59.000Z',
+        })
+      ).toThrow(/bookmark/)
+    } finally {
+      rmSync(mismatchFixture.backupRoot, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('本番D1バックアップ処理の統合', () => {
+  it('偽CLIで検証順を固定し、Time Travel restoreを実行せずPASS manifestを作る', () => {
+    const backupRoot = mkdtempSync(path.join(tmpdir(), 'score-splitter-backup-flow-'))
+    chmodSync(backupRoot, 0o700)
+    const { commandRunner, executionOrder } = createFakeBackupCommandRunner()
+    let clockCalls = 0
+    const originalUmask = process.umask()
+    try {
+      const result = runProductionBackup(
+        ['--confirm-production-d1', EXPECTED_DATABASE_ID],
+        {
+          backupRoot,
+          commandRunner,
+          clock: () => {
+            clockCalls += 1
+            return new Date(clockCalls === 1 ? STARTED_AT : COMPLETED_AT)
+          },
+        }
+      )
+
+      expect(executionOrder).toEqual([
+        'wrangler-version',
+        'git-head',
+        'd1-list',
+        'bookmark',
+        'export',
+        'remote-count',
+        'sqlite-restore',
+        'sqlite-integrity',
+        'sqlite-count',
+      ])
+      expect(executionOrder).not.toContain('time-travel-restore')
+      expect(existsSync(result.manifestPath)).toBe(true)
+      expect(statSync(result.manifestPath).mode & 0o777).toBe(0o600)
+      expect(process.umask()).toBe(originalUmask)
+    } finally {
+      process.umask(originalUmask)
+      rmSync(backupRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('途中で外部操作が失敗した場合はPASS manifestを作らない', () => {
+    const backupRoot = mkdtempSync(path.join(tmpdir(), 'score-splitter-backup-flow-'))
+    chmodSync(backupRoot, 0o700)
+    const { commandRunner, executionOrder } = createFakeBackupCommandRunner({
+      failAt: 'remote-count',
+    })
+    let clockCalls = 0
+    try {
+      expect(() =>
+        runProductionBackup(['--confirm-production-d1', EXPECTED_DATABASE_ID], {
+          backupRoot,
+          commandRunner,
+          clock: () => {
+            clockCalls += 1
+            return new Date(clockCalls === 1 ? STARTED_AT : COMPLETED_AT)
+          },
+        })
+      ).toThrow(/remote-count/)
+      expect(executionOrder).toEqual([
+        'wrangler-version',
+        'git-head',
+        'd1-list',
+        'bookmark',
+        'export',
+        'remote-count',
+      ])
+      expect(existsSync(path.join(backupRoot, '20260902T090000Z', 'manifest.json'))).toBe(
+        false
+      )
+    } finally {
+      rmSync(backupRoot, { recursive: true, force: true })
+    }
   })
 })

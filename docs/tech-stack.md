@@ -80,6 +80,7 @@
   "upload:dev": "opennextjs-cloudflare build --env dev && opennextjs-cloudflare upload --env dev",  // 手動のVersion Previewへupload
   "migrate:dev": "wrangler d1 migrations apply score-splitter-db-dev --remote --env dev",  // 開発D1へmigration
   "backup:d1:production": "node scripts/backup-production-d1.mjs",  // 本番D1のバックアップと復元検証
+  "verify:d1:production-backup": "node scripts/backup-production-d1.mjs --verify-release-manifest", // 切替直前のローカル実体再検証
   "cf-typegen": "wrangler types --env-interface CloudflareEnv --include-runtime=false cloudflare-env.d.ts",  // 環境変数の型生成
   "lint": "eslint",                     // ESLintチェック
   "test": "vitest",                     // Vitestウォッチモード

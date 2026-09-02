@@ -65,12 +65,19 @@ npm run deploy:dev     # 開発Worker（OpenNextビルド + env.dev deploy）
 npm run upload:dev     # 手動のVersion Previewへupload（env.dev）
 npm run migrate:dev    # 開発D1へmigrationを適用
 npm run backup:d1:production -- --confirm-production-d1 <本番D1 UUID> # 本番切替前のバックアップ検証
+npm run verify:d1:production-backup -- <manifest.jsonの絶対パス> # 切替直前の実体再検証
 npm run preview        # フロントエンドをworkerd上でローカル実行（.dev.varsが必要）
 ```
 
 ### 本番バックアップとPRゲート
 
-本番D1 `score-splitter` には失ってはいけないデータがあるため、本番binding変更や本番デプロイの前に必ずバックアップを取得する。scriptは本番D1 UUIDを照合し、Time Travel bookmark、全量SQL、SHA-256、SQLiteへの一時復元、integrity_check、全8テーブルの件数一致を確認して、Git管理外の `/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/` にPASS manifestを保存する。
+本番D1 `score-splitter` には失ってはいけないデータがあるため、本番binding変更や本番デプロイの前に必ずバックアップを取得する。scriptは本番D1 UUIDを照合し、Time Travel bookmark、全量SQL、SHA-256、SQLiteへの一時復元、integrity_check、全8テーブルの件数一致を確認して、Git管理外の `~/Documents/Backups/score-splitter/d1/` にPASS manifestを保存する。
+
+本番切替の直前には、バックアップ時に表示された絶対パスを使って次を実行する。Git HEADと30分以内の条件に加え、SQL実体の存在・サイズ・SHA-256、Time Travel情報のbookmark、保存rootとバックアップdirの0700、SQL・Time Travel・manifestの0600を再検証する。相対パス、固定保存root外、規定より深いパスは拒否され、このモードはCloudflareへ接続しない。
+
+```bash
+npm run verify:d1:production-backup -- ~/Documents/Backups/score-splitter/d1/<UTC日時>/manifest.json
+```
 
 本番PRは最初からDraftで作成し、Preview確認とバックアップscriptのPASS、ユーザーの明示承認が揃うまでReady for reviewへの変更・merge・本番デプロイを禁止する。Time Travel restoreは自動実行せず、データ破損時にユーザーが明示承認した場合だけ実施する。
 

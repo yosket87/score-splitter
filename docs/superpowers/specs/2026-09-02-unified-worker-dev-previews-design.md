@@ -149,7 +149,7 @@ npm run backup:d1:production -- --confirm-production-d1 7f8d3531-a833-4474-84d5-
 1. `wrangler d1 list --json` からDB名 `score-splitter` とUUID `7f8d3531-a833-4474-84d5-cee3ac98ee96` に一致する一意entryを選び、`version=production` を機械検証する（Wrangler 4.107の `d1 info --json` はversionを出力しないため使用しない）
 2. リポジトリ内の `node_modules/.bin/wrangler` が厳密にversion 4.107.0であることをCloudflare操作前に検証する
 3. D1 Time Travelの現在のbookmarkを英数字・underscore・hyphenだけに制限してJSON保存し、手動restoreの実行ファイル・引数配列・表示用コマンドをmanifestへ記録する
-4. schemaとdataを含む全量SQLを `/Users/aa00037-tanaka/Documents/Backups/score-splitter/d1/<UTC日時>/` へエクスポートし、SQLite行頭ドットコマンドがないことを検証する
+4. schemaとdataを含む全量SQLを `~/Documents/Backups/score-splitter/d1/<UTC日時>/` へエクスポートし、SQLite行頭ドットコマンドがないことを検証する
 5. SQLファイルのSHA-256チェックサム、ファイルサイズ、本番8テーブルの件数、Git HEAD SHA、開始/完了UTC日時をJSON manifestへ記録する
 6. SQLを `sqlite3 -safe -bail` で一時ローカルSQLiteへ投入し、`integrity_check=ok` と8テーブルの本番/復元後件数一致を確認する
 7. バックアップディレクトリを700、SQL・Time Travel情報・manifest・cleanup失敗情報を600にする
@@ -167,6 +167,8 @@ SQLとmanifestには本番データまたは復元情報が含まれるためGit
 SQLエクスポート中は本番D1への他のリクエストが一時的にブロックされる可能性があるため、PRプレビュー確認後、本番切替直前に利用者の書込みを明示的に止めたmaintenance windowで実施する。PASS manifest確定までは書込み停止を維持する。
 
 本番件数はexport完了後に別クエリで取得するため、復元後件数との一致はmaintenance window中の補助検証であり、export時点以後の同一性を単独では保証しない。本番切替時はmanifestの `completedAt` から30分以内で、`gitHeadSha` がPR HEAD SHAと一致することを再確認する。書込み発生、30分超過、PR HEAD更新のいずれかがあれば再取得する。Time Travelのrestoreは破壊的操作として扱い、障害時にもユーザーの明示承認なしでは実行しない。
+
+本番切替の直前には `npm run verify:d1:production-backup -- ~/Documents/Backups/score-splitter/d1/<UTC日時>/manifest.json` を実行する。このモードはCloudflareへ接続せず、Git HEADと30分以内の条件に加え、SQL実体の存在・実サイズ・SHA-256、Time Travel bookmark、保存rootとバックアップdirの0700、SQL・Time Travel・manifestの0600を再検証する。manifest引数は絶対パスだけを許可し、相対パス、固定保存root外、規定より深い階層、symlink、通常ファイル以外を安全側で拒否する。
 
 ## 8. エラー処理とセキュリティ
 

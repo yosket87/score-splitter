@@ -1,9 +1,8 @@
 'use client'
 
 import { SectionShell, EntryRow } from '@/components/entry-section'
-import { DeleteButton } from '@/components/ui/delete-button'
 import { AddEntryModal } from '@/features/add-entry'
-import { EditModal } from '@/features/edit-entry'
+import { EntryActions } from '@/features/entry-actions'
 import { updateIncome, deleteIncome } from '@/app/actions/income'
 import { formatCurrency } from '@/lib/utils/format'
 import type { Income } from '@/types'
@@ -45,22 +44,18 @@ export function IncomeSection({ incomes, month }: IncomeSectionProps) {
           amountClassName="text-accent"
           isLast={i === incomes.length - 1}
           actions={
-            <>
-              <EditModal
-                id={income.id}
-                month={month}
-                label={income.label}
-                amount={income.amount}
-                person={income.person}
-                type="income"
-                onUpdate={updateIncome}
-              />
-              <DeleteButton
-                itemName={income.label}
-                label={`${income.label}を削除`}
-                onDelete={() => deleteIncome(income.id, month)}
-              />
-            </>
+            <EntryActions
+              edit={{
+                id: income.id,
+                month,
+                label: income.label,
+                amount: income.amount,
+                person: income.person,
+                type: 'income',
+                onUpdate: updateIncome,
+              }}
+              onDelete={() => deleteIncome(income.id, month)}
+            />
           }
         />
       ))}

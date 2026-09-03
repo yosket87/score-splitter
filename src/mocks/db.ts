@@ -17,12 +17,18 @@ const REVISION_FIELDS: Readonly<Record<string, readonly string[]>> = {
   carryovers: ['month', 'amount', 'is_cleared'],
 }
 
-// グローバルストア（サーバープロセス内で永続化）
-let store: Store = {}
+// instrumentationとRoute Handlerの別バンドル間でも同じストアを共有する。
+const mockGlobal = globalThis as typeof globalThis & {
+  __scoreSplitterMockStore?: Store
+}
+
+function getStore(): Store {
+  return (mockGlobal.__scoreSplitterMockStore ??= {})
+}
 
 /** ストアをシードデータで初期化 */
 export function initStore(): void {
-  store = {
+  mockGlobal.__scoreSplitterMockStore = {
     incomes: structuredClone(seedData.incomes),
     expenses: structuredClone(seedData.expenses),
     carryovers: structuredClone(seedData.carryovers),
@@ -50,6 +56,7 @@ export function initStore(): void {
 
 /** テーブルの全行を取得 */
 export function getTable(table: string): Row[] {
+  const store = getStore()
   if (!store[table]) {
     store[table] = []
   }
@@ -198,6 +205,7 @@ export function deleteRows(
   table: string,
   filters: Record<string, string>
 ): number {
+  const store = getStore()
   const tableData = getTable(table)
   const matching = applyFilters(tableData, filters)
   const matchingIds = new Set(matching.map((r) => r.id))

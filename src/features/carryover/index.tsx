@@ -1,11 +1,8 @@
 'use client'
 
-import { toast } from 'sonner'
 import { SectionShell, EntryRow } from '@/components/entry-section'
-import { EntryToggleButton } from '@/components/entry-toggle-button'
-import { DeleteButton } from '@/components/ui/delete-button'
 import { AddEntryModal } from '@/features/add-entry'
-import { EditModal } from '@/features/edit-entry'
+import { EntryActions } from '@/features/entry-actions'
 import { updateCarryover, deleteCarryover, toggleCarryoverCleared } from '@/app/actions/carryover'
 import { formatCurrency } from '@/lib/utils/format'
 import type { Carryover } from '@/types'
@@ -53,44 +50,27 @@ export function CarryoverSection({ carryovers, month }: CarryoverSectionProps) {
           opacity={carryover.isCleared ? 0.6 : 1}
           isLast={i === carryovers.length - 1}
           actions={
-            <>
-              <form action={async () => {
-                const result = await toggleCarryoverCleared(
-                  carryover.id,
-                  !carryover.isCleared,
-                  month
-                )
-                if (!result.success) {
-                  toast.error(result.error ?? '清算フラグの更新に失敗しました')
-                }
-              }}>
-                <EntryToggleButton
-                  active={carryover.isCleared}
-                  activeIcon="✓"
-                  inactiveIcon="○"
-                  ariaLabel={
-                    carryover.isCleared
-                      ? `${carryover.label}の清算を取消`
-                      : `${carryover.label}を清算する`
-                  }
-                />
-              </form>
-              <EditModal
-                id={carryover.id}
-                month={month}
-                label={carryover.label}
-                amount={carryover.amount}
-                person={carryover.person}
-                type="carryover"
-                isCleared={carryover.isCleared}
-                onUpdate={updateCarryover}
-              />
-              <DeleteButton
-                itemName={carryover.label}
-                label={`${carryover.label}を削除`}
-                onDelete={() => deleteCarryover(carryover.id, month)}
-              />
-            </>
+            <EntryActions
+              edit={{
+                id: carryover.id,
+                month,
+                label: carryover.label,
+                amount: carryover.amount,
+                person: carryover.person,
+                type: 'carryover',
+                isCleared: carryover.isCleared,
+                onUpdate: updateCarryover,
+              }}
+              onDelete={() => deleteCarryover(carryover.id, month)}
+              toggle={{
+                active: carryover.isCleared,
+                activeIcon: '✓',
+                inactiveIcon: '○',
+                label: carryover.isCleared ? '清算を取消' : '清算する',
+                ariaLabel: carryover.isCleared ? `${carryover.label}の清算を取消` : `${carryover.label}を清算する`,
+                onToggle: () => toggleCarryoverCleared(carryover.id, !carryover.isCleared, month),
+              }}
+            />
           }
         />
       ))}

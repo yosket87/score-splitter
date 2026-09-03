@@ -90,8 +90,8 @@ test('支出更新後は保存結果を期限切れ表示し、明示操作で�
 
   await trigger.click()
   const startButton = page.getByRole('button', { name: '診断を始める' })
-  await expect(startButton.or(page.getByText('今月のまとめ'))).toBeVisible()
-  if (await startButton.isVisible()) await startButton.click()
+  await expect(startButton).toBeVisible()
+  await startButton.click()
   await expect(page.getByText('今月のまとめ')).toBeVisible()
   await page.keyboard.press('Escape')
 
@@ -99,13 +99,15 @@ test('支出更新後は保存結果を期限切れ表示し、明示操作で�
 
   await trigger.click()
   await expect(page.getByText(/家計データが更新されています/)).toBeVisible()
-  await page.getByRole('button', { name: '最新データで再診断' }).click()
-  await expect(page.getByText(/家計データが更新されています/)).not.toBeVisible()
+  // 初回実行直後は5秒のクールダウンがあるため、解除後に再実行して確認する。
+  await expect(async () => {
+    const retryButton = page.getByRole('button', { name: '最新データで再診断' })
+    if (await retryButton.isVisible() && await retryButton.isEnabled()) {
+      await retryButton.click()
+    }
+    await expect(page.getByText(/家計データが更新されています/)).not.toBeVisible()
+  }).toPass({ intervals: [1000], timeout: 20_000 })
   await expect(page.getByRole('button', { name: 'もう一度診断する' })).toBeVisible()
-
-  // モックServer Actionはプロセスを跨ぐため、後続specに変更を残さない。
-  await page.keyboard.press('Escape')
-  await updateDiningAmount(page, '18000')
 })
 
 test('実支出0件月は診断起点を無効にして理由を表示する', async ({ page }) => {

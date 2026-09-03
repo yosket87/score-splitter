@@ -7,6 +7,7 @@ import { getIncomesByMonth } from '@/app/actions/income'
 import { getExpensesByMonth } from '@/app/actions/expense'
 import { getCarryoversByMonth } from '@/app/actions/carryover'
 import { getMonthlySummaries } from '@/app/actions/monthly-summary'
+import { isAiDiagnosisAvailable } from '@/features/ai-diagnosis/provider'
 import { requireAuth } from '@/lib/webauthn/session'
 
 vi.mock('next/navigation', () => ({
@@ -35,6 +36,10 @@ vi.mock('@/app/actions/monthly-summary', () => ({
   getMonthlySummaries: vi.fn(),
 }))
 
+vi.mock('@/features/ai-diagnosis/provider', () => ({
+  isAiDiagnosisAvailable: vi.fn(),
+}))
+
 vi.mock('@/components/layout/header', () => ({
   Header: (props: { backHref?: string; backLabel?: string }) => (
     <header data-testid="header" data-back-href={props.backHref} data-back-label={props.backLabel} />
@@ -47,6 +52,7 @@ vi.mock('@/features/monthly-overview', () => ({
     month: number
     summary: { incomes: unknown[]; expenses: unknown[]; carryovers: unknown[] }
     summaries: unknown[]
+    aiDiagnosisAvailable: boolean
   }) => (
     <div
       data-testid="monthly-overview"
@@ -56,6 +62,7 @@ vi.mock('@/features/monthly-overview', () => ({
       data-expenses={props.summary.expenses.length}
       data-carryovers={props.summary.carryovers.length}
       data-summaries={props.summaries.length}
+      data-ai-diagnosis-available={String(props.aiDiagnosisAvailable)}
     />
   ),
 }))
@@ -95,6 +102,21 @@ describe('MonthPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(requireAuth).mockResolvedValue(undefined)
+    vi.mocked(isAiDiagnosisAvailable).mockReturnValue(false)
+  })
+
+  it('AI診断の利用可否を月次要約へ渡す', async () => {
+    vi.mocked(getIncomesByMonth).mockResolvedValue(success([]) as never)
+    vi.mocked(getExpensesByMonth).mockResolvedValue(success([]) as never)
+    vi.mocked(getCarryoversByMonth).mockResolvedValue(success([]) as never)
+    vi.mocked(getMonthlySummaries).mockResolvedValue(success([]) as never)
+
+    render(await MonthPage({ params: Promise.resolve({ year: '2026', month: '02' }) }))
+
+    expect(screen.getByTestId('monthly-overview')).toHaveAttribute(
+      'data-ai-diagnosis-available',
+      'false'
+    )
   })
 
   it('認証後に対象月のデータと直近6ヶ月を各セクションへ渡す', async () => {

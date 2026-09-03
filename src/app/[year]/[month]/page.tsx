@@ -9,6 +9,7 @@ import { getExpensesByMonth } from '@/app/actions/expense'
 import { getCarryoversByMonth } from '@/app/actions/carryover'
 import { getMonthlySummaries } from '@/app/actions/monthly-summary'
 import { AddEntryFab } from '@/features/add-entry'
+import { isAiDiagnosisAvailable } from '@/features/ai-diagnosis/provider'
 import { isValidYear, isValidMonthParam, pathToMonth } from '@/lib/utils/format'
 import { requireAuth } from '@/lib/webauthn/session'
 
@@ -44,6 +45,7 @@ export default async function MonthPage({ params }: MonthPageProps) {
   const carryovers = carryoversResult.data ?? []
   const allSummaries = summariesResult.success ? (summariesResult.data ?? []) : []
   const recentSummaries = allSummaries.slice(0, 6)
+  const aiDiagnosisAvailable = isAiDiagnosisAvailable()
 
   return (
     <div className="app-shell">
@@ -59,6 +61,7 @@ export default async function MonthPage({ params }: MonthPageProps) {
             month={Number(monthParam)}
             summary={{ incomes, expenses, carryovers }}
             summaries={recentSummaries}
+            aiDiagnosisAvailable={aiDiagnosisAvailable}
           />
         </aside>
         <div className="min-w-0 space-y-4">

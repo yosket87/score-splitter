@@ -2,6 +2,9 @@
   "name": "rio-de-janeiro",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "dev:mock": "dotenv -e .env.mock -- next dev",
@@ -9,9 +12,10 @@
     "start": "next start",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "migrate:worker:remote": "wrangler d1 migrations apply score-splitter --remote --config cloudflare/worker/wrangler.jsonc",
+    "deploy:worker": "npm run migrate:worker:remote && wrangler deploy --config cloudflare/worker/wrangler.jsonc",
     "deploy:dev": "opennextjs-cloudflare build --env dev && opennextjs-cloudflare deploy --env dev",
     "upload:dev": "opennextjs-cloudflare build --env dev && opennextjs-cloudflare upload --env dev",
-    "deploy:worker": "wrangler deploy --config cloudflare/worker/wrangler.jsonc",
     "migrate:dev": "wrangler d1 migrations apply score-splitter-db-dev --remote --env dev",
     "backup:d1:production": "node scripts/backup-production-d1.mjs",
     "verify:d1:production-backup": "node scripts/backup-production-d1.mjs --verify-release-manifest",
@@ -41,6 +45,7 @@
     "motion": "^12.38.0",
     "next": "16.3.4",
     "next-themes": "^0.4.6",
+    "openai": "^7.8.0",
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -48,6 +53,7 @@
     "server-only": "^0.0.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
+    "undici": "7.29.0",
     "vaul": "^1.1.2",
     "zod": "^4.3.6"
   },
@@ -59,7 +65,7 @@
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/bcryptjs": "^2.4.6",
-    "@types/node": "^20",
+    "@types/node": "^22.20.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^5.1.2",

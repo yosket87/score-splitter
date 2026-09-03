@@ -9,7 +9,9 @@ export async function POST() {
   }
 
   const { initStore } = await import('@/mocks/db')
+  const { resetAiDiagnosisMockStats } = await import('@/mocks/ai-diagnosis-stats')
   initStore()
+  resetAiDiagnosisMockStats()
 
   return NextResponse.json({ success: true })
 }

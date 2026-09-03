@@ -36,6 +36,10 @@ export function parseMonth(value: unknown): string {
   if (!/^\d{6}$/.test(month)) {
     throw new HttpError('monthが不正です', 400)
   }
+  const monthNumber = Number(month.slice(4, 6))
+  if (monthNumber < 1 || monthNumber > 12) {
+    throw new HttpError('monthが不正です', 400)
+  }
   return month
 }
 

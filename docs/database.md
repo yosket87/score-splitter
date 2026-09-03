@@ -28,8 +28,55 @@ Cloudflare D1（SQLite）を使用したデータベース設計です。本番�
 | amount | INTEGER | 金額（負の値） |
 | person | TEXT | 担当者（'husband' / 'wife'） |
 | is_carryover | INTEGER | 繰越扱いフラグ（0/1） |
+| ai_category | TEXT NULL | 固定14候補のAI内部カテゴリ |
+| ai_category_source | TEXT NULL | 分類元。MVPでは `ai` のみ |
+| ai_categorized_at | TEXT NULL | 分類日時（ISO文字列） |
 | created_at | TEXT | 作成日時（ISO文字列） |
 | updated_at | TEXT | 更新日時（ISO文字列） |
+
+AIカテゴリ3列は診断専用の内部情報であり、通常のExpense API・型・画面へは露出しません。支出ラベルを変更した場合だけ3列を同一UPDATE内でNULLへ戻します。金額、担当者、繰越フラグだけの変更では分類を保持します。
+
+### ai_diagnoses（AI家計診断テーブル）
+
+月ごとの最新診断と月単位の実行leaseを保持します。履歴は保存せず、月単位でupsertします。
+
+| カラム | 型 | 説明 |
+|-------|---|------|
+| id | TEXT | 主キー（Workerで生成） |
+| month | TEXT UNIQUE | 診断対象月（YYYYMM） |
+| result_json | TEXT NULL | 検証済み4ブロック診断。leaseのみの行はNULL |
+| input_hash | TEXT NULL | 対象4か月の診断入力指紋 |
+| analysis_version | TEXT NULL | 集計・プロンプト契約のバージョン |
+| run_token | TEXT NULL | 実行所有者を示す一時トークン |
+| run_expires_at | TEXT NULL | lease有効期限 |
+| created_at | TEXT | 作成日時（ISO文字列） |
+| updated_at | TEXT | 最終更新日時（ISO文字列） |
+
+診断開始時はD1の条件付きUPDATEで2分間のleaseを取得します。保存・解放は取得時と同じ`run_token`に限定し、期限切れ・別runの書き込みを409で拒否します。分類保存も対象月と世帯全体guardのtoken・期限を同一SQL内で確認し、`id + expectedLabel + ai_category IS NULL`のcompare-and-setが全件成立する場合だけ更新します。`input_hash`または`analysis_version`が現在値と異なる場合も保存結果は削除せず、期限切れとして明示的な再診断を促します。
+
+診断context APIは担当者を除外し、収入は月別合計に必要な金額だけを扱います。AI内部カテゴリ、担当者、収入ラベル、認証情報、レコードIDは通常APIまたはOpenAIの診断文payloadへ露出しません。
+
+### ai_execution_guard（AI診断の世帯全体guard）
+
+単一行（`id = 1`）で、異なる月を含むAI診断の同時実行と利用回数を管理します。
+
+| カラム | 型 | 説明 |
+|-------|---|------|
+| id | INTEGER | 常に1となる主キー |
+| run_token | TEXT NULL | 現在の世帯全体実行所有者 |
+| run_expires_at | TEXT NULL | 世帯全体leaseの有効期限 |
+| last_started_at | TEXT NULL | 直近の診断開始日時 |
+| usage_date | TEXT | UTC基準の利用日（YYYY-MM-DD） |
+| daily_count | INTEGER | 利用日の開始回数 |
+| updated_at | TEXT | 最終更新日時（ISO文字列） |
+
+月leaseと世帯全体guardはD1 `batch()`のtransactionでまとめて条件付き取得します。同時実行は1件、cooldownは5秒、UTC日次上限は20回です。busyは409、cooldownまたは日次上限は`Retry-After`付き429を返します。診断保存または所有tokenによるlease解放で`ai_diagnoses.run_token`をNULLへ更新すると、triggerが同じtokenの世帯全体guardを解放します。
+
+### ai_diagnosis_source_revision（診断入力revision）
+
+単一行（`id = 1`）の単調増加revisionで、診断生成中に家計データが更新されていないことを最終保存時に検証します。context取得では収入・支出・繰越とrevisionを同じD1 `batch()` snapshotで読み、保存UPDATEの同一statementに期待revisionを含めます。不一致は専用409となり、古い結果はfreshとして保存しません。
+
+revisionは収入の`month/amount`、支出の`month/label/amount/is_carryover`、繰越の`month/amount/is_cleared`の更新と、3テーブルのinsert/deleteで増加します。担当者、収入・繰越の表示label、AI内部カテゴリだけの更新では増加しません。
 
 ### carryovers（繰越テーブル）
 

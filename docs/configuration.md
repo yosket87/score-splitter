@@ -62,7 +62,7 @@ export default defineConfig({
     baseURL: 'http://localhost:3000',
   },
   webServer: {
-    command: 'npm run dev',
+    command: 'npm run dev:mock',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
   },
@@ -81,7 +81,7 @@ export default defineConfig({
 |-----|---|------|
 | testDir | ./tests/e2e | E2Eテストディレクトリ |
 | baseURL | http://localhost:3000 | テスト対象URL |
-| webServer.command | npm run dev | テスト前に起動するサーバー |
+| webServer.command | npm run dev:mock | MSWモック付きサーバーをテスト前に起動 |
 | projects | chromium | テスト対象ブラウザ |
 
 ## ESLint設定 (`eslint.config.mjs`)
@@ -215,6 +215,10 @@ OpenNextはリクエスト処理開始時にWorkerの `env` を `process.env` �
 |-----|-------|------|
 | WEBAUTHN_RP_ID / WEBAUTHN_RP_ORIGIN / WEBAUTHN_RP_NAME | `wrangler.jsonc` の `vars` | WebAuthn（パスキー）のRP設定 |
 | APP_PASSWORD_HASH_BASE64 | `wrangler secret put` | アプリパスワードのbcryptハッシュ（Base64エンコード） |
+| AI_PROVIDER | `wrangler.jsonc` の `vars` | 本番は `openai` |
+| OPENAI_CLASSIFICATION_MODEL | `wrangler.jsonc` の `vars` | 支出分類モデル（既定 `gpt-5-mini`） |
+| OPENAI_DIAGNOSIS_MODEL | `wrangler.jsonc` の `vars` | 診断文モデル（既定 `gpt-5-mini`） |
+| OPENAI_API_KEY | `wrangler secret put OPENAI_API_KEY` | OpenAI APIキー（サーバー専用） |
 
 ### 旧API切り戻し用の変数
 
@@ -245,6 +249,25 @@ APP_PASSWORD_HASH_BASE64=your_password_hash_base64
 WEBAUTHN_RP_ID=localhost
 WEBAUTHN_RP_ORIGIN=http://localhost:8787
 WEBAUTHN_RP_NAME=ヤマワケ
+AI_PROVIDER=openai
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_CLASSIFICATION_MODEL=gpt-5-mini
+OPENAI_DIAGNOSIS_MODEL=gpt-5-mini
 ```
 
 `CLOUDFLARE_WORKER_API_URL` / `CLOUDFLARE_WORKER_API_TOKEN` は `USE_MOCKS=true` の旧HTTP/MSWテスト時だけ必要です。
+
+### AI家計診断
+
+- ローカルの実API確認はgitignore対象の `.env.local` に上記AI変数を設定する。APIキーを `.env.mock`、`wrangler.jsonc`、`NEXT_PUBLIC_*` へ置かない。
+- `npm run dev:mock` は `.env.mock` の `AI_PROVIDER=mock` を使う。分類・診断は決定的なローカル実装だけで完結し、OpenAIへの通信は0件。
+- 本番のAPIキーは `npx wrangler secret put OPENAI_API_KEY` で登録する。漏えい・担当者変更・定期運用の基準に従いキーをローテーションし、旧キーを失効させる。
+- 開発用のキーは `score-splitter-dev` の実行時Secret `OPENAI_API_KEY` に設定する。`env.dev.vars` にAIプロバイダーとモデルを明示し、devのD1だけを利用する。設定反映はdevのPRビルドで行い、本番へ公開しない。
+- `gpt-5-mini` は現行エイリアスを使用する。応答差分を固定したい場合は、利用可能な現行snapshotを環境変数で指定する。deprecatedな `gpt-5-mini-2025-08-07` は使用しない。
+- **学習利用**: OpenAI APIに送ったデータは、明示的にopt-inしない限りモデルの学習・改善に使用されないというOpenAIの既定に従う。これは当組織がopt-inしていないことの断定ではないため、API管理者は対象組織・projectの共有設定を確認する。
+- **Application state**: 本アプリのResponses API呼び出しは常に `store: false`とし、通常の同期応答を後続API操作用に保持しない。この制御は次のabuse monitoring logsとは別物で、`store: false` だけでそれらを無効化できない。利用機能ごとの例外は公式表を確認する。
+- **Abuse monitoring logs**: 既定でprompt・response等の顧客コンテンツを含む場合があり、原則最大30日保持され得る。法令上またはサービス・第三者を危害から保護するためにより長くなる例外もある。
+- **Zero Data Retention / Modified Abuse Monitoring**: 適格顧客向けであり、OpenAIの事前承認と追加要件の受諾が必要。承認後はOpenAI Platformの `Settings → Organization → Data controls`で組織単位とproject単位の設定を確認する。projectが組織設定を継承するか、ZDR/MAM/無効のどれかを実運用のAPI keyで確認し、未確認の状態をZDR/MAM有効と断定しない。
+- 保持の既定、対象endpoint、承認条件、設定画面の最新情報は [OpenAI公式 Data Controls](https://developers.openai.com/api/docs/guides/your-data) を参照する。
+- 障害時は既存の家計データを変更せず、保存済み診断があれば表示を維持する。新規実行・再診断だけを安全な固定メッセージで失敗させる。
+- モデル設定は非秘密だが、APIキー、認証Cookie、Worker共有トークン、担当者、収入ラベル、レコードIDをプロバイダーpayloadやログへ含めない。

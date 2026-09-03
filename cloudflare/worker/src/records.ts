@@ -190,9 +190,14 @@ export async function updateRecord(
     const isCarryover = parseBoolean(input.isCarryover ?? false, 'isCarryover')
     await db
       .prepare(
-        'UPDATE expenses SET label = ?, amount = ?, person = ?, is_carryover = ?, updated_at = ? WHERE id = ?'
+        `UPDATE expenses SET
+ai_category = CASE WHEN label = ? THEN ai_category ELSE NULL END,
+ai_category_source = CASE WHEN label = ? THEN ai_category_source ELSE NULL END,
+ai_categorized_at = CASE WHEN label = ? THEN ai_categorized_at ELSE NULL END,
+label = ?, amount = ?, person = ?, is_carryover = ?, updated_at = ?
+WHERE id = ?`
       )
-      .bind(label, amount, person, isCarryover ? 1 : 0, now, id)
+      .bind(label, label, label, label, amount, person, isCarryover ? 1 : 0, now, id)
       .run()
     const row = await getRecordRow(db, 'expenses', id)
     return mapExpense(row)

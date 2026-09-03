@@ -126,6 +126,15 @@ Server Actions の動作をテストします。
 - 金額付きコピー
 - 項目名のみコピー
 
+### AI家計診断テスト
+
+- 異なる月を含む世帯全体の同時実行1件、5秒cooldown、UTC日次20回
+- 409/429と`Retry-After`、モックresetによるguard分離
+- 分類入力100/101種類、安定順、超過`other`、provider/OpenAI request上限
+- 月lease・世帯全体guardのtoken/期限fencingと既分類を上書きしないcompare-and-set
+- 分類保存後に再取得したD1 contextと診断入力指紋の一致
+- WorkerとMSWのrequest/status/body契約一致
+
 ## E2Eテスト
 
 Playwrightによるブラウザテスト。

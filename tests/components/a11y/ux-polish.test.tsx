@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {
   Dialog,
@@ -30,6 +31,21 @@ vi.mock('@/app/actions/expense', () => ({
 vi.mock('@/app/actions/carryover', () => ({
   createCarryover: vi.fn(),
 }))
+
+function MobileResponsiveModalHarness() {
+  const [open, setOpen] = useState(false)
+  return (
+    <ResponsiveModal
+      open={open}
+      onOpenChange={setOpen}
+      trigger={<button type="button">開く</button>}
+      title="設定"
+      description="設定内容を確認します。"
+    >
+      <div>内容</div>
+    </ResponsiveModal>
+  )
+}
 
 beforeAll(() => {
   Element.prototype.hasPointerCapture = vi.fn(() => false)
@@ -97,6 +113,24 @@ describe('UX polish', () => {
     expect(dialog).toHaveAttribute('data-slot', 'drawer-content')
     expect(dialog).toHaveClass('app-modal-surface')
     expect(dialog).toHaveAccessibleDescription('設定内容を確認します。')
+  })
+
+  it('モバイルDrawerは44pxの名前付き閉じる操作で起点へfocusを戻す', async () => {
+    vi.mocked(useIsMobile).mockReturnValue(true)
+    const user = userEvent.setup()
+    render(<MobileResponsiveModalHarness />)
+
+    const trigger = screen.getByRole('button', { name: '開く' })
+    await user.click(trigger)
+    const close = screen.getByRole('button', { name: '閉じる' })
+    expect(close).toHaveClass('size-11')
+
+    fireEvent.click(close)
+
+    await waitFor(() =>
+      expect(close.closest('[role="dialog"]')).toHaveAttribute('data-state', 'closed')
+    )
+    expect(trigger).toHaveFocus()
   })
 
   it('削除確認は説明と44px操作を持ち、Escape後にフォーカスを戻す', async () => {

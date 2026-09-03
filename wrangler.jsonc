@@ -34,6 +34,10 @@
     // 非シークレットのみ。シークレット（CLOUDFLARE_WORKER_API_TOKEN / APP_PASSWORD_HASH_BASE64）は
     // wrangler secret put で設定する（vars に書くと deploy のたびにダッシュボード設定を上書きするため厳禁）
     "CLOUDFLARE_WORKER_API_URL": "https://api.yamawake.app",
+    // AIプロバイダーとモデル名は非秘密。APIキーは必ず `wrangler secret put` で設定する
+    "AI_PROVIDER": "openai",
+    "OPENAI_CLASSIFICATION_MODEL": "gpt-5-mini",
+    "OPENAI_DIAGNOSIS_MODEL": "gpt-5-mini",
     // RP IDはregistrable domainにする（app.yamawake.appのoriginで有効。将来サブドメインを変えてもパスキーが生き残る）
     "WEBAUTHN_RP_ID": "yamawake.app",
     "WEBAUTHN_RP_ORIGIN": "https://app.yamawake.app",
@@ -57,6 +61,9 @@
         }
       ],
       "vars": {
+        "AI_PROVIDER": "openai",
+        "OPENAI_CLASSIFICATION_MODEL": "gpt-5-mini",
+        "OPENAI_DIAGNOSIS_MODEL": "gpt-5-mini",
         "WEBAUTHN_RP_ID": "yamawake.app",
         "WEBAUTHN_RP_ORIGIN": "https://app.yamawake.app",
         "WEBAUTHN_RP_NAME": "ヤマワケ",

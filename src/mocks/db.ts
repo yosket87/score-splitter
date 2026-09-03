@@ -11,6 +11,12 @@ interface Store {
   [table: string]: Row[]
 }
 
+const REVISION_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  incomes: ['month', 'amount'],
+  expenses: ['month', 'label', 'amount', 'is_carryover'],
+  carryovers: ['month', 'amount', 'is_cleared'],
+}
+
 // instrumentationとRoute Handlerの別バンドル間でも同じストアを共有する。
 const mockGlobal = globalThis as typeof globalThis & {
   __scoreSplitterMockStore?: Store
@@ -30,6 +36,21 @@ export function initStore(): void {
     passkey_credentials: structuredClone(seedData.passkey_credentials),
     webauthn_challenges: [],
     waitlist_entries: [],
+    ai_diagnoses: [],
+    ai_execution_guard: [
+      {
+        id: 1,
+        run_token: null,
+        run_expires_at: null,
+        last_started_at: null,
+        usage_date: '1970-01-01',
+        daily_count: 0,
+        updated_at: '1970-01-01T00:00:00.000Z',
+      },
+    ],
+    ai_diagnosis_source_revision: [
+      { id: 1, revision: 0, updated_at: '1970-01-01T00:00:00.000Z' },
+    ],
   }
 }
 
@@ -143,6 +164,7 @@ export function insertRows(table: string, rows: Row[]): Row[] {
   }))
 
   tableData.push(...inserted)
+  incrementSourceRevision(table, inserted.length)
   return inserted
 }
 
@@ -161,10 +183,15 @@ export function updateRows(
 
   for (let i = 0; i < tableData.length; i++) {
     if (matchingIds.has(tableData[i].id)) {
+      const before = tableData[i]
       tableData[i] = {
         ...tableData[i],
         ...updates,
         updated_at: now,
+      }
+      const fields = REVISION_FIELDS[table] ?? []
+      if (fields.some((field) => before[field] !== tableData[i][field])) {
+        incrementSourceRevision(table, 1)
       }
       updated.push(tableData[i])
     }
@@ -185,5 +212,15 @@ export function deleteRows(
 
   const before = tableData.length
   store[table] = tableData.filter((r) => !matchingIds.has(r.id))
-  return before - store[table].length
+  const deleted = before - store[table].length
+  incrementSourceRevision(table, deleted)
+  return deleted
+}
+
+function incrementSourceRevision(table: string, count: number): void {
+  if (!(table in REVISION_FIELDS) || count === 0) return
+  const row = getTable('ai_diagnosis_source_revision')[0]
+  if (!row) throw new Error('診断source revisionが初期化されていません')
+  row.revision = Number(row.revision) + count
+  row.updated_at = new Date().toISOString()
 }

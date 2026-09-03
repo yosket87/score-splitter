@@ -50,14 +50,38 @@ GitHubへpushするとWorkers Buildsが自動実行され、devプロジェク�
 ```bash
 # 本番Worker（score-splitter）
 npx wrangler secret put APP_PASSWORD_HASH_BASE64
+npx wrangler secret put OPENAI_API_KEY
 
 # 開発Worker（score-splitter-dev）。値はGitに保存しない
 npx wrangler secret put APP_PASSWORD_HASH_BASE64 --env dev
+npx wrangler secret put OPENAI_API_KEY --env dev
 ```
 
 開発パスワードは本番と共有せず、macOSのキーチェーンアクセスで項目名 `score-splitter-dev`（アカウント `development`）から確認する。平文はGit・PR・ビルド変数へ保存しない。CloudflareにはbcryptハッシュをBase64化した値のみ設定する。
 
 旧API Workerの共有シークレットは切り戻しが必要な期間だけ保持し、新しい通常経路の設定として追加しない。
+
+## AI診断リリース手順
+
+開発のPR Previewで検証してから、明示承認を得てproductionへ進む。診断も通常の家計操作と同じWorkerのD1 bindingを利用し、旧API Workerの公開は不要。
+
+1. 開発D1のmigration一覧を `npx wrangler d1 migrations list score-splitter-db-dev --remote --env dev` で確認する。
+2. 開発環境の変更承認後、`npm run migrate:dev` で追加migrationを適用し、pending 0件を再確認する。
+3. `score-splitter-dev` の実行時Secret `OPENAI_API_KEY` / `APP_PASSWORD_HASH_BASE64` が存在することを、値を出力せず確認する。AIキーがない場合は診断ボタンを表示しない。
+4. devのPRビルドを実行し、Branch Alias Preview URLで以下の項目を確認する。手動確認は `npm run upload:dev` を使い、本番の既定コマンドを流用しない。
+5. 本番公開は別途明示承認を得てから行う。「本番バックアップとPRゲート」に従ってバックアップ・実体検証を済ませ、本番D1へ追加migrationを先行適用し、pending 0件と必要Secretを確認してから本番Workerを公開する。
+
+`deploy:worker` / `migrate:worker:remote` は旧APIへ切り戻す場合だけのコマンドであり、devの診断確認には使用しない。
+
+### 開発 / production smoke checklist
+
+- migration statusがpending 0件で、`ai_diagnoses`、`ai_execution_guard`、`ai_diagnosis_source_revision`を参照できる。
+- 通常の支出更新（label、amount、繰越切替）が成功し、一覧へ反映される。
+- AI診断のcontext取得、lease取得、カテゴリ分類、診断保存が成功する。
+- 診断実行中に通常の支出更新を行うと、古い診断保存は409になり、画面の既存結果はstale表示になる。
+- AI診断成功後、通常の支出更新と再診断が引き続き成功する。
+
+開発環境の全項目に合格してから、明示承認を得てproductionへ進み、productionでも同じchecklistを実施する。API secretや実OpenAI呼び出しが必要なsmokeは権限を持つ運用担当者が実施する。
 
 ## 手動デプロイ
 

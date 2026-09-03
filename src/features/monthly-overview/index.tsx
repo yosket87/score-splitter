@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { AnimatedYen } from '@/components/animations/animated-number'
 import { useMotionPrefs } from '@/components/animations/use-motion-prefs'
 import { TrendCard } from '@/components/charts/trend-card'
+import { AiDiagnosisDialog } from '@/features/ai-diagnosis'
 import { CopyMonthDialog } from '@/features/copy-month'
 import { ExportCsvButton } from '@/features/export-csv'
 import {
@@ -36,10 +37,23 @@ interface MonthlyOverviewProps {
   month: number
   summary: MonthlyOverviewSummary
   summaries: MonthlySummary[]
+  aiDiagnosisAvailable?: boolean
 }
 
 function toCurrentMonth(year: number, month: number): string {
   return `${year}${String(month).padStart(2, '0')}`
+}
+
+function createDiagnosisDataVersion(summary: MonthlyOverviewSummary): string {
+  return JSON.stringify({
+    incomes: summary.incomes.map(({ id, amount }) => ({ id, amount })),
+    expenses: summary.expenses.map(
+      ({ id, label, amount, isCarryover }) => ({ id, label, amount, isCarryover })
+    ),
+    carryovers: summary.carryovers.map(
+      ({ id, amount, isCleared }) => ({ id, amount, isCleared })
+    ),
+  })
 }
 
 function useMonthDirection(currentMonth: string): number {
@@ -63,6 +77,7 @@ export function MonthlyOverview({
   month,
   summary,
   summaries,
+  aiDiagnosisAvailable = true,
 }: MonthlyOverviewProps) {
   const router = useRouter()
   const { reduced } = useMotionPrefs()
@@ -152,7 +167,7 @@ export function MonthlyOverview({
             </button>
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-start gap-2">
             <CopyMonthDialog
               currentMonth={currentMonth}
               previousMonth={previousMonth}
@@ -163,6 +178,13 @@ export function MonthlyOverview({
               expenses={expenses}
               carryovers={carryovers}
             />
+            {aiDiagnosisAvailable && (
+              <AiDiagnosisDialog
+                key={createDiagnosisDataVersion(summary)}
+                month={currentMonth}
+                hasActualExpenses={expenses.some((expense) => !expense.isCarryover)}
+              />
+            )}
           </div>
         </div>
 

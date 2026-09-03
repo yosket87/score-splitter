@@ -130,11 +130,11 @@ describe('UX polish', () => {
     )
   })
 
-  it('FABがsafe-area下部を加味する', () => {
+  it('追加バーがsafe-area下部を加味する', () => {
     render(<AddEntryFab month="202604" />)
 
-    expect(screen.getByRole('button', { name: '項目を追加' })).toHaveClass(
-      'bottom-[calc(env(safe-area-inset-bottom)+1.25rem)]'
+    expect(screen.getByRole('button', { name: '項目を追加' }).parentElement).toHaveClass(
+      'pb-[calc(env(safe-area-inset-bottom)+0.75rem)]'
     )
   })
 

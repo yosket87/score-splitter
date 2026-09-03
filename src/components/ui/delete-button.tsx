@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Loader2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -22,6 +22,10 @@ interface DeleteButtonProps {
   confirmDescription?: string
   onDelete: () => Promise<ActionResult | void>
   onDeleted?: () => void
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  trigger?: ReactNode
+  onCloseAutoFocus?: (event: Event) => void
 }
 
 export function DeleteButton({
@@ -30,8 +34,17 @@ export function DeleteButton({
   confirmDescription = 'この操作は取り消せません。削除してよろしいですか？',
   onDelete,
   onDeleted,
+  open: controlledOpen,
+  onOpenChange,
+  trigger,
+  onCloseAutoFocus,
 }: DeleteButtonProps) {
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
+  function setOpen(nextOpen: boolean) {
+    setInternalOpen(nextOpen)
+    onOpenChange?.(nextOpen)
+  }
   const [pending, setPending] = useState(false)
   const accessibleLabel = label ?? `${itemName}を削除`
 
@@ -54,18 +67,22 @@ export function DeleteButton({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !pending && setOpen(nextOpen)}>
-      <DialogTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={accessibleLabel}
-          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="app-modal-surface">
+      {trigger !== null && (
+        <DialogTrigger asChild>
+          {trigger ?? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={accessibleLabel}
+              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
+      <DialogContent onCloseAutoFocus={onCloseAutoFocus} className="app-modal-surface">
         <DialogHeader>
           <DialogTitle>「{itemName}」を削除しますか？</DialogTitle>
           <DialogDescription>{confirmDescription}</DialogDescription>

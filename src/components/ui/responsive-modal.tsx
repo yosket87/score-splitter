@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { cn } from '@/lib/utils'
 import {
@@ -30,6 +30,7 @@ interface ResponsiveModalProps {
   dialogContentClassName?: string
   drawerContentClassName?: string
   drawerBodyClassName?: string
+  onCloseAutoFocus?: (event: Event) => void
 }
 
 export function ResponsiveModal({
@@ -42,14 +43,27 @@ export function ResponsiveModal({
   dialogContentClassName,
   drawerContentClassName,
   drawerBodyClassName,
+  onCloseAutoFocus,
 }: ResponsiveModalProps) {
   const isMobile = useIsMobile()
+  const drawerRef = useRef<HTMLDivElement>(null)
 
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerTrigger asChild>{trigger}</DrawerTrigger>
-        <DrawerContent className={cn('app-modal-surface app-solid-panel px-4 pb-safe', drawerContentClassName)}>
+        {trigger && <DrawerTrigger asChild>{trigger}</DrawerTrigger>}
+        <DrawerContent
+          ref={drawerRef}
+          onOpenAutoFocus={(event) => {
+            // メニューなど外部から開いた場合、入力欄を避けて本体にフォーカスを移す。
+            if (!trigger) {
+              event.preventDefault()
+              drawerRef.current?.focus()
+            }
+          }}
+          onCloseAutoFocus={onCloseAutoFocus}
+          className={cn('app-modal-surface app-solid-panel px-4 pb-safe', drawerContentClassName)}
+        >
           <DrawerHeader>
             <DrawerTitle>{title}</DrawerTitle>
             <DrawerDescription>{description}</DrawerDescription>
@@ -64,8 +78,8 @@ export function ResponsiveModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className={cn('app-modal-surface app-solid-panel', dialogContentClassName)}>
+      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
+      <DialogContent onCloseAutoFocus={onCloseAutoFocus} className={cn('app-modal-surface app-solid-panel', dialogContentClassName)}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>

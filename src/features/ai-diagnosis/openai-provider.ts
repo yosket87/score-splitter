@@ -12,6 +12,7 @@ import {
   type NarrativeInput,
 } from './domain'
 import { AI_DIAGNOSIS_MAX_CLASSIFICATION_LABELS } from './limits'
+import { StructuredOutputError } from './diagnostics'
 
 const DEFAULT_MODEL = 'gpt-5-mini'
 
@@ -34,8 +35,6 @@ const narrativeResultSchema = z.object({
   suggestions: z.array(narrativeItemSchema),
   dataSufficiency: dataSufficiencySchema,
 }).strict()
-
-class StructuredOutputError extends Error {}
 
 type StructuredResponse = {
   output_parsed: unknown

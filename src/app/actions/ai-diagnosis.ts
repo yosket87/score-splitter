@@ -28,6 +28,7 @@ import {
   type AiDiagnosisService,
 } from '@/features/ai-diagnosis/service'
 import type { ActionResult } from '@/types'
+import { observeDiagnosisStep } from '@/features/ai-diagnosis/diagnostics'
 
 type GenerateAiDiagnosisResult = ActionResult<AiDiagnosisView> & {
   errorCode?: 'source_revision_conflict'
@@ -42,7 +43,7 @@ export async function loadAiDiagnosis(
   }
 
   try {
-    const diagnosis = await createRequestService().load(month)
+    const diagnosis = await observeDiagnosisStep('load', () => createRequestService().load(month))
     return { success: true, data: diagnosis }
   } catch {
     console.error('AI診断取得エラー')
@@ -59,7 +60,7 @@ export async function generateAiDiagnosis(
   }
 
   try {
-    const diagnosis = await createRequestService().run(month)
+    const diagnosis = await observeDiagnosisStep('generate', () => createRequestService().run(month))
     return { success: true, data: diagnosis }
   } catch (error) {
     console.error('AI診断生成エラー')
@@ -113,18 +114,18 @@ function createLazyProvider(): AiDiagnosisProvider {
   }
 
   return {
-    classifyLabels: (labels) => getProvider().classifyLabels(labels),
-    generateNarrative: (input) => getProvider().generateNarrative(input),
+    classifyLabels: (labels) => observeDiagnosisStep('classify', () => getProvider().classifyLabels(labels)),
+    generateNarrative: (input) => observeDiagnosisStep('narrative', () => getProvider().generateNarrative(input)),
   }
 }
 
 function createRepository(): AiDiagnosisRepository {
   return {
-    getContext: getDiagnosisContext,
-    getSavedDiagnosis,
-    acquireLease: acquireDiagnosisLease,
-    saveCategories: saveExpenseCategories,
-    saveDiagnosis,
-    releaseLease: releaseDiagnosisLease,
+    getContext: (month) => observeDiagnosisStep('context', () => getDiagnosisContext(month)),
+    getSavedDiagnosis: (month) => observeDiagnosisStep('saved_result', () => getSavedDiagnosis(month)),
+    acquireLease: (month, token) => observeDiagnosisStep('acquire_lease', () => acquireDiagnosisLease(month, token)),
+    saveCategories: (month, token, assignments) => observeDiagnosisStep('save_categories', () => saveExpenseCategories(month, token, assignments)),
+    saveDiagnosis: (month, input) => observeDiagnosisStep('save_result', () => saveDiagnosis(month, input)),
+    releaseLease: (month, token) => observeDiagnosisStep('release_lease', () => releaseDiagnosisLease(month, token)),
   }
 }

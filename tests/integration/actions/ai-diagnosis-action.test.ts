@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { APIConnectionTimeoutError } from 'openai/core/error'
 
 import '../../../tests/mocks/next'
 import '../../../tests/mocks/api'
@@ -350,6 +351,32 @@ describe('AI家計診断Action', () => {
       error: '診断できる支出データがありません',
     })
     expect(aiDiagnosisApiMock.releaseDiagnosisLease).toHaveBeenCalledOnce()
+  })
+
+  it('分類のタイムアウトは安全な処理名・種別・時間だけを記録する', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const consoleInfo = vi.spyOn(console, 'info').mockImplementation(() => undefined)
+    providerFactoryMock.mockReturnValue({
+      classifyLabels: vi.fn().mockRejectedValue(new APIConnectionTimeoutError({
+        message: 'API_KEY=secret Uber Eats -32000',
+      })),
+      generateNarrative: vi.fn(),
+    })
+    try {
+      await expect(generateAiDiagnosis('202604')).resolves.toEqual({
+        success: false, error: 'AI診断に失敗しました',
+      })
+      expect(consoleError).toHaveBeenCalledWith('[ai-diagnosis]', expect.objectContaining({
+        stage: 'classify', outcome: 'error', errorKind: 'timeout',
+        status: null, elapsedMs: expect.any(Number),
+      }))
+      expect(JSON.stringify([...consoleError.mock.calls, ...consoleInfo.mock.calls]))
+        .not.toMatch(/secret|Uber Eats|-32000|202604/)
+      expect(aiDiagnosisApiMock.releaseDiagnosisLease).toHaveBeenCalledOnce()
+    } finally {
+      consoleError.mockRestore()
+      consoleInfo.mockRestore()
+    }
   })
 
   it('一般エラーは詳細を応答・ログへ出さず固定メッセージへ変換する', async () => {

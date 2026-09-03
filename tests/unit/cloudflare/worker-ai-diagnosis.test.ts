@@ -581,7 +581,7 @@ WHERE month = ? AND run_token = ?`,
     })
   })
 
-  it('2分の失効後に引き継がれた旧tokenは分類保存できない', async () => {
+  it('3分の失効後に引き継がれた旧tokenは分類保存できない', async () => {
     const db = new FakeD1Database()
     await acquireLeaseForTest(db, 'old-run')
     const nextLease = await handleRequest(
@@ -594,7 +594,7 @@ WHERE month = ? AND run_token = ?`,
         body: JSON.stringify({ runToken: 'new-run' }),
       }),
       createEnv(db),
-      { now: vi.fn(() => new Date('2026-01-20T12:02:01.000Z')) }
+      { now: vi.fn(() => new Date('2026-01-20T12:03:01.000Z')) }
     )
     expect(nextLease.status).toBe(200)
 
@@ -614,7 +614,7 @@ WHERE month = ? AND run_token = ?`,
         }),
       }),
       createEnv(db),
-      { now: vi.fn(() => new Date('2026-01-20T12:02:01.000Z')) }
+      { now: vi.fn(() => new Date('2026-01-20T12:03:01.000Z')) }
     )
 
     expect(staleSave.status).toBe(409)

@@ -537,7 +537,7 @@ describe('OpenAI家計診断プロバイダー', () => {
     const safeOptions = Object.fromEntries(
       Object.entries(receivedOptions ?? {}).filter(([key]) => key !== 'apiKey'),
     )
-    expect(safeOptions).toEqual({ timeout: 15_000, maxRetries: 0, logLevel: 'off' })
+    expect(safeOptions).toEqual({ timeout: 30_000, maxRetries: 0, logLevel: 'off' })
   })
 })
 
@@ -589,12 +589,38 @@ describe('OpenAIの処理別タイムアウト', () => {
     expect(requests()).toBe(1)
   })
 
-  it('診断文の待ち時間は15秒のままにする', async () => {
+  it('診断文が20秒かかっても結果を受け取れる', async () => {
     const { provider, requests } = delayedApi(20_000, [validNarrativeResponse])
     const result = provider.generateNarrative(narrativeInput).catch((error: unknown) => error)
-    await vi.advanceTimersByTimeAsync(15_001)
+    await vi.advanceTimersByTimeAsync(20_001)
+    expect(await result).toEqual(validNarrative)
+    expect(requests()).toBe(1)
+  })
+
+  it('診断文の30秒超過は中断し、自動再試行しない', async () => {
+    const { provider, requests } = delayedApi(60_000, [validNarrativeResponse])
+    let settled = false
+    const result = provider.generateNarrative(narrativeInput).catch((error: unknown) => error)
+      .finally(() => { settled = true })
+    await vi.advanceTimersByTimeAsync(29_999)
+    expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(2)
     expect(await result).toMatchObject({ name: 'Error', message: 'Request timed out.' })
     expect(requests()).toBe(1)
+  })
+
+  it('分類と診断文を各一度再試行しても29秒ずつの応答を受け取れる', async () => {
+    const { provider, requests } = delayedApi(29_000, [
+      { assignments: [] }, classification, {}, validNarrativeResponse,
+    ])
+    const result = (async () => {
+      const assignments = await provider.classifyLabels(['イオン'])
+      const narrative = await provider.generateNarrative(narrativeInput)
+      return { assignments, narrative }
+    })().catch((error: unknown) => error)
+    await vi.advanceTimersByTimeAsync(116_001)
+    expect(await result).toEqual({ assignments: classification.assignments, narrative: validNarrative })
+    expect(requests()).toBe(4)
   })
 
   it('分類の構造化出力を再試行する場合も20秒の応答を受け取れる', async () => {

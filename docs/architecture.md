@@ -41,8 +41,8 @@ score-splitter/
 │   │   └── waitlist-lp/          # 需要検証用LP
 │   │
 │   ├── lib/
-│   │   ├── api/                  # Worker APIクライアント
-│   │   │   ├── client.ts         # HTTPクライアント
+│   │   ├── api/                  # D1直接アクセスのアダプター
+│   │   │   ├── client.ts         # 旧HTTPクライアント（USE_MOCKS/切り戻し用）
 │   │   │   ├── records.ts        # 収支データAPI
 │   │   │   ├── sessions.ts       # セッションAPI
 │   │   │   ├── passkeys.ts       # パスキーAPI
@@ -71,8 +71,9 @@ score-splitter/
 │   └── setup.ts                  # テストセットアップ
 │
 ├── cloudflare/
-│   └── worker/                   # Cloudflare Worker API
-│       ├── src/
+│   └── worker/                   # D1ドメイン関数・migration。HTTP入口は切り戻し用
+│       ├── src/                  # root Workerと共有するD1ドメイン関数
+│       │   └── index.ts          # 旧APIのHTTP入口（切り戻し用）
 │       └── migrations/           # D1マイグレーション
 │
 ├── public/                       # 静的アセット
@@ -95,8 +96,11 @@ score-splitter/
 Next.js 16のApp Routerを使用し、Server ComponentsとServer Actionsを中心としたアーキテクチャを採用しています。
 
 ```
-[クライアント] ─→ [Server Component] ─→ [Server Action] ─→ [Worker API] ─→ [D1]
+[クライアント] ─→ [Server Component] ─→ [Server Action] ─→ [OpenNext Worker]
+                                                        └─→ [D1 binding]
 ```
+
+本番・開発の通常経路は、rootのNext.js/OpenNext WorkerからD1 bindingへ直接アクセスする。`src/lib/api/` はドメイン別のデータ操作インターフェースを維持し、D1ドメイン関数は `cloudflare/worker/src/` と共有する。`USE_MOCKS=true` の場合だけ既存のHTTPクライアントとMSW経路へ切り替える。旧APIのHTTP入口（`cloudflare/worker/src/index.ts`）と設定は切り戻し用に安定稼働確認まで残す。
 
 ### レイヤー構成
 
@@ -110,7 +114,7 @@ Next.js 16のApp Routerを使用し、Server ComponentsとServer Actionsを中�
    - 計算ロジック、バリデーション
 
 4. **インフラ層**: `lib/api/`, `cloudflare/worker/`
-   - Worker API接続、D1アクセス、認証補助
+   - D1 binding経由のデータアクセス、共有D1ドメイン関数、認証補助。旧HTTP API入口はモック・切り戻し用
 
 ### 認証フロー
 

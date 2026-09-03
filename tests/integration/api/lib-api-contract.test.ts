@@ -1,6 +1,9 @@
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('server-only', () => ({}))
+
 import {
   createCarryover,
   createExpense,
@@ -65,6 +68,7 @@ afterAll(() => {
 })
 
 beforeEach(() => {
+  vi.stubEnv('USE_MOCKS', 'true')
   vi.stubEnv('CLOUDFLARE_WORKER_API_URL', WORKER_URL)
   vi.stubEnv('CLOUDFLARE_WORKER_API_TOKEN', WORKER_TOKEN)
 })

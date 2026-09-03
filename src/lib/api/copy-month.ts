@@ -1,6 +1,12 @@
 import { z } from 'zod'
+import { getDatabase, getRuntime, isWorkerApiMockEnabled, runD1Operation } from './backend'
 import { apiRequest } from './client'
 import { apiEnvelopeSchema, type ApiEnvelope } from './types'
+import {
+  copyMonthData as copyMonthDataInD1,
+  getCopyMonthPreview as getCopyMonthPreviewFromD1,
+} from '../../../cloudflare/worker/src/copy-month'
+import { parseMonth } from '../../../cloudflare/worker/src/validation'
 import type { CopyMonthOptions, CopyMonthPreview, CopyMonthResult } from '@/types'
 
 const copyItemSchema = z.object({
@@ -38,6 +44,16 @@ export async function getCopyMonthPreview(
   sourceMonth: string,
   targetMonth: string
 ): Promise<CopyMonthPreview> {
+  if (!isWorkerApiMockEnabled()) {
+    return runD1Operation(() =>
+      getCopyMonthPreviewFromD1(
+        getDatabase(),
+        parseMonth(sourceMonth),
+        parseMonth(targetMonth)
+      )
+    )
+  }
+
   const params = new URLSearchParams({ sourceMonth, targetMonth })
   const response = await apiRequest<ApiEnvelope<CopyMonthPreview>>(`/copy-month/preview?${params}`, {
     responseSchema: copyMonthPreviewEnvelopeSchema,
@@ -46,6 +62,10 @@ export async function getCopyMonthPreview(
 }
 
 export async function copyMonthData(options: CopyMonthOptions): Promise<CopyMonthResult> {
+  if (!isWorkerApiMockEnabled()) {
+    return runD1Operation(() => copyMonthDataInD1(getDatabase(), getRuntime(), options))
+  }
+
   return apiRequest<CopyMonthResult>('/copy-month', {
     method: 'POST',
     body: options,

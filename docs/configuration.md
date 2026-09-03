@@ -174,19 +174,26 @@ initOpenNextCloudflareForDev()
 
 ## Cloudflare設定
 
-フロントエンド・APIともCloudflare Workersにホストしており、wrangler設定は2ファイル構成。
+通常運用はrootのNext.js/OpenNext Worker 1つで、D1 bindingを直接利用する。`cloudflare/worker/src/` のD1ドメイン関数は共有し、HTTP入口の `index.ts` と旧API Worker設定は切り戻し用に残している。
 
 | ファイル | Worker名 | 役割 |
 |---------|---------|------|
-| `wrangler.jsonc`（root） | `score-splitter-web` | フロントエンド（Next.js on Workers / OpenNext） |
-| `cloudflare/worker/wrangler.jsonc` | `score-splitter-api` | Worker API（D1バインディング `DB`） |
+| `wrangler.jsonc`（root） | `score-splitter-web` | 本番のNext.js/OpenNext Worker + 本番D1 binding `DB` |
+| `wrangler.jsonc`（`env.dev`） | `score-splitter-dev` | 開発・PR PreviewのNext.js/OpenNext Worker + 開発D1 binding `DB` |
+| `cloudflare/worker/wrangler.jsonc` | `score-splitter-api` | `src/index.ts` の旧HTTP入口用設定。D1ドメイン関数はroot Workerと共有し、HTTP入口は切り戻し用 |
 
-### root `wrangler.jsonc`（フロントエンド）の要点
+### root `wrangler.jsonc`（本番Worker）の要点
 
 - `main: .open-next/worker.js` — `opennextjs-cloudflare build` の生成物
-- `compatibility_flags: ["nodejs_compat", "global_fetch_strictly_public"]` — Node.js API互換と、同一アカウントのWorker APIへのHTTP fetchを公開URL経由で通すために必要
+- `compatibility_flags: ["nodejs_compat", "global_fetch_strictly_public"]` — Node.js API互換。旧APIを切り戻す場合を除き、公開HTTP APIへのfetchは行わない
 - `keep_names: false` — next-themes等がスクリプトを文字列化する際にesbuildの `__name` ヘルパーが混入する既知問題への対処
 - `vars` には非シークレットのみ記載。**シークレットを `vars` に書くとdeployのたびにダッシュボード設定を上書きするため厳禁**
+- `d1_databases` は本番 `score-splitter` と `env.dev` の `score-splitter-db-dev` を明示的に分離する。named environmentではbindingを継承しないため、両方に `DB` を定義する
+- 固定の開発Custom Domainは作成せず、Workers BuildsのブランチPreview URLを使用する
+
+### 旧API Workerの切り戻し資産
+
+`cloudflare/worker/src/index.ts` は旧HTTP APIの入口で、`cloudflare/worker/src/` 内のD1ドメイン関数とは役割が異なる。通常のroot WorkerからのリクエストはこのHTTP入口を経由しない。
 
 ### open-next.config.ts
 
@@ -206,10 +213,26 @@ OpenNextはリクエスト処理開始時にWorkerの `env` を `process.env` �
 
 | 変数 | 設定先 | 説明 |
 |-----|-------|------|
-| CLOUDFLARE_WORKER_API_URL | `wrangler.jsonc` の `vars` | Worker APIのURL |
 | WEBAUTHN_RP_ID / WEBAUTHN_RP_ORIGIN / WEBAUTHN_RP_NAME | `wrangler.jsonc` の `vars` | WebAuthn（パスキー）のRP設定 |
-| CLOUDFLARE_WORKER_API_TOKEN | `wrangler secret put` | Worker API共有シークレット（サーバー専用） |
 | APP_PASSWORD_HASH_BASE64 | `wrangler secret put` | アプリパスワードのbcryptハッシュ（Base64エンコード） |
+
+### 旧API切り戻し用の変数
+
+以下は移行期間中のrollback-only設定であり、通常のD1直接アクセスでは読み出さない。
+
+| 変数 | 設定先 | 用途 |
+|-----|-------|------|
+| CLOUDFLARE_WORKER_API_URL | root `wrangler.jsonc` の `vars` | 旧HTTP API `api.yamawake.app` の接続先 |
+| CLOUDFLARE_WORKER_API_TOKEN | `score-splitter-web` のsecret | root Workerから旧HTTP APIへ切り戻す場合のBearerトークン |
+| WORKER_API_TOKEN | `score-splitter-api` のsecret | 旧HTTP APIのBearer検証 |
+
+開発WorkerのパスワードシークレットはGitに保存せず、次で設定する。
+
+```bash
+npx wrangler secret put APP_PASSWORD_HASH_BASE64 --env dev
+```
+
+本番切替前は、別途 `npm run backup:d1:production -- --confirm-production-d1 <本番D1 UUID>` がPASSになることを確認する。
 
 ### ローカル開発
 
@@ -217,7 +240,11 @@ OpenNextはリクエスト処理開始時にWorkerの `env` を `process.env` �
 - `opennextjs-cloudflare preview`（workerd実行）: `.dev.vars`（gitignore対象、`.dev.vars.example` をコピーして作成）
 
 ```
-CLOUDFLARE_WORKER_API_URL=your_worker_api_url
-CLOUDFLARE_WORKER_API_TOKEN=your_worker_api_token
+NEXTJS_ENV=development
 APP_PASSWORD_HASH_BASE64=your_password_hash_base64
+WEBAUTHN_RP_ID=localhost
+WEBAUTHN_RP_ORIGIN=http://localhost:8787
+WEBAUTHN_RP_NAME=ヤマワケ
 ```
+
+`CLOUDFLARE_WORKER_API_URL` / `CLOUDFLARE_WORKER_API_TOKEN` は `USE_MOCKS=true` の旧HTTP/MSWテスト時だけ必要です。

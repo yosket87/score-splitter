@@ -13,7 +13,10 @@ type Request = {
   model: string
   store: boolean
   input: Array<{ role: string; content: string }>
-  text?: { format?: { type?: string; strict?: boolean | null; name?: string } }
+  text?: { format?: {
+    type?: string; strict?: boolean | null; name?: string; schema?: Record<string, unknown>
+    $parseRaw?: (raw: string) => unknown
+  } }
 }
 
 const narrativeInput: NarrativeInput = {
@@ -57,6 +60,14 @@ const validNarrative = {
   dataSufficiency: 'full',
 }
 
+const validNarrativeResponse = {
+  summaryText: '外食の変化が目立つ月でした',
+  notableChanges: { 'increase:dining': '意図した支出だったか振り返れそうです' },
+  positivePoints: {},
+  suggestions: { 'suggestion:dining': '次の月に回数を話し合う選択肢があります' },
+  dataSufficiency: 'full',
+}
+
 class FakeResponsesClient {
   lastRequest: Request | undefined
   calls = 0
@@ -81,15 +92,80 @@ class FakeResponsesClient {
 }
 
 describe('OpenAI家計診断プロバイダー', () => {
+  it('種類ごとに固定した候補欄の応答を、IDが重複しない既存の診断形式へ変換する', async () => {
+    const responses = new FakeResponsesClient([validNarrativeResponse])
+    const provider = createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses })
+    await expect(provider.generateNarrative(narrativeInput)).resolves.toEqual(validNarrative)
+    expect(responses.lastRequest?.text?.format?.schema).toMatchObject({
+      type: 'object', additionalProperties: false,
+      properties: {
+        notableChanges: {
+          type: 'object', additionalProperties: false,
+          required: ['increase:dining'],
+          properties: { 'increase:dining': { anyOf: [{ type: 'string' }, { type: 'null' }] } },
+        },
+        positivePoints: { type: 'object', additionalProperties: false, properties: {} },
+        suggestions: {
+          type: 'object', additionalProperties: false,
+          required: ['suggestion:dining'],
+          properties: { 'suggestion:dining': { anyOf: [{ type: 'string' }, { type: 'null' }] } },
+        },
+      },
+    })
+    expect(responses.calls).toBe(1)
+  })
+
+  it('採用しない候補のnullを除き、別の月の候補にもその都度スキーマを作る', async () => {
+    const input = {
+      ...narrativeInput,
+      notableCandidates: [
+        ...narrativeInput.notableCandidates,
+        { ...narrativeInput.notableCandidates[0], id: 'increase:groceries', category: 'groceries' as const },
+      ],
+    }
+    const responses = new FakeResponsesClient([{
+      ...validNarrativeResponse,
+      notableChanges: { ...validNarrativeResponse.notableChanges, 'increase:groceries': null },
+    }, validNarrativeResponse])
+    const provider = createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses })
+    await expect(provider.generateNarrative(input)).resolves.toEqual(validNarrative)
+    expect(responses.lastRequest?.text?.format?.schema).toMatchObject({
+      properties: { notableChanges: { required: ['increase:dining', 'increase:groceries'] } },
+    })
+    await expect(provider.generateNarrative(narrativeInput)).resolves.toEqual(validNarrative)
+    expect(responses.lastRequest?.text?.format?.schema).toMatchObject({
+      properties: { notableChanges: { required: ['increase:dining'] } },
+    })
+  })
+
+  it('SDKの実パーサーでも候補欄の不足・未知IDを拒否し、nullは受け付ける', async () => {
+    const responses = new FakeResponsesClient([validNarrativeResponse])
+    await createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses }).generateNarrative(narrativeInput)
+    const parseRaw = responses.lastRequest?.text?.format?.$parseRaw
+    expect(parseRaw).toBeTypeOf('function')
+    expect(parseRaw!(JSON.stringify(validNarrativeResponse))).toEqual(validNarrativeResponse)
+    const nullable = { ...validNarrativeResponse, suggestions: { 'suggestion:dining': null } }
+    expect(parseRaw!(JSON.stringify(nullable))).toEqual(nullable)
+    for (const notableChanges of [{}, { ...validNarrativeResponse.notableChanges, unknown: '説明です' }]) {
+      expect(() => parseRaw!(JSON.stringify({ ...validNarrativeResponse, notableChanges }))).toThrow()
+    }
+  })
+
+  it('候補がすべて空でも架空のIDなしで要約を返せる', async () => {
+    const responses = new FakeResponsesClient([{
+      ...validNarrativeResponse, notableChanges: {}, suggestions: {},
+    }])
+    await expect(createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses })
+      .generateNarrative({ ...narrativeInput, notableCandidates: [], suggestionCandidates: [] }))
+      .resolves.toEqual({ ...validNarrative, notableChanges: [], suggestions: [] })
+  })
+
   it.each([
-    ['narrative_number', { ...validNarrative, summaryText: '秘密の支出が７円' }, []],
-    ['narrative_person_reference', { ...validNarrative, summaryText: '秘密の妻の支出' }, []],
-    ['narrative_judgment', { ...validNarrative, summaryText: '秘密の浪費' }, []],
-    ['data_sufficiency_mismatch', { ...validNarrative, dataSufficiency: 'reference' }, []],
-    ['candidate_id_mismatch', {
-      ...validNarrative, notableChanges: [{ candidateId: '秘密のID', commentary: '秘密の返答' }],
-    }, []],
-    ['missing_candidate_commentary', { ...validNarrative, suggestions: [] }, []],
+    ['narrative_number', { ...validNarrativeResponse, summaryText: '秘密の支出が７円' }, []],
+    ['narrative_person_reference', { ...validNarrativeResponse, summaryText: '秘密の妻の支出' }, []],
+    ['narrative_judgment', { ...validNarrativeResponse, summaryText: '秘密の浪費' }, []],
+    ['data_sufficiency_mismatch', { ...validNarrativeResponse, dataSufficiency: 'reference' }, []],
+    ['missing_candidate_commentary', { ...validNarrativeResponse, suggestions: { 'suggestion:dining': null } }, []],
     ['missing_parsed_output', null, []],
     ['refusal', null, [{ type: 'message', content: [{ type: 'refusal', refusal: '秘密の拒否理由' }] }]],
   ])('診断文の検証失敗を本文なしの理由 %s で記録する', async (reason, response, output) => {
@@ -179,14 +255,14 @@ describe('OpenAI家計診断プロバイダー', () => {
 
   it('1診断の分類とnarrativeは内部再試行込みで合計4 requestを超えない', async () => {
     const invalidNarrative = {
-      ...validNarrative,
+      ...validNarrativeResponse,
       summaryText: '夫の支出が増えました',
     }
     const responses = new FakeResponsesClient([
       { assignments: [{ label: 'イオン', category: 'unknown' }] },
       { assignments: [{ label: 'イオン', category: 'groceries' }] },
       invalidNarrative,
-      validNarrative,
+      validNarrativeResponse,
     ])
     const provider = createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses })
 
@@ -197,7 +273,7 @@ describe('OpenAI家計診断プロバイダー', () => {
   })
 
   it('診断要求には分析済み候補だけを数値なしで送る', async () => {
-    const responses = new FakeResponsesClient([validNarrative])
+    const responses = new FakeResponsesClient([validNarrativeResponse])
     const provider = createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses })
 
     await expect(provider.generateNarrative(narrativeInput)).resolves.toEqual(validNarrative)
@@ -236,10 +312,10 @@ describe('OpenAI家計診断プロバイダー', () => {
   it('数値と個人評価を含む診断文を拒否して一度再試行する', async () => {
     const responses = new FakeResponsesClient([
       {
-        ...validNarrative,
+        ...validNarrativeResponse,
         summaryText: '夫の外食が１６，０００円増えました',
       },
-      validNarrative,
+      validNarrativeResponse,
     ])
     const provider = createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses })
 
@@ -248,10 +324,10 @@ describe('OpenAI家計診断プロバイダー', () => {
   })
 
   it.each([
-    ['未知ID', { ...validNarrative, notableChanges: [{ candidateId: 'unknown', commentary: '説明です' }] }],
-    ['種別違い', { ...validNarrative, notableChanges: [{ candidateId: 'suggestion:dining', commentary: '説明です' }] }],
+    ['未知ID', { ...validNarrativeResponse, notableChanges: { 'increase:dining': '説明です', unknown: '秘密の返答' } }],
+    ['種別違い', { ...validNarrativeResponse, notableChanges: { 'suggestion:dining': '説明です' } }],
     ['重複ID', {
-      ...validNarrative,
+      ...validNarrativeResponse,
       notableChanges: [
         { candidateId: 'increase:dining', commentary: '説明です' },
         { candidateId: 'increase:dining', commentary: '別の説明です' },
@@ -261,7 +337,7 @@ describe('OpenAI家計診断プロバイダー', () => {
     const responses = new FakeResponsesClient([invalidNarrative, invalidNarrative])
     const provider = createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses })
 
-    await expect(provider.generateNarrative(narrativeInput)).rejects.toThrow('候補ID')
+    await expect(provider.generateNarrative(narrativeInput)).rejects.toMatchObject({ name: 'ZodError' })
     expect(responses.calls).toBe(2)
   })
 
@@ -273,15 +349,15 @@ describe('OpenAI家計診断プロバイダー', () => {
     }
     const input = { ...narrativeInput, positiveCandidates: [positiveCandidate] }
     const invalid = {
-      ...validNarrative,
-      notableChanges: [{ candidateId: 'positive:dining', commentary: '振り返れそうです' }],
-      positivePoints: [],
+      ...validNarrativeResponse,
+      notableChanges: { 'positive:dining': '振り返れそうです' },
+      positivePoints: { 'positive:dining': '続けたい変化です' },
     }
     const responses = new FakeResponsesClient([invalid, invalid])
 
     await expect(
       createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses }).generateNarrative(input)
-    ).rejects.toThrow('候補ID')
+    ).rejects.toMatchObject({ name: 'ZodError' })
   })
 
   it.each([
@@ -302,12 +378,12 @@ describe('OpenAI家計診断プロバイダー', () => {
       positiveCandidates: [positiveCandidate],
     }
     const complete = {
-      ...validNarrative,
-      positivePoints: [
-        { candidateId: 'positive:dining', commentary: '続けたい変化です' },
-      ],
+      ...validNarrativeResponse,
+      positivePoints: { 'positive:dining': '続けたい変化です' },
     }
-    const invalid = { ...complete, [omittedKey]: [] }
+    const invalid = { ...complete, [omittedKey]: Object.fromEntries(
+      Object.keys(complete[omittedKey]).map((id) => [id, null]),
+    ) }
     const responses = new FakeResponsesClient([invalid, invalid])
 
     await expect(
@@ -318,7 +394,7 @@ describe('OpenAI家計診断プロバイダー', () => {
   })
 
   it('dataSufficiencyが入力と一致しない応答を拒否する', async () => {
-    const invalid = { ...validNarrative, dataSufficiency: 'reference' }
+    const invalid = { ...validNarrativeResponse, dataSufficiency: 'reference' }
     const responses = new FakeResponsesClient([invalid, invalid])
 
     await expect(
@@ -338,7 +414,7 @@ describe('OpenAI家計診断プロバイダー', () => {
   it.each(['7', '７', '¥', '円', '%', '夫', '妻', 'husband', 'wife', '浪費', '無駄遣い'])(
     '診断文の禁止表現「%s」を二度とも拒否する',
     async (unsafeText) => {
-      const invalidNarrative = { ...validNarrative, summaryText: `振り返り${unsafeText}` }
+      const invalidNarrative = { ...validNarrativeResponse, summaryText: `振り返り${unsafeText}` }
       const responses = new FakeResponsesClient([invalidNarrative, invalidNarrative])
       const provider = createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses })
 
@@ -426,7 +502,7 @@ describe('OpenAI家計診断プロバイダー', () => {
   it('分類用と診断用のモデルを個別に上書きする', async () => {
     const responses = new FakeResponsesClient([
       { assignments: [{ label: 'イオン', category: 'groceries' }] },
-      validNarrative,
+      validNarrativeResponse,
     ])
     const provider = createOpenAiDiagnosisProvider({
       apiKey: 'test-api-key',

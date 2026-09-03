@@ -15,6 +15,7 @@ import { AI_DIAGNOSIS_MAX_CLASSIFICATION_LABELS } from './limits'
 import { StructuredOutputError } from './diagnostics'
 
 const DEFAULT_MODEL = 'gpt-5-mini'
+const CLASSIFICATION_TIMEOUT_MS = 30_000
 
 const classificationResultSchema = z.object({
   assignments: z.array(categoryAssignmentSchema),
@@ -51,7 +52,7 @@ type StructuredResponse = {
 }
 
 type StructuredResponsesClient = {
-  parse(request: StructuredRequest): Promise<StructuredResponse>
+  parse(request: StructuredRequest, options?: { timeout: number }): Promise<StructuredResponse>
 }
 
 type OpenAiClientFactory = (options: ClientOptions) => {
@@ -99,7 +100,7 @@ export function createOpenAiDiagnosisProvider(options: CreateOpenAiDiagnosisProv
         const assignments = classificationResultSchema.parse(response.output_parsed).assignments
         assertClassificationCoverage(uniqueLabels, assignments)
         return assignments
-      })
+      }, { timeout: CLASSIFICATION_TIMEOUT_MS })
     },
 
     async generateNarrative(input: NarrativeInput): Promise<AiNarrativeResult> {
@@ -221,10 +222,11 @@ async function parseWithSingleRetry<T>(
   responses: StructuredResponsesClient,
   request: StructuredRequest,
   validate: (response: StructuredResponse) => T,
+  options?: { timeout: number },
 ): Promise<T> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      return validate(await responses.parse(request))
+      return validate(await responses.parse(request, options))
     } catch (error) {
       if (attempt === 1 || !isStructuredOutputError(error)) throw error
     }
@@ -259,5 +261,5 @@ function createResponsesClient(apiKey: string, clientFactory: OpenAiClientFactor
 
 function defaultClientFactory(options: ClientOptions): { responses: StructuredResponsesClient } {
   const client = new OpenAI(options)
-  return { responses: { parse: async (request) => client.responses.parse(request) } }
+  return { responses: { parse: async (request, options) => client.responses.parse(request, options) } }
 }

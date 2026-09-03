@@ -541,6 +541,71 @@ describe('OpenAI家計診断プロバイダー', () => {
   })
 })
 
+describe('OpenAIの処理別タイムアウト', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  function delayedApi(delay: number, outputs: unknown[]) {
+    vi.useFakeTimers()
+    vi.stubGlobal('window', undefined)
+    let requests = 0
+    // 通信だけを置き換え、SDKのタイムアウトと構造化出力の解析を実際に通す。
+    vi.stubGlobal('fetch', (_url: unknown, init: RequestInit) => new Promise<Response>((resolve, reject) => {
+      const output = outputs[requests++]
+      const timer = setTimeout(() => resolve(new Response(JSON.stringify({
+        id: 'resp_test', object: 'response', status: 'completed',
+        output: [{ type: 'message', role: 'assistant', status: 'completed', id: 'msg_test',
+          content: [{ type: 'output_text', text: JSON.stringify(output), annotations: [] }],
+        }],
+      }), { headers: { 'content-type': 'application/json' } })), delay)
+      init.signal?.addEventListener('abort', () => {
+        clearTimeout(timer)
+        reject(Object.assign(new Error('中断'), { name: 'AbortError' }))
+      }, { once: true })
+    }))
+    return { provider: createOpenAiDiagnosisProvider({ apiKey: 'test-api-key' }), requests: () => requests }
+  }
+
+  const classification = { assignments: [{ label: 'イオン', category: 'groceries' }] }
+
+  it('分類が20秒かかっても結果を受け取れる', async () => {
+    const { provider } = delayedApi(20_000, [classification])
+    const result = provider.classifyLabels(['イオン']).catch((error: unknown) => error)
+    await vi.advanceTimersByTimeAsync(20_001)
+    expect(await result).toEqual(classification.assignments)
+  })
+
+  it('分類の30秒超過は中断し、自動再試行しない', async () => {
+    const { provider, requests } = delayedApi(60_000, [classification])
+    let settled = false
+    const result = provider.classifyLabels(['イオン']).catch((error: unknown) => error)
+      .finally(() => { settled = true })
+    await vi.advanceTimersByTimeAsync(29_999)
+    expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(2)
+    expect(await result).toMatchObject({ name: 'Error', message: 'Request timed out.' })
+    expect(requests()).toBe(1)
+  })
+
+  it('診断文の待ち時間は15秒のままにする', async () => {
+    const { provider, requests } = delayedApi(20_000, [validNarrativeResponse])
+    const result = provider.generateNarrative(narrativeInput).catch((error: unknown) => error)
+    await vi.advanceTimersByTimeAsync(15_001)
+    expect(await result).toMatchObject({ name: 'Error', message: 'Request timed out.' })
+    expect(requests()).toBe(1)
+  })
+
+  it('分類の構造化出力を再試行する場合も20秒の応答を受け取れる', async () => {
+    const { provider, requests } = delayedApi(20_000, [{ assignments: [] }, classification])
+    const result = provider.classifyLabels(['イオン']).catch((error: unknown) => error)
+    await vi.advanceTimersByTimeAsync(40_001)
+    expect(await result).toEqual(classification.assignments)
+    expect(requests()).toBe(2)
+  })
+})
+
 describe('家計診断プロバイダーfactory', () => {
   afterEach(() => {
     vi.unstubAllEnvs()

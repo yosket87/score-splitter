@@ -1,9 +1,7 @@
 # opennextjs-cloudflare preview（workerdローカル実行）用の環境変数。
 # このファイルを .dev.vars にコピーして実際の値を設定する（.dev.vars はgitignore済み）。
-# 注意: preview ではMSWモックは使えないため、実際のWorker APIに向ける。USE_MOCKS は設定しないこと。
+# 注意: preview ではMSWモックは使わず、OpenNextのD1 binding（ローカルD1）へ直接接続する。USE_MOCKS は設定しないこと。
 NEXTJS_ENV=development
-CLOUDFLARE_WORKER_API_URL=https://api.yamawake.app
-CLOUDFLARE_WORKER_API_TOKEN=<worker-api-token>
 APP_PASSWORD_HASH_BASE64=<bcryptハッシュのBase64>
 WEBAUTHN_RP_ID=localhost
 WEBAUTHN_RP_ORIGIN=http://localhost:8787

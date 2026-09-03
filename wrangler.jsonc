@@ -2,7 +2,7 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   // フロントエンド（Next.js on Cloudflare Workers / OpenNext）の設定。
   // Worker API の設定は cloudflare/worker/wrangler.jsonc を参照。
-  "name": "score-splitter-web",
+  "name": "score-splitter",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-06-28",
   // global_fetch_strictly_public: 同一アカウントの Worker API へのHTTP fetchを公開URL経由で通すために必要
@@ -17,6 +17,14 @@
   "routes": [
     { "pattern": "yamawake.app", "custom_domain": true },
     { "pattern": "app.yamawake.app", "custom_domain": true }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "score-splitter",
+      "database_id": "7f8d3531-a833-4474-84d5-cee3ac98ee96",
+      "migrations_dir": "cloudflare/worker/migrations"
+    }
   ],
   "assets": {
     "directory": ".open-next/assets",
@@ -36,5 +44,31 @@
     "WEBAUTHN_RP_NAME": "ヤマワケ",
     // LP（/lp）のmetadataBase用。静的プリレンダリングされるためWorkers Buildsのビルド変数にも同値を設定すること
     "NEXT_PUBLIC_SITE_URL": "https://yamawake.app"
+  },
+  "env": {
+    // Workers BuildsのPRブランチPreview用。固定Custom Domainは割り当てない。
+    "dev": {
+      "name": "score-splitter-dev",
+      "compatibility_flags": ["nodejs_compat"],
+      "workers_dev": true,
+      "routes": [],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "score-splitter-db-dev",
+          "database_id": "51457bd5-8e0e-4645-ad34-86634285af2c",
+          "migrations_dir": "cloudflare/worker/migrations"
+        }
+      ],
+      "vars": {
+        "AI_PROVIDER": "openai",
+        "OPENAI_CLASSIFICATION_MODEL": "gpt-5-mini",
+        "OPENAI_DIAGNOSIS_MODEL": "gpt-5-mini",
+        "WEBAUTHN_RP_ID": "yamawake.app",
+        "WEBAUTHN_RP_ORIGIN": "https://app.yamawake.app",
+        "WEBAUTHN_RP_NAME": "ヤマワケ",
+        "NEXT_PUBLIC_SITE_URL": "https://yamawake.app"
+      }
+    }
   }
 }

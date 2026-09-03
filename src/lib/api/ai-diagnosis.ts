@@ -1,5 +1,12 @@
 import { z } from 'zod'
 import { apiRequest } from './client'
+import { getDatabase, getRuntime, isWorkerApiMockEnabled, runD1Operation } from './backend'
+import * as store from '../../../cloudflare/worker/src/ai-diagnosis-store'
+import { HttpError } from '../../../cloudflare/worker/src/http'
+import {
+  AiDiagnosisWireError,
+  parseCategoryAssignments, parseDiagnosisView, parseRunTokenInput, parseSaveDiagnosisInput,
+} from '@/features/ai-diagnosis/wire'
 import {
   aiCategorySchema,
   dataSufficiencySchema,
@@ -107,6 +114,11 @@ const diagnosisViewEnvelopeSchema = z.object({ data: aiDiagnosisViewSchema }).st
 
 export async function getDiagnosisContext(month: string): Promise<DiagnosisContext> {
   const validatedMonth = monthSchema.parse(month)
+  if (!isWorkerApiMockEnabled()) {
+    return runD1Operation(async () =>
+      diagnosisContextSchema.parse(await store.getDiagnosisContext(getDatabase(), validatedMonth))
+    )
+  }
   const response = await apiRequest(`/ai-diagnoses/${encodeURIComponent(validatedMonth)}/context`, {
     responseSchema: diagnosisContextEnvelopeSchema,
   })
@@ -115,6 +127,13 @@ export async function getDiagnosisContext(month: string): Promise<DiagnosisConte
 
 export async function getSavedDiagnosis(month: string): Promise<SavedDiagnosis | null> {
   const validatedMonth = monthSchema.parse(month)
+  if (!isWorkerApiMockEnabled()) {
+    return runD1Operation(async () => {
+      const saved = await store.getSavedDiagnosis(getDatabase(), validatedMonth)
+      if (saved === null) return null
+      return savedDiagnosisSchema.parse({ ...saved, diagnosis: parseDiagnosisView(saved.diagnosis) })
+    })
+  }
   const response = await apiRequest(`/ai-diagnoses/${encodeURIComponent(validatedMonth)}`, {
     responseSchema: savedDiagnosisEnvelopeSchema,
   })
@@ -123,6 +142,18 @@ export async function getSavedDiagnosis(month: string): Promise<SavedDiagnosis |
 
 export async function acquireDiagnosisLease(month: string, runToken: string): Promise<void> {
   const validatedMonth = monthSchema.parse(month)
+  if (!isWorkerApiMockEnabled()) {
+    return runDiagnosisMutation(async () => {
+      const input = parseRunTokenInput({ runToken })
+      const lease = await store.acquireDiagnosisLease(getDatabase(), getRuntime(), validatedMonth, input.runToken)
+      if (!lease.acquired) {
+        throw new HttpError(
+          lease.reason === 'busy' ? '診断を実行中です' : 'AI診断の利用上限に達しました',
+          lease.reason === 'busy' ? 409 : 429
+        )
+      }
+    })
+  }
   await apiRequest(`/ai-diagnoses/${encodeURIComponent(validatedMonth)}/lease`, {
     method: 'POST',
     body: { runToken },
@@ -138,6 +169,12 @@ export async function saveExpenseCategories(
   const validatedMonth = monthSchema.parse(month)
   const validatedRunToken = z.string().min(1).parse(runToken)
   const validatedAssignments = expenseCategoryAssignmentsSchema.parse(assignments)
+  if (!isWorkerApiMockEnabled()) {
+    return runDiagnosisMutation(async () => {
+      const input = parseCategoryAssignments({ month: validatedMonth, runToken: validatedRunToken, assignments: validatedAssignments })
+      await store.saveExpenseCategories(getDatabase(), getRuntime(), input.month, input.runToken, input.assignments)
+    })
+  }
   await apiRequest('/ai-diagnoses/categories', {
     method: 'PATCH',
     body: {
@@ -155,6 +192,14 @@ export async function saveDiagnosis(
 ): Promise<AiDiagnosisView> {
   const validatedMonth = monthSchema.parse(month)
   const validatedInput = saveDiagnosisInputSchema.parse(input)
+  if (!isWorkerApiMockEnabled()) {
+    return runDiagnosisMutation(async () => {
+      const parsedInput = parseSaveDiagnosisInput(validatedInput)
+      if (parsedInput.diagnosis.month !== validatedMonth) throw new HttpError('診断月が不正です', 400)
+      await store.saveDiagnosis(getDatabase(), getRuntime(), validatedMonth, parsedInput)
+      return parsedInput.diagnosis
+    })
+  }
   const response = await apiRequest(`/ai-diagnoses/${encodeURIComponent(validatedMonth)}`, {
     method: 'PUT',
     body: validatedInput,
@@ -165,9 +210,35 @@ export async function saveDiagnosis(
 
 export async function releaseDiagnosisLease(month: string, runToken: string): Promise<void> {
   const validatedMonth = monthSchema.parse(month)
+  if (!isWorkerApiMockEnabled()) {
+    return runDiagnosisMutation(async () => {
+      const input = parseRunTokenInput({ runToken })
+      await store.releaseDiagnosisLease(getDatabase(), validatedMonth, input.runToken)
+    })
+  }
   await apiRequest(`/ai-diagnoses/${encodeURIComponent(validatedMonth)}/lease`, {
     method: 'DELETE',
     body: { runToken },
     responseSchema: successSchema,
+  })
+}
+
+function runDiagnosisMutation<T>(operation: () => Promise<T>): Promise<T> {
+  return runD1Operation(async () => {
+    try {
+      return await operation()
+    } catch (error) {
+      if (error instanceof AiDiagnosisWireError) throw new HttpError(error.message, 400)
+      const conflictMessages = [
+        store.SOURCE_REVISION_CONFLICT_MESSAGE,
+        '分類中に支出が変更されました',
+        '診断リースが失効しているため保存できません',
+        '診断リースが失効しているため解放できません',
+      ]
+      if (error instanceof Error && conflictMessages.includes(error.message)) {
+        throw new HttpError(error.message, 409)
+      }
+      throw error
+    }
   })
 }

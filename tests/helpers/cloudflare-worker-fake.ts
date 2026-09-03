@@ -273,6 +273,12 @@ export class FakeD1Database implements D1DatabaseLike {
       }
     }
     if (query.includes('FROM incomes')) {
+      if (query.startsWith('SELECT month, amount FROM incomes')) {
+        return {
+          results: this.incomeRows.filter((row) => params.includes(row.month))
+            .map(({ month, amount }) => ({ month, amount })) as T[],
+        }
+      }
       return { results: this.incomeRows as T[] }
     }
     if (query.includes('FROM expenses')) {
@@ -366,6 +372,16 @@ export class FakeD1Database implements D1DatabaseLike {
       ) {
         return { success: true, meta: { changes: 0 } }
       }
+      this.diagnosisRows = [
+        ...this.diagnosisRows.filter((row) => row.month !== month),
+        {
+          month,
+          result_json: params[0] as string,
+          input_hash: params[1] as string,
+          analysis_version: params[2] as string,
+          updated_at: params[3] as string,
+        },
+      ]
       this.diagnosisLeases.delete(month)
       this.diagnosisGuard = {
         ...this.diagnosisGuard,

@@ -2,6 +2,8 @@ import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('server-only', () => ({}))
+
 const WORKER_URL = 'https://worker.example.test'
 const WORKER_TOKEN = 'worker-secret'
 
@@ -25,6 +27,7 @@ afterEach(() => {
 })
 afterAll(() => server.close())
 beforeEach(() => {
+  vi.stubEnv('USE_MOCKS', 'true')
   vi.stubEnv('CLOUDFLARE_WORKER_API_URL', WORKER_URL)
   vi.stubEnv('CLOUDFLARE_WORKER_API_TOKEN', WORKER_TOKEN)
 })

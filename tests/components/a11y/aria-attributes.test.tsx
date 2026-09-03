@@ -11,6 +11,9 @@ vi.mock('@/app/actions/carryover', () => ({
   toggleCarryoverCleared: vi.fn(),
 }))
 
+vi.mock('@/app/actions/income', () => ({ createIncome: vi.fn() }))
+vi.mock('@/app/actions/expense', () => ({ createExpense: vi.fn() }))
+
 const mockCarryovers: Carryover[] = [
   {
     id: '1',

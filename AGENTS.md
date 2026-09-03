@@ -18,8 +18,11 @@ npm run lint         # ESLint実行
 
 # デプロイ (Cloudflare Workers)
 npm run preview      # workerd上でローカル実行 (要 .dev.vars、localhost:8787)
-npm run deploy       # フロントエンド (score-splitter-web) をデプロイ
-npm run deploy:worker # Worker API (score-splitter-api) をデプロイ
+npm run deploy       # 本番 Worker (score-splitter) をデプロイ
+npm run deploy:dev   # 開発 Worker (score-splitter-dev) をデプロイ
+npm run upload:dev   # 手動のVersion Previewへupload（PR Previewはpushで自動実行）
+npm run migrate:dev  # 開発D1へmigrationを適用
+npm run backup:d1:production -- --confirm-production-d1 <本番D1 UUID> # 本番切替前のバックアップ検証
 npm run cf-typegen   # wrangler.jsonc の vars 変更後に環境変数型を再生成
 
 # テスト
@@ -55,7 +58,7 @@ src/
 │   └── animations/  # アニメーション
 ├── hooks/           # カスタムフック
 ├── lib/
-│   ├── api/         # Cloudflare Worker APIクライアント
+│   ├── api/         # D1直接アクセスのアダプター（USE_MOCKS時のみ旧HTTP/MSW）
 │   ├── utils/       # ユーティリティ (計算、フォーマット)
 │   └── validations/ # Zodスキーマ
 └── types/           # 型定義
@@ -77,7 +80,8 @@ tests/
 - Vitest + Playwright
 
 ### Cloudflare構成の注意
-- wrangler設定は2ファイル: root `wrangler.jsonc`（フロント `score-splitter-web`）と `cloudflare/worker/wrangler.jsonc`（API `score-splitter-api`）
+- 通常運用はroot `wrangler.jsonc` のNext.js/OpenNext Workerが、`DB` bindingでD1へ直接アクセスする一本構成。本番Workerは `score-splitter`、開発Workerはnamed environmentの `score-splitter-dev`
+- `cloudflare/worker/src/` のD1ドメイン関数はroot Workerと共有する現行資産。`cloudflare/worker/src/index.ts` と `cloudflare/worker/wrangler.jsonc` のHTTP入口・Worker設定だけは、安定稼働確認まで旧APIの切り戻し用に保持する
 - `process.env.*` はリクエストコンテキスト内（Server Actions/RSCの関数内）でのみ読み出す。モジュールトップレベルで読むとWorker実行時に `undefined` になる
 - 詳細: [docs/deployment.md](docs/deployment.md)
 
@@ -148,3 +152,13 @@ UIやフロントエンドの変更時は、必ず以下の手順でブラウザ
 | [docs/testing.md](docs/testing.md) | テスト構成 |
 | [docs/configuration.md](docs/configuration.md) | 設定ファイル |
 | [docs/deployment.md](docs/deployment.md) | デプロイ構成・手順 |
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

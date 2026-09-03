@@ -18,7 +18,7 @@ npm run lint         # ESLint実行
 
 # デプロイ (Cloudflare Workers)
 npm run preview      # workerd上でローカル実行 (要 .dev.vars、localhost:8787)
-npm run deploy       # フロントエンド (score-splitter-web) をデプロイ
+npm run deploy       # フロントエンド (score-splitter) をデプロイ
 npm run deploy:worker # Worker API (score-splitter-api) をデプロイ
 npm run cf-typegen   # wrangler.jsonc の vars 変更後に環境変数型を再生成
 
@@ -76,7 +76,7 @@ tests/
 - Vitest + Playwright
 
 ### Cloudflare構成の注意
-- wrangler設定は2ファイル: root `wrangler.jsonc`（フロント `score-splitter-web`）と `cloudflare/worker/wrangler.jsonc`（API `score-splitter-api`）
+- wrangler設定は2ファイル: root `wrangler.jsonc`（フロント `score-splitter`）と `cloudflare/worker/wrangler.jsonc`（API `score-splitter-api`）
 - `process.env.*` はリクエストコンテキスト内（Server Actions/RSCの関数内）でのみ読み出す。モジュールトップレベルで読むとWorker実行時に `undefined` になる
 - 詳細: [docs/deployment.md](docs/deployment.md)
 

@@ -1,5 +1,7 @@
 # Worker一本化とPRプレビュー開発環境 Implementation Plan
 
+> 後続の本番Worker改名では `score-splitter-web` を同一Workerのまま `score-splitter` へ変更する。この資料の旧名は一本化時点の記録として保持する。現在の設定と改名・切り戻し手順は [デプロイ手順](../../deployment.md#本番workerの改名score-splitter-web--score-splitter) を参照。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Next.jsとD1アクセスを1つのCloudflare Workerへ統合し、`score-splitter-dev` のPRブランチPreview Versionが開発専用D1を使う環境を構築する。

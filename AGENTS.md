@@ -18,7 +18,7 @@ npm run lint         # ESLint実行
 
 # デプロイ (Cloudflare Workers)
 npm run preview      # workerd上でローカル実行 (要 .dev.vars、localhost:8787)
-npm run deploy       # 本番 Worker (score-splitter-web) をデプロイ
+npm run deploy       # 本番 Worker (score-splitter) をデプロイ
 npm run deploy:dev   # 開発 Worker (score-splitter-dev) をデプロイ
 npm run upload:dev   # 手動のVersion Previewへupload（PR Previewはpushで自動実行）
 npm run migrate:dev  # 開発D1へmigrationを適用
@@ -80,7 +80,7 @@ tests/
 - Vitest + Playwright
 
 ### Cloudflare構成の注意
-- 通常運用はroot `wrangler.jsonc` のNext.js/OpenNext Workerが、`DB` bindingでD1へ直接アクセスする一本構成。本番Workerは `score-splitter-web`、開発Workerはnamed environmentの `score-splitter-dev`
+- 通常運用はroot `wrangler.jsonc` のNext.js/OpenNext Workerが、`DB` bindingでD1へ直接アクセスする一本構成。本番Workerは `score-splitter`、開発Workerはnamed environmentの `score-splitter-dev`
 - `cloudflare/worker/src/` のD1ドメイン関数はroot Workerと共有する現行資産。`cloudflare/worker/src/index.ts` と `cloudflare/worker/wrangler.jsonc` のHTTP入口・Worker設定だけは、安定稼働確認まで旧APIの切り戻し用に保持する
 - `process.env.*` はリクエストコンテキスト内（Server Actions/RSCの関数内）でのみ読み出す。モジュールトップレベルで読むとWorker実行時に `undefined` になる
 - 詳細: [docs/deployment.md](docs/deployment.md)

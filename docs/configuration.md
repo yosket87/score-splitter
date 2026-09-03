@@ -178,7 +178,7 @@ initOpenNextCloudflareForDev()
 
 | ファイル | Worker名 | 役割 |
 |---------|---------|------|
-| `wrangler.jsonc`（root） | `score-splitter-web` | 本番のNext.js/OpenNext Worker + 本番D1 binding `DB` |
+| `wrangler.jsonc`（root） | `score-splitter` | 本番のNext.js/OpenNext Worker + 本番D1 binding `DB` |
 | `wrangler.jsonc`（`env.dev`） | `score-splitter-dev` | 開発・PR PreviewのNext.js/OpenNext Worker + 開発D1 binding `DB` |
 | `cloudflare/worker/wrangler.jsonc` | `score-splitter-api` | `src/index.ts` の旧HTTP入口用設定。D1ドメイン関数はroot Workerと共有し、HTTP入口は切り戻し用 |
 
@@ -223,7 +223,7 @@ OpenNextはリクエスト処理開始時にWorkerの `env` を `process.env` �
 | 変数 | 設定先 | 用途 |
 |-----|-------|------|
 | CLOUDFLARE_WORKER_API_URL | root `wrangler.jsonc` の `vars` | 旧HTTP API `api.yamawake.app` の接続先 |
-| CLOUDFLARE_WORKER_API_TOKEN | `score-splitter-web` のsecret | root Workerから旧HTTP APIへ切り戻す場合のBearerトークン |
+| CLOUDFLARE_WORKER_API_TOKEN | `score-splitter` のsecret | root Workerから旧HTTP APIへ切り戻す場合のBearerトークン |
 | WORKER_API_TOKEN | `score-splitter-api` のsecret | 旧HTTP APIのBearer検証 |
 
 開発WorkerのパスワードシークレットはGitに保存せず、次で設定する。

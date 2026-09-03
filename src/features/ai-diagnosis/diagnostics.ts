@@ -7,7 +7,8 @@ type DiagnosisStage = 'load' | 'generate' | 'context' | 'saved_result' | 'acquir
 
 const STRUCTURED_OUTPUT_REASONS = [
   'data_sufficiency_mismatch', 'candidate_id_mismatch', 'missing_candidate_commentary',
-  'narrative_number', 'narrative_person_reference', 'narrative_judgment',
+  'narrative_number', 'narrative_currency', 'narrative_percentage',
+  'narrative_person_reference', 'narrative_judgment',
   'classification_coverage_mismatch', 'missing_parsed_output', 'refusal',
 ] as const
 

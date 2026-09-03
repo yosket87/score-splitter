@@ -262,6 +262,7 @@ OPENAI_DIAGNOSIS_MODEL=gpt-5-mini
 - ローカルの実API確認はgitignore対象の `.env.local` に上記AI変数を設定する。APIキーを `.env.mock`、`wrangler.jsonc`、`NEXT_PUBLIC_*` へ置かない。
 - `npm run dev:mock` は `.env.mock` の `AI_PROVIDER=mock` を使う。分類・診断は決定的なローカル実装だけで完結し、OpenAIへの通信は0件。
 - OpenAIの応答待ちは支出分類・診断文ともに30秒。SDKの自動再試行は無効で、構造化出力の不備だけ各処理で一度再試行する。API待ち時間は最大120秒とし、3分の実行リース内にDB処理の余裕を残す。タイムアウト時は処理を終了してロックを解除する。
+- 診断文は数字・金額・割合・個人評価を追加せず、数値を含む支出ラベルも分類名で説明するよう指示する。検証では「円滑・円満・工夫・大丈夫」を一般語として区別するが、同じ文章内の禁止表現は拒否する。数値関連の失敗は固定理由 `narrative_number`（数字）、`narrative_currency`（通貨）、`narrative_percentage`（割合記号）で区別し、本文は記録しない。診断文の再試行には固定の修正指示だけを追加し、失敗した返答やエラー本文は再送しない。
 - 本番のAPIキーは `npx wrangler secret put OPENAI_API_KEY` で登録する。漏えい・担当者変更・定期運用の基準に従いキーをローテーションし、旧キーを失効させる。
 - 開発用のキーは `score-splitter-dev` の実行時Secret `OPENAI_API_KEY` に設定する。`env.dev.vars` にAIプロバイダーとモデルを明示し、devのD1だけを利用する。設定反映はdevのPRビルドで行い、本番へ公開しない。
 - `gpt-5-mini` は現行エイリアスを使用する。応答差分を固定したい場合は、利用可能な現行snapshotを環境変数で指定する。deprecatedな `gpt-5-mini-2025-08-07` は使用しない。

@@ -86,6 +86,7 @@ describe('AI診断のトリガーを含む保存・終了処理', () => {
     const later = { ...runtime, now: () => new Date('2026-09-03T12:03:01.000Z') }
     await expect(acquireDiagnosisLease(db, later, '202608', 'another-run')).resolves.toEqual({ acquired: true })
     await expect(saveDiagnosis(db, later, '202609', input)).rejects.toThrow()
+    await expect(releaseDiagnosisLease(db, '202609', 'test-run')).resolves.toBeUndefined()
     expect(sqlite.prepare('SELECT run_token FROM ai_execution_guard').get()).toEqual({ run_token: 'another-run' })
   })
 

@@ -125,13 +125,20 @@ describe('OpenAI家計診断プロバイダー', () => {
     } finally { errorLog.mockRestore() }
   })
 
-  it('再試行時は違反内容への固定指示を追加し、元の入力と安全な結果を維持する', async () => {
+  it.each([
+    [{ ...validNarrativeResponse, summaryText: '秘密の９円を減らします' }, /数字/],
+    [{ ...validNarrativeResponse, summaryText: '秘密の金額は一万円です' }, /通貨/],
+    [{ ...validNarrativeResponse, summaryText: '秘密の割合％です' }, /割合/],
+    [{ ...validNarrativeResponse, summaryText: '秘密の妻の支出です' }, /個人/],
+    [{ ...validNarrativeResponse, summaryText: '秘密の浪費です' }, /評価/],
+    [{ private: '秘密の形式違反' }, /形式/],
+  ])('再試行時は違反内容への固定指示を追加し、元の入力と安全な結果を維持する %#', async (invalid, instruction) => {
     const requests: Request[] = []
     const responses = {
       async parse(request: Request) {
         requests.push(request)
         return { output: [], output_parsed: requests.length === 1
-          ? { ...validNarrativeResponse, summaryText: '秘密の９円を減らします' }
+          ? invalid
           : validNarrativeResponse }
       },
     }
@@ -139,7 +146,7 @@ describe('OpenAI家計診断プロバイダー', () => {
       .generateNarrative(narrativeInput)).resolves.toEqual(validNarrative)
     expect(requests).toHaveLength(2)
     expect(requests[1].input.slice(0, -1)).toEqual(requests[0].input)
-    expect(requests[1].input.at(-1)).toMatchObject({ role: 'developer', content: expect.stringMatching(/数字/) })
+    expect(requests[1].input.at(-1)).toMatchObject({ role: 'developer', content: expect.stringMatching(instruction) })
     expect(requests[1].input).toHaveLength(requests[0].input.length + 1)
     expect(JSON.stringify(requests)).not.toMatch(/秘密|９円|test-api-key/)
     expect(requests[1].store).toBe(false)

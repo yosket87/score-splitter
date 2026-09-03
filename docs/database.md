@@ -123,7 +123,7 @@ D1マイグレーションは `cloudflare/worker/migrations/` に配置してい
 
 ## 環境分離とバックアップ
 
-- 本番Worker `score-splitter-web` は本番D1 `score-splitter` に接続する
+- 本番Worker `score-splitter` は本番D1 `score-splitter` に接続する
 - 開発Worker `score-splitter-dev` は開発D1 `score-splitter-db-dev` に接続する
 - PR Previewは共有の開発D1を使用し、本番D1のデータを開発環境へコピーしない
 - 本番D1へbindingを変更・デプロイする前に、必ず `npm run backup:d1:production -- --confirm-production-d1 <本番D1 UUID>` を実行する

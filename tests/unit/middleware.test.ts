@@ -161,7 +161,7 @@ describe('middleware ホストベースルーティング', () => {
   describe('その他のホスト（workers.dev / localhost）は従来挙動', () => {
     it('workers.dev の /lp は認証なしで素通しする', () => {
       const response = middleware(
-        createHostRequest('score-splitter-web.yosket87.workers.dev', '/lp')
+        createHostRequest('score-splitter.bluespec.workers.dev', '/lp')
       )
 
       expect(response.headers.get('location')).toBeNull()

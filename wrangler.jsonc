@@ -2,7 +2,7 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   // フロントエンド（Next.js on Cloudflare Workers / OpenNext）の設定。
   // Worker API の設定は cloudflare/worker/wrangler.jsonc を参照。
-  "name": "score-splitter-web",
+  "name": "score-splitter",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-06-28",
   // global_fetch_strictly_public: 同一アカウントの Worker API へのHTTP fetchを公開URL経由で通すために必要

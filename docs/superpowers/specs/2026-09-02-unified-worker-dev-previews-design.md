@@ -1,5 +1,7 @@
 # Worker一本化とPRプレビュー開発環境 設計ドキュメント
 
+> 後続の本番Worker改名では `score-splitter-web` を同一Workerのまま `score-splitter` へ変更する。この資料の旧名は一本化時点の記録として保持する。現在の設定と改名・切り戻し手順は [デプロイ手順](../../deployment.md#本番workerの改名score-splitter-web--score-splitter) を参照。
+
 - 日付: 2026-09-02
 - ステータス: 承認済み
 - 目的: Next.jsとD1アクセスを1つのCloudflare Workerへ統合し、PRごとに本番から隔離されたブランチプレビューで動作確認できるようにする

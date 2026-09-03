@@ -7,6 +7,11 @@ const PRODUCTION_D1_ID = '7f8d3531-a833-4474-84d5-cee3ac98ee96'
 const DEVELOPMENT_D1_ID = '51457bd5-8e0e-4645-ad34-86634285af2c'
 
 type WranglerConfig = {
+  name: string
+  routes: Array<{
+    pattern: string
+    custom_domain: boolean
+  }>
   d1_databases?: Array<{
     binding: string
     database_name: string
@@ -38,7 +43,17 @@ function readWranglerConfig(): WranglerConfig {
   return JSON.parse(jsonText) as WranglerConfig
 }
 
-describe('root Wrangler 開発環境設定', () => {
+describe('root Wrangler 本番・開発環境設定', () => {
+  it('本番Worker名はscore-splitterで、既存の公開ドメインを維持する', () => {
+    const config = readWranglerConfig()
+
+    expect(config.name).toBe('score-splitter')
+    expect(config.routes).toEqual([
+      { pattern: 'yamawake.app', custom_domain: true },
+      { pattern: 'app.yamawake.app', custom_domain: true },
+    ])
+  })
+
   it('本番Workerは本番D1をDB bindingとして持つ', () => {
     const config = readWranglerConfig()
 

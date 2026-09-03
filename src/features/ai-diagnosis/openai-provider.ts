@@ -15,7 +15,7 @@ import { AI_DIAGNOSIS_MAX_CLASSIFICATION_LABELS } from './limits'
 import { StructuredOutputError } from './diagnostics'
 
 const DEFAULT_MODEL = 'gpt-5-mini'
-const CLASSIFICATION_TIMEOUT_MS = 30_000
+const REQUEST_TIMEOUT_MS = 30_000
 
 const classificationResultSchema = z.object({
   assignments: z.array(categoryAssignmentSchema),
@@ -100,7 +100,7 @@ export function createOpenAiDiagnosisProvider(options: CreateOpenAiDiagnosisProv
         const assignments = classificationResultSchema.parse(response.output_parsed).assignments
         assertClassificationCoverage(uniqueLabels, assignments)
         return assignments
-      }, { timeout: CLASSIFICATION_TIMEOUT_MS })
+      }, { timeout: REQUEST_TIMEOUT_MS })
     },
 
     async generateNarrative(input: NarrativeInput): Promise<AiNarrativeResult> {
@@ -256,7 +256,7 @@ function isStructuredOutputError(error: unknown): boolean {
 }
 
 function createResponsesClient(apiKey: string, clientFactory: OpenAiClientFactory = defaultClientFactory): StructuredResponsesClient {
-  return clientFactory({ apiKey, timeout: 15_000, maxRetries: 0, logLevel: 'off' }).responses
+  return clientFactory({ apiKey, timeout: REQUEST_TIMEOUT_MS, maxRetries: 0, logLevel: 'off' }).responses
 }
 
 function defaultClientFactory(options: ClientOptions): { responses: StructuredResponsesClient } {

@@ -92,6 +92,66 @@ class FakeResponsesClient {
 }
 
 describe('OpenAI家計診断プロバイダー', () => {
+  it.each(['円滑に話し合えそうです', '円満に続けられそうです', '工夫を続けられそうです', '急がなくても大丈夫です'])(
+    '安全な一般語「%s」を数値や個人への言及と誤認しない', async (summaryText) => {
+      const responses = new FakeResponsesClient([{ ...validNarrativeResponse, summaryText }])
+      await expect(createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses })
+        .generateNarrative(narrativeInput)).resolves.toEqual({ ...validNarrative, summaryText })
+      expect(responses.calls).toBe(1)
+    },
+  )
+
+  it.each([
+    ['数字７を含む秘密の本文', 'narrative_number'],
+    ['秘密の金額は一万円です', 'narrative_currency'],
+    ['秘密の金額は￥です', 'narrative_currency'],
+    ['秘密の割合％です', 'narrative_percentage'],
+    ['円滑でも七円です', 'narrative_currency'],
+    ['一万円滑', 'narrative_currency'],
+    ['工夫した夫の支出です', 'narrative_person_reference'],
+    ['大丈夫でも妻の支出です', 'narrative_person_reference'],
+    ['円満でも浪費です', 'narrative_judgment'],
+  ])('安全な一般語があっても禁止内容を拒否し、固定理由だけを残す %#', async (summaryText, reason) => {
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      const invalid = { ...validNarrativeResponse, summaryText }
+      const responses = new FakeResponsesClient([invalid, invalid])
+      await expect(observeDiagnosisStep('narrative', () =>
+        createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses }).generateNarrative(narrativeInput)))
+        .rejects.toMatchObject({ reason })
+      expect(errorLog).toHaveBeenCalledWith('[ai-diagnosis]', expect.objectContaining({ reason }))
+      expect(JSON.stringify(errorLog.mock.calls)).not.toMatch(/秘密|七円|一万円|test-api-key/)
+      expect(responses.calls).toBe(2)
+    } finally { errorLog.mockRestore() }
+  })
+
+  it.each([
+    [{ ...validNarrativeResponse, summaryText: '秘密の９円を減らします' }, /数字/],
+    [{ ...validNarrativeResponse, summaryText: '秘密の金額は一万円です' }, /通貨/],
+    [{ ...validNarrativeResponse, summaryText: '秘密の割合％です' }, /割合/],
+    [{ ...validNarrativeResponse, summaryText: '秘密の妻の支出です' }, /個人/],
+    [{ ...validNarrativeResponse, summaryText: '秘密の浪費です' }, /評価/],
+    [{ private: '秘密の形式違反' }, /形式/],
+  ])('再試行時は違反内容への固定指示を追加し、元の入力と安全な結果を維持する %#', async (invalid, instruction) => {
+    const requests: Request[] = []
+    const responses = {
+      async parse(request: Request) {
+        requests.push(request)
+        return { output: [], output_parsed: requests.length === 1
+          ? invalid
+          : validNarrativeResponse }
+      },
+    }
+    await expect(createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses })
+      .generateNarrative(narrativeInput)).resolves.toEqual(validNarrative)
+    expect(requests).toHaveLength(2)
+    expect(requests[1].input.slice(0, -1)).toEqual(requests[0].input)
+    expect(requests[1].input.at(-1)).toMatchObject({ role: 'developer', content: expect.stringMatching(instruction) })
+    expect(requests[1].input).toHaveLength(requests[0].input.length + 1)
+    expect(JSON.stringify(requests)).not.toMatch(/秘密|９円|test-api-key/)
+    expect(requests[1].store).toBe(false)
+  })
+
   it('種類ごとに固定した候補欄の応答を、IDが重複しない既存の診断形式へ変換する', async () => {
     const responses = new FakeResponsesClient([validNarrativeResponse])
     const provider = createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses })

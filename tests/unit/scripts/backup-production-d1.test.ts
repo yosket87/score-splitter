@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
 import {
   chmodSync,
   existsSync,
@@ -134,10 +135,7 @@ function createReleaseBackupFixture() {
 
 function createFakeBackupCommandRunner({ failAt }: { failAt?: string } = {}) {
   const executionOrder: string[] = []
-  const countRows = BACKUP_TABLES.map((tableName) => ({
-    table_name: tableName,
-    row_count: EXPECTED_COUNTS[tableName],
-  }))
+  const countRows = [{ ...EXPECTED_COUNTS }]
 
   const commandRunner = (
     executable: string,
@@ -292,6 +290,30 @@ describe('本番D1バックアップのWrangler引数', () => {
     )
   })
 
+  it('複合SELECT上限が5でも全8テーブルの件数を取得・正規化できる', () => {
+    const args = buildRemoteCountArguments()
+    const sql = args[args.indexOf('--command') + 1]
+    const schema = BACKUP_TABLES.flatMap((tableName) => [
+      `CREATE TABLE ${tableName} (id INTEGER);`,
+      ...Array.from(
+        { length: EXPECTED_COUNTS[tableName] },
+        (_, index) => `INSERT INTO ${tableName} VALUES (${index});`
+      ),
+    ]).join('\n')
+    const result = spawnSync('sqlite3', ['-batch', '-bail', '-json', ':memory:'], {
+      input: `.limit compound_select 5\n${schema}\n${sql}\n`,
+      encoding: 'utf8',
+    })
+
+    expect(result.error).toBeUndefined()
+    expect(result.status, result.stderr).toBe(0)
+    const rows = JSON.parse(result.stdout.slice(result.stdout.indexOf('[')))
+    expect(normalizeLocalCounts(rows)).toEqual(EXPECTED_COUNTS)
+    expect(normalizeRemoteCounts([{ success: true, results: rows }])).toEqual(
+      EXPECTED_COUNTS
+    )
+  })
+
   it('Time Travel取得もlistで検証済みの固定UUIDを使う', () => {
     expect(buildTimeTravelArguments()).toEqual([
       'd1',
@@ -362,10 +384,7 @@ describe('本番D1バックアップの内容検証', () => {
   })
 
   it('Wranglerのresultsを8テーブルの件数へ正規化する', () => {
-    const results = BACKUP_TABLES.map((tableName) => ({
-      table_name: tableName,
-      row_count: EXPECTED_COUNTS[tableName],
-    }))
+    const results = [{ ...EXPECTED_COUNTS }]
 
     expect(normalizeRemoteCounts([{ success: true, results }])).toEqual(EXPECTED_COUNTS)
     expect(normalizeRemoteCounts({ success: true, results })).toEqual(EXPECTED_COUNTS)
@@ -374,31 +393,47 @@ describe('本番D1バックアップの内容検証', () => {
   })
 
   it('SQLiteのJSONを8テーブルの件数へ正規化する', () => {
-    const results = BACKUP_TABLES.map((tableName) => ({
-      table_name: tableName,
-      row_count: EXPECTED_COUNTS[tableName],
-    }))
+    const results = [{ ...EXPECTED_COUNTS }]
 
     expect(normalizeLocalCounts(results)).toEqual(EXPECTED_COUNTS)
   })
 
   it('不足テーブルや負の件数を拒否する', () => {
-    expect(() =>
-      normalizeLocalCounts([
-        { table_name: 'incomes', row_count: -1 },
-        { table_name: 'expenses', row_count: 0 },
-      ])
-    ).toThrow(/件数/)
+    expect(() => normalizeLocalCounts([{ incomes: 2 }])).toThrow(/件数/)
+    expect(() => normalizeLocalCounts([{ ...EXPECTED_COUNTS, incomes: -1 }])).toThrow(
+      /件数/
+    )
     expect(() => normalizeLocalCounts([null])).toThrow(/行/)
   })
 
   it('nullなど数値以外の件数を0件として扱わない', () => {
-    const results = BACKUP_TABLES.map((tableName) => ({
-      table_name: tableName,
-      row_count: tableName === 'incomes' ? null : EXPECTED_COUNTS[tableName],
-    }))
+    const results = [{ ...EXPECTED_COUNTS, incomes: null }]
 
     expect(() => normalizeLocalCounts(results)).toThrow(/件数/)
+  })
+
+  it.each(BACKUP_TABLES)('%sの件数が欠落したらリモート・復元先とも拒否する', (tableName) => {
+    const results = [
+      Object.fromEntries(
+        Object.entries(EXPECTED_COUNTS).filter(([name]) => name !== tableName)
+      ),
+    ]
+
+    expect(() => normalizeLocalCounts(results)).toThrow(/件数/)
+    expect(() => normalizeRemoteCounts([{ success: true, results }])).toThrow(/件数/)
+  })
+
+  it.each([
+    [],
+    [EXPECTED_COUNTS, EXPECTED_COUNTS],
+    [{ ...EXPECTED_COUNTS, unknown: 0 }],
+    [{ ...EXPECTED_COUNTS, incomes: '2' }],
+    [{ ...EXPECTED_COUNTS, incomes: 1.5 }],
+    [{ ...EXPECTED_COUNTS, incomes: Number.MAX_SAFE_INTEGER + 1 }],
+    [BACKUP_TABLES.map((tableName) => EXPECTED_COUNTS[tableName])],
+  ])('不正な件数結果をリモート・復元先とも拒否する: %j', (...results) => {
+    expect(() => normalizeLocalCounts(results)).toThrow(/件数/)
+    expect(() => normalizeRemoteCounts([{ success: true, results }])).toThrow(/件数/)
   })
 
   it('本番と復元先の件数が一致する場合だけ通す', () => {

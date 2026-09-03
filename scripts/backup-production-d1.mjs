@@ -36,10 +36,10 @@ export const BACKUP_TABLES = Object.freeze([
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const wranglerExecutableRelative = 'node_modules/.bin/wrangler'
 export const WRANGLER_EXECUTABLE = path.join(repositoryRoot, wranglerExecutableRelative)
-const countSql = BACKUP_TABLES.map((tableName, index) => {
-  const select = `SELECT '${tableName}' AS table_name, COUNT(*) AS row_count FROM ${tableName}`
-  return index === 0 ? select : `UNION ALL ${select}`
-}).join('\n')
+// D1の複合SELECT上限に依存せず、全テーブルを同じ文で集計する。
+const countSql = `SELECT ${BACKUP_TABLES.map(
+  (tableName) => `(SELECT COUNT(*) FROM ${tableName}) AS ${tableName}`
+).join(',\n')}`
 
 function asObject(value, label) {
   const candidate = Array.isArray(value) && value.length === 1 ? value[0] : value
@@ -289,11 +289,26 @@ export function normalizeRemoteCounts(value) {
   if (result.success !== true) {
     throw new Error('Wrangler D1 executeが成功していません')
   }
-  return normalizeCounts(result.results)
+  return normalizeLocalCounts(result.results)
 }
 
 export function normalizeLocalCounts(value) {
-  return normalizeCounts(value)
+  if (!Array.isArray(value) || value.length !== 1) {
+    throw new Error('テーブル件数の行数が不正です')
+  }
+  const row = value[0]
+  if (typeof row !== 'object' || row === null || Array.isArray(row)) {
+    throw new Error('テーブル件数の行が不正です')
+  }
+  if (Object.keys(row).some((tableName) => !BACKUP_TABLES.includes(tableName))) {
+    throw new Error('テーブル件数に想定外の列が含まれています')
+  }
+  return normalizeCounts(
+    BACKUP_TABLES.map((tableName) => ({
+      table_name: tableName,
+      row_count: Object.hasOwn(row, tableName) ? row[tableName] : undefined,
+    }))
+  )
 }
 
 export function verifyMatchingCounts(remoteCounts, localCounts) {

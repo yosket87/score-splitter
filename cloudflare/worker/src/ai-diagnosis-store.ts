@@ -462,7 +462,8 @@ WHERE month = ? AND run_token = ? AND run_expires_at >= ?
       input.expectedSourceRevision
     )
     .run()
-  if (result.meta?.changes !== 1) {
+  // D1のchangesには、トリガーによる全体ロックの解除も含まれる。
+  if (!result.success || !((result.meta?.changes ?? 0) > 0)) {
     const revision = await db
       .prepare('SELECT revision FROM ai_diagnosis_source_revision WHERE id = ?')
       .bind(GLOBAL_GUARD_ID)
@@ -487,7 +488,8 @@ WHERE month = ? AND run_token = ?`
     )
     .bind(month, token)
     .run()
-  if (result.meta?.changes !== 1) {
+  // 月次ロックと連動する全体ロックが更新されるとchangesは2件になる。
+  if (!result.success || !((result.meta?.changes ?? 0) > 0)) {
     throw new Error('診断リースが失効しているため解放できません')
   }
 }

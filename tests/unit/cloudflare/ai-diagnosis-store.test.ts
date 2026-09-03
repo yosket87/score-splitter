@@ -385,8 +385,9 @@ WHERE id = ? AND run_token = ?`,
     })
   })
 
-  it('runTokenが一致する月だけ診断結果を保存する', async () => {
+  it.each([1, 2])('runTokenが一致する月だけ診断結果を保存する（連動更新込み%s件）', async (changes) => {
     const db = new SpyDatabase()
+    db.nextRunChanges = [changes]
     const diagnosis = { month: '202604', summaryText: '診断結果' }
 
     await saveDiagnosis(db, runtime, '202604', {
@@ -446,8 +447,9 @@ WHERE id = ? AND run_token = ?`,
     ).rejects.toThrow('リースが失効')
   })
 
-  it('runTokenが一致する月のリースだけを解放する', async () => {
+  it.each([1, 2])('runTokenが一致する月のリースだけを解放する（連動更新込み%s件）', async (changes) => {
     const db = new SpyDatabase()
+    db.nextRunChanges = [changes]
 
     await releaseDiagnosisLease(db, '202604', 'run-1')
 
@@ -463,6 +465,8 @@ WHERE month = ? AND run_token = ?`,
   it.each([
     ['changesが0', { success: true, meta: { changes: 0 } }],
     ['metaがない', { success: true }],
+    ['実行が失敗', { success: false, meta: { changes: 1 } }],
+    ['changesがNaN', { success: true, meta: { changes: Number.NaN } }],
   ] as const)('%s場合はリース解放を失敗にする', async (_name, result) => {
     const db = new SpyDatabase()
     db.nextRunResults = [result]
@@ -470,5 +474,18 @@ WHERE month = ? AND run_token = ?`,
     await expect(releaseDiagnosisLease(db, '202604', 'expired-run')).rejects.toThrow(
       'リースが失効'
     )
+  })
+
+  it.each([
+    { success: true },
+    { success: false, meta: { changes: 1 } },
+    { success: true, meta: { changes: Number.NaN } },
+  ])('成功した更新が確認できない診断保存は拒否する %#', async (result) => {
+    const db = new SpyDatabase()
+    db.nextRunResults = [result]
+    await expect(saveDiagnosis(db, runtime, '202604', {
+      runToken: 'run-1', inputHash: 'hash-1', analysisVersion: 'v1',
+      diagnosis: {}, expectedSourceRevision: 7,
+    })).rejects.toThrow('リースが失効')
   })
 })

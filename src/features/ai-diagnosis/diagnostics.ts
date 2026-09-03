@@ -5,7 +5,20 @@ import { ApiError } from '@/lib/api/client'
 type DiagnosisStage = 'load' | 'generate' | 'context' | 'saved_result' | 'acquire_lease'
   | 'release_lease' | 'classify' | 'narrative' | 'save_categories' | 'save_result'
 
-export class StructuredOutputError extends Error {}
+const STRUCTURED_OUTPUT_REASONS = [
+  'data_sufficiency_mismatch', 'candidate_id_mismatch', 'missing_candidate_commentary',
+  'narrative_number', 'narrative_person_reference', 'narrative_judgment',
+  'classification_coverage_mismatch', 'missing_parsed_output', 'refusal',
+] as const
+
+type StructuredOutputReason = typeof STRUCTURED_OUTPUT_REASONS[number]
+const SAFE_STRUCTURED_OUTPUT_REASONS = new Set<string>(STRUCTURED_OUTPUT_REASONS)
+
+export class StructuredOutputError extends Error {
+  constructor(message: string, readonly reason?: StructuredOutputReason) {
+    super(message)
+  }
+}
 
 const SAFE_API_CODES = new Set([
   'invalid_api_key', 'insufficient_quota', 'model_not_found', 'invalid_json_schema',
@@ -39,7 +52,11 @@ function classifyError(error: unknown) {
     && status >= 400 && status <= 599 ? status : null
   const code = error instanceof APIError && typeof error.code === 'string'
     && SAFE_API_CODES.has(error.code) ? error.code : null
-  return { errorKind: getErrorKind(error), status: safeStatus, code }
+  const structuredDetails = error instanceof StructuredOutputError
+    ? { reason: typeof error.reason === 'string' && SAFE_STRUCTURED_OUTPUT_REASONS.has(error.reason)
+      ? error.reason : null }
+    : {}
+  return { errorKind: getErrorKind(error), status: safeStatus, code, ...structuredDetails }
 }
 
 function getErrorKind(error: unknown): string {

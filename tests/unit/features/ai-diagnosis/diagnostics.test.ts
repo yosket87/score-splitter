@@ -55,6 +55,24 @@ describe('AI診断の安全な診断ログ', () => {
     expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toMatch(/secret|家賃/)
   })
 
+  it('構造化出力の許可済み理由だけを記録し、エラー本文を残さない', async () => {
+    const error = new StructuredOutputError('秘密のAI返答', 'narrative_person_reference')
+    await expect(observeDiagnosisStep('narrative', async () => { throw error })).rejects.toBe(error)
+    expect(console.error).toHaveBeenCalledWith('[ai-diagnosis]', {
+      stage: 'narrative', outcome: 'error', elapsedMs: 150,
+      errorKind: 'structured_output', status: null, code: null,
+      reason: 'narrative_person_reference',
+    })
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain('秘密')
+  })
+
+  it('実行時に混入した未知の理由をログへ流さない', async () => {
+    const error = Object.assign(new StructuredOutputError('秘密'), { reason: '秘密の家計データ' })
+    await expect(observeDiagnosisStep('narrative', async () => { throw error })).rejects.toBe(error)
+    expect(console.error).toHaveBeenCalledWith('[ai-diagnosis]', expect.objectContaining({ reason: null }))
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain('秘密')
+  })
+
   it('成功時は結果を変更せず返し、結果本文は記録しない', async () => {
     const result = { private: '支出名とAI返答' }
     expect(await observeDiagnosisStep('narrative', async () => result)).toBe(result)

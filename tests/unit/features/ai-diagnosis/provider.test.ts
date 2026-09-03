@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ClientOptions } from 'openai'
 
 import { createOpenAiDiagnosisProvider } from '@/features/ai-diagnosis/openai-provider'
+import { observeDiagnosisStep } from '@/features/ai-diagnosis/diagnostics'
 import {
   createAiDiagnosisProvider,
   isAiDiagnosisAvailable,
@@ -80,6 +81,34 @@ class FakeResponsesClient {
 }
 
 describe('OpenAI家計診断プロバイダー', () => {
+  it.each([
+    ['narrative_number', { ...validNarrative, summaryText: '秘密の支出が７円' }, []],
+    ['narrative_person_reference', { ...validNarrative, summaryText: '秘密の妻の支出' }, []],
+    ['narrative_judgment', { ...validNarrative, summaryText: '秘密の浪費' }, []],
+    ['data_sufficiency_mismatch', { ...validNarrative, dataSufficiency: 'reference' }, []],
+    ['candidate_id_mismatch', {
+      ...validNarrative, notableChanges: [{ candidateId: '秘密のID', commentary: '秘密の返答' }],
+    }, []],
+    ['missing_candidate_commentary', { ...validNarrative, suggestions: [] }, []],
+    ['missing_parsed_output', null, []],
+    ['refusal', null, [{ type: 'message', content: [{ type: 'refusal', refusal: '秘密の拒否理由' }] }]],
+  ])('診断文の検証失敗を本文なしの理由 %s で記録する', async (reason, response, output) => {
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      const responses = new FakeResponsesClient([response, response], [output, output])
+      const provider = createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses })
+      await expect(observeDiagnosisStep('narrative', () => provider.generateNarrative(narrativeInput)))
+        .rejects.toBeInstanceOf(Error)
+      expect(errorLog).toHaveBeenCalledWith('[ai-diagnosis]', expect.objectContaining({
+        stage: 'narrative', errorKind: 'structured_output', reason,
+      }))
+      expect(responses.calls).toBe(2)
+      expect(JSON.stringify(errorLog.mock.calls)).not.toMatch(/秘密|Uber Eats|86000|test-api-key/)
+    } finally {
+      errorLog.mockRestore()
+    }
+  })
+
   it('分類要求を保存せずラベルだけを未信頼データとして分離する', async () => {
     const responses = new FakeResponsesClient()
     const provider = createOpenAiDiagnosisProvider({
@@ -388,7 +417,9 @@ describe('OpenAI家計診断プロバイダー', () => {
     const responses = new FakeResponsesClient([invalidResult, invalidResult])
     const provider = createOpenAiDiagnosisProvider({ apiKey: 'test-api-key', responses })
 
-    await expect(provider.classifyLabels(['イオン', 'Uber Eats'])).rejects.toThrow('完全に対応')
+    await expect(provider.classifyLabels(['イオン', 'Uber Eats'])).rejects.toMatchObject({
+      reason: 'classification_coverage_mismatch',
+    })
     expect(responses.calls).toBe(2)
   })
 

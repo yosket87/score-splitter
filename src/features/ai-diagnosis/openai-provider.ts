@@ -155,7 +155,7 @@ function toNarrativeCandidate(
 
 function assertNarrativeSafety(input: NarrativeInput, narrative: AiNarrativeResult): void {
   if (narrative.dataSufficiency !== input.dataSufficiency) {
-    throw new StructuredOutputError('診断文のデータ充足度が入力と一致しません。')
+    throw new StructuredOutputError('診断文のデータ充足度が入力と一致しません。', 'data_sufficiency_mismatch')
   }
 
   const groups = [
@@ -166,11 +166,11 @@ function assertNarrativeSafety(input: NarrativeInput, narrative: AiNarrativeResu
   const candidateIds = groups.flatMap(({ items }) => items.map(({ candidateId }) => candidateId))
   if (new Set(candidateIds).size !== candidateIds.length
     || groups.some(({ items, allowed }) => items.some(({ candidateId }) => !allowed.has(candidateId)))) {
-    throw new StructuredOutputError('診断文に許可されていない候補IDまたは重複した候補IDがあります。')
+    throw new StructuredOutputError('診断文に許可されていない候補IDまたは重複した候補IDがあります。', 'candidate_id_mismatch')
   }
   if (groups.some(({ items, allowed }) => allowed.size > 0 && items.length === 0)) {
     throw new StructuredOutputError(
-      '入力候補があるグループには診断文が最低1件必要です。'
+      '入力候補があるグループには診断文が最低1件必要です。', 'missing_candidate_commentary',
     )
   }
 
@@ -180,8 +180,15 @@ function assertNarrativeSafety(input: NarrativeInput, narrative: AiNarrativeResu
     ...narrative.positivePoints.map(({ commentary }) => commentary),
     ...narrative.suggestions.map(({ commentary }) => commentary),
   ]
-  if (narrativeTexts.some((text) => /[0-9０-９¥円%％]|夫|妻|husband|wife|浪費|無駄遣い|責任/i.test(text))) {
-    throw new StructuredOutputError('診断文に許可されていない数値または評価表現があります。')
+  // 拒否する条件は維持し、本文を記録せず原因だけを識別する。
+  if (narrativeTexts.some((text) => /[0-9０-９¥円%％]/.test(text))) {
+    throw new StructuredOutputError('診断文に許可されていない数値または評価表現があります。', 'narrative_number')
+  }
+  if (narrativeTexts.some((text) => /夫|妻|husband|wife/i.test(text))) {
+    throw new StructuredOutputError('診断文に許可されていない数値または評価表現があります。', 'narrative_person_reference')
+  }
+  if (narrativeTexts.some((text) => /浪費|無駄遣い|責任/.test(text))) {
+    throw new StructuredOutputError('診断文に許可されていない数値または評価表現があります。', 'narrative_judgment')
   }
 }
 
@@ -190,7 +197,7 @@ function assertClassificationCoverage(labels: string[], assignments: CategoryAss
   if (assignedLabels.length !== labels.length
     || new Set(assignedLabels).size !== assignedLabels.length
     || labels.some((label) => !assignedLabels.includes(label))) {
-    throw new StructuredOutputError('分類結果が入力ラベルと完全に対応していません。')
+    throw new StructuredOutputError('分類結果が入力ラベルと完全に対応していません。', 'classification_coverage_mismatch')
   }
 }
 
@@ -210,8 +217,11 @@ async function parseWithSingleRetry<T>(
 }
 
 function assertNotRefused(response: StructuredResponse): void {
-  if (response.output_parsed === null || containsRefusal(response.output)) {
-    throw new StructuredOutputError('AIが要求への回答を拒否しました。')
+  if (containsRefusal(response.output)) {
+    throw new StructuredOutputError('AIが要求への回答を拒否しました。', 'refusal')
+  }
+  if (response.output_parsed === null) {
+    throw new StructuredOutputError('AIが要求への回答を拒否しました。', 'missing_parsed_output')
   }
 }
 

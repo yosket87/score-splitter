@@ -66,7 +66,7 @@ export function SectionShell({
           </div>
         )}
 
-        <div className="border-t border-border bg-[var(--surface-total)] px-3.5 py-2.5">
+        <div className="hidden border-t border-border bg-[var(--surface-total)] px-3.5 py-2.5 md:block">
           {addSlot}
         </div>
 
@@ -113,13 +113,14 @@ export function EntryRow({
       exit={{ opacity: 0, x: -8, transition: listExit }}
       transition={listSpring}
       className={cn(
-        'group grid grid-cols-[22px_1fr_auto] gap-3 px-3.5 py-3 items-center',
+        'group grid grid-cols-[24px_minmax(0,1fr)_48px] gap-x-3 gap-y-1 px-3.5 py-3 items-center md:grid-cols-[22px_1fr_auto] md:gap-3',
         !isLast && 'border-b border-border'
       )}
     >
       <span
+        data-slot="entry-person"
         className={cn(
-          'w-[22px] h-[22px] rounded-full text-[8px] font-bold inline-flex items-center justify-center shrink-0',
+          'col-start-1 row-start-1 row-span-2 size-6 self-center rounded-full text-[9px] font-bold inline-flex items-center justify-center shrink-0 md:row-span-1 md:size-[22px] md:text-[8px]',
           person === 'husband'
             ? 'bg-husband text-husband-solid-foreground'
             : 'bg-wife text-wife-solid-foreground',
@@ -128,15 +129,15 @@ export function EntryRow({
       >
         {PERSON_LABELS[person]}
       </span>
-      <span className={cn('text-[13px] font-medium truncate', labelClassName)}>
+      <span data-slot="entry-label" className={cn('col-start-2 row-start-1 min-w-0 self-start text-sm leading-5 font-medium [overflow-wrap:anywhere] md:self-auto md:text-[13px] md:leading-normal md:truncate', labelClassName)}>
         {label}
         {labelBadge}
       </span>
-      <div className="flex items-center gap-1">
-        <span className={cn('font-mono text-[13px] font-semibold', amountClassName)}>
+      <div className="contents md:flex md:items-center md:gap-1">
+        <span data-slot="entry-amount" className={cn('col-start-2 row-start-2 min-w-0 text-right font-mono text-sm leading-5 font-semibold [overflow-wrap:anywhere] md:text-[13px] md:leading-normal', amountClassName)}>
           {amount}
         </span>
-        <div className="flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
+        <div className="col-start-3 row-start-1 row-span-2 self-center flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
           {actions}
         </div>
       </div>

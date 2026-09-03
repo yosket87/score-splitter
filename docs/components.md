@@ -42,7 +42,14 @@ shadcn/uiベースの再利用可能なUIコンポーネント群。
 | IncomeSection | `income/index.tsx` | 収入管理セクション |
 | ExpenseSection | `expense/index.tsx` | 支出管理セクション |
 | CarryoverSection | `carryover/index.tsx` | 繰越管理セクション |
+| EntryActions | `entry-actions/index.tsx` | 項目の編集・削除・繰越／清算操作 |
 | CopyMonthDialog | `copy-month/index.tsx` | 月データコピー機能ダイアログ |
+
+### スマホの項目一覧
+
+幅768px未満では、`EntryRow` は「担当者バッジ／項目名と金額／メニュー」の3列で表示する。中央列は上段が項目名、下段が右寄せの金額。長い項目名は省略せず折り返し、左右のバッジと48px四方のメニューボタンは行全体の上下中央に揃える。
+
+`EntryActions` はスマホでは文字付きメニュー、768px以上では従来の直接操作ボタンを表示する。編集・削除ダイアログはメニューの外側で保持し、閉じた後はメニューボタンへフォーカスを戻す。スマホの項目追加は画面下部の固定バーに集約し、月詳細の下余白で最終行との重なりを防ぐ。
 
 ## コンポーネント階層
 

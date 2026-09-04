@@ -176,3 +176,18 @@ D1マイグレーションは `cloudflare/worker/migrations/` に配置してい
 - 本番D1へbindingを変更・デプロイする前に、必ず `npm run backup:d1:production -- --confirm-production-d1 <本番D1 UUID>` を実行する
 - バックアップscriptはTime Travel bookmark、全量SQL、SHA-256、SQLite復元の整合性・全8テーブルの件数照合を検証し、`PASS` manifestを作成する。PASSがない状態で本番PRをReadyに変更・merge・本番デプロイしてはならない
 - バックアップはGit管理外の `~/Documents/Backups/score-splitter/d1/` に保存する。Time Travelのrestoreはデータ破損時にユーザーが明示承認した場合だけ実行する
+
+### 振込記録（0008_add_payment_records.sql）
+
+| テーブル | 用途 |
+|---|---|
+| month_payment_revisions | monthごとの単調増加revision。既存月・空月は未作成時0 |
+| payment_operations | UUIDの冪等キー、操作種別、確認revision、入力・結果JSON、記録者とUTC日時 |
+| payment_records | 符号付き整数支払額、支払日、記録時snapshotと計算・丸めバージョン |
+| payment_voids | 元支払への一意な取消、操作ID、理由とUTC日時 |
+
+支払は夫→妻が正、妻→夫が負。支払日はYYYY-MM-DD、処理日時はUTC。訂正は取消と置換支払を同一batchで保存し、元行を削除しない。履歴のUPDATE/DELETEはトリガーで拒否する。
+
+3明細テーブルのINSERT/UPDATE/DELETEはAFTERトリガーで対象月revisionを加算する。明細の編集は禁止しない。分類だけのAI更新はsnapshot対象外のためrevisionを変えない。振込操作は同一読取batchで作った見積りを、操作INSERT時のrevisionトリガーと単一書込batchで検証する。編集が先なら再確認、記録が先なら編集後の差額へ反映する。
+
+コピーは明細だけを対象とし、振込状態・履歴を次月へ引き継がない。支払正味合計はBigIntで計算し、最終値の安全整数を検証する。

@@ -32,6 +32,8 @@ vi.mock('@/app/actions/carryover', () => ({
   getCarryoversByMonth: vi.fn(),
 }))
 
+vi.mock('@/app/actions/payment-status', () => ({ getPaymentStatus: vi.fn().mockResolvedValue({ success: false, error: 'テストでは未取得', code: 500 }) }))
+
 vi.mock('@/app/actions/monthly-summary', () => ({
   getMonthlySummaries: vi.fn(),
 }))

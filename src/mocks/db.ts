@@ -164,6 +164,7 @@ export function insertRows(table: string, rows: Row[]): Row[] {
   }))
 
   tableData.push(...inserted)
+  for (const row of inserted) trackPaymentRevision(table, row)
   incrementSourceRevision(table, inserted.length)
   return inserted
 }
@@ -189,6 +190,11 @@ export function updateRows(
         ...updates,
         updated_at: now,
       }
+      const paymentFields = ['month', 'label', 'amount', 'person', 'is_carryover', 'is_cleared', 'created_at']
+      if (paymentFields.some((field) => before[field] !== tableData[i][field])) {
+        trackPaymentRevision(table, before)
+        if (before.month !== tableData[i].month) trackPaymentRevision(table, tableData[i])
+      }
       const fields = REVISION_FIELDS[table] ?? []
       if (fields.some((field) => before[field] !== tableData[i][field])) {
         incrementSourceRevision(table, 1)
@@ -212,6 +218,7 @@ export function deleteRows(
 
   const before = tableData.length
   store[table] = tableData.filter((r) => !matchingIds.has(r.id))
+  for (const row of matching) trackPaymentRevision(table, row)
   const deleted = before - store[table].length
   incrementSourceRevision(table, deleted)
   return deleted
@@ -223,4 +230,15 @@ function incrementSourceRevision(table: string, count: number): void {
   if (!row) throw new Error('診断source revisionが初期化されていません')
   row.revision = Number(row.revision) + count
   row.updated_at = new Date().toISOString()
+}
+
+export function incrementPaymentRevision(month: string): void {
+  const rows = getTable('month_payment_revisions')
+  const index = rows.findIndex((row) => row.month === month)
+  if (index < 0) rows.push({ month, revision: 1 })
+  else rows[index] = { ...rows[index], revision: Number(rows[index].revision) + 1 }
+}
+
+function trackPaymentRevision(table: string, row: Row): void {
+  if (table in REVISION_FIELDS) incrementPaymentRevision(String(row.month))
 }

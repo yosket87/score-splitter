@@ -10,6 +10,8 @@ import { TrendCard } from '@/components/charts/trend-card'
 import { AiDiagnosisDialog } from '@/features/ai-diagnosis'
 import { CopyMonthDialog } from '@/features/copy-month'
 import { ExportCsvButton } from '@/features/export-csv'
+import { PaymentStatusPanel } from '@/features/payment-status'
+import type { PaymentActionResult, PaymentStatus } from '@/types/payment-status'
 import { SettlementBreakdown } from './components/settlement-breakdown'
 import {
   calculateSettlement,
@@ -39,6 +41,7 @@ interface MonthlyOverviewProps {
   summary: MonthlyOverviewSummary
   summaries: MonthlySummary[]
   aiDiagnosisAvailable?: boolean
+  paymentStatus?: PaymentActionResult<PaymentStatus>
 }
 
 function toCurrentMonth(year: number, month: number): string {
@@ -79,6 +82,7 @@ export function MonthlyOverview({
   summary,
   summaries,
   aiDiagnosisAvailable = true,
+  paymentStatus,
 }: MonthlyOverviewProps) {
   const router = useRouter()
   const { reduced } = useMotionPrefs()
@@ -217,6 +221,8 @@ export function MonthlyOverview({
             )}
           </h1>
         </div>
+
+        {paymentStatus && <PaymentStatusPanel key={currentMonth} month={currentMonth} initialResult={paymentStatus} />}
 
         <SettlementBreakdown
           result={result}

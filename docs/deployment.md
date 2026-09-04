@@ -198,3 +198,9 @@ WebAuthnのパスキーはRP ID（ドメイン）に紐づくため、ホステ�
 - フロントエンドはVercelホスティングから本構成（OpenNext + Workers Builds）へ移行済み
 - Vercel廃止手順: Git連携を解除 → Cloudflare側の安定稼働を確認 → Vercelプロジェクトを削除
 - Vercelに旧Worker APIトークンを設定していた場合は、旧APIの安定確認・廃止時に `WORKER_API_TOKEN` / `CLOUDFLARE_WORKER_API_TOKEN` をローテーションまたは削除する
+
+## 振込記録機能の移行
+
+アプリ公開前に `0008_add_payment_records.sql` を対象D1へ適用する。既存明細・既存支払なしの月は変更せず、振込履歴なしとして扱う。ローカルの `npm run test:d1:payment` → 開発DBへのmigrationとアプリ → 開発画面確認 → 既存の本番バックアップ手順 → 本番migrationとアプリ、の順で進める。
+
+障害時は振込UIを公開しないアプリへ戻せる。記録済みの台帳やrevisionをDROPせず、支払開始後の無条件DB復元は行わない。旧アプリに戻しても家計明細は編集できる。HTTP互換の振込経路は内部Bearerに加え `x-household-session` に有効な世帯セッションを要求する。

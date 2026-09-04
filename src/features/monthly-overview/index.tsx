@@ -10,6 +10,7 @@ import { TrendCard } from '@/components/charts/trend-card'
 import { AiDiagnosisDialog } from '@/features/ai-diagnosis'
 import { CopyMonthDialog } from '@/features/copy-month'
 import { ExportCsvButton } from '@/features/export-csv'
+import { SettlementBreakdown } from './components/settlement-breakdown'
 import {
   calculateSettlement,
   getSettlementDirectionLabel,
@@ -216,6 +217,11 @@ export function MonthlyOverview({
             )}
           </h1>
         </div>
+
+        <SettlementBreakdown
+          result={result}
+          hasClearedCarryovers={carryovers.some((carryover) => carryover.isCleared)}
+        />
 
         <div className="mt-4 grid gap-3">
           <section

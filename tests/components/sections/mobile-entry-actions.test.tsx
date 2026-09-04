@@ -98,8 +98,18 @@ describe('スマホの項目メニュー', () => {
     render(<ExpenseSection expenses={[expense]} month="202602" />)
     await user.click(screen.getByRole('button', { name: '食費のメニュー' }))
     await user.click(screen.getByRole('menuitem', { name: '繰越にする' }))
-    await waitFor(() => expect(toast.error).toHaveBeenCalled())
-    expect(screen.getByRole('menuitem', { name: '繰越にする' })).not.toHaveAttribute('aria-disabled', 'true')
+    // エラー通知後も送信中状態の描画更新は続くため、操作可能になるまで待つ。
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledTimes(1)
+      expect(screen.getByRole('menuitem', { name: '繰越にする' })).not.toHaveAttribute('aria-disabled', 'true')
+    })
+
+    vi.mocked(toggleExpenseCarryover).mockResolvedValueOnce({ success: true })
+    await user.click(screen.getByRole('menuitem', { name: '繰越にする' }))
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+    expect(toggleExpenseCarryover).toHaveBeenCalledTimes(2)
+    expect(toggleExpenseCarryover).toHaveBeenLastCalledWith('1', true, '202602')
+    expect(toast.error).toHaveBeenCalledTimes(1)
   })
 
   it('収入と清算済みの繰越でも適切な操作を表示する', async () => {

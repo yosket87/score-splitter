@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MonthlyOverview } from '@/features/monthly-overview'
 import type { MonthlyOverviewSummary } from '@/features/monthly-overview'
 import type { Expense, Income, MonthlySummary } from '@/types'
@@ -99,6 +100,43 @@ function renderOverview(
 }
 
 describe('MonthlyOverview', () => {
+  it('精算額と月収支の間に内訳を配置し、空配列は精算不要にする', async () => {
+    const user = userEvent.setup()
+    renderOverview({ incomes: [], expenses: [], carryovers: [] })
+    const trigger = screen.getByRole('button', { name: '精算の内訳' })
+    expect(screen.getByRole('heading', { level: 1 }).compareDocumentPosition(trigger)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(trigger.compareDocumentPosition(screen.getByText('月収支'))).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    await user.click(trigger)
+    expect(screen.getByText('精算不要')).toBeVisible()
+  })
+
+  it.each([false, true])('清算対象繰越のみを内訳に含める（清算: %s）', async (isCleared) => {
+    const user = userEvent.setup()
+    renderOverview({
+      incomes,
+      expenses: [...expenses, { ...expenses[0], id: 'excluded', amount: -99999, isCarryover: true }],
+      carryovers: [{ id: 'carryover', month: '202604', label: '繰越', amount: -10000, person: 'husband', isCleared }],
+    })
+    await user.click(screen.getByRole('button', { name: '精算の内訳' }))
+    const husband = within(screen.getByRole('region', { name: '夫の内訳' }))
+    expect(husband.getAllByRole('definition').map((node) => node.textContent)).toEqual(
+      isCleared ? ['¥100,000', '−¥110,000', '−¥10,000'] : ['¥100,000', '−¥100,000', '¥0']
+    )
+    expect(screen.getByRole('region', { name: '月収支' })).toHaveTextContent('支出 ¥199,999')
+    expect(Boolean(screen.queryByText(/今月清算する繰越/))).toBe(isCleared)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveAccessibleName(
+      isCleared ? '精算額 ¥255,000 妻 → 夫' : '精算額 ¥250,000 妻 → 夫'
+    )
+  })
+
+  it('内訳は0.5円を表示し、上部の精算額は既存の整数表示を保つ', async () => {
+    const user = userEvent.setup()
+    renderOverview({ incomes: [{ ...incomes[0], amount: 101 }], expenses: [], carryovers: [] })
+    await user.click(screen.getByRole('button', { name: '精算の内訳' }))
+    expect(screen.getByRole('heading', { level: 1 })).toHaveAccessibleName('精算額 ¥50 夫 → 妻')
+    expect(screen.getAllByText('¥50.5')).toHaveLength(2)
+  })
+
   it('structured propsを受け取るMonthlyOverviewを公開する', () => {
     expect(MonthlyOverview).toBeTypeOf('function')
   })

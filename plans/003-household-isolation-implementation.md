@@ -262,16 +262,17 @@ Issue完了は、全経路の2世帯分離、既存認証・金額・精算・AI
 - 各API/Actionのテストと型検査を通す。新たなcontext必須signatureの影響でAI/振込の呼出修正が必要な場合、既に認証されたcontextを渡す機械的修正まで行ってよいが、独立した仕様変更はしない。テストが未対応の中間状態を成功扱いしない。
 - 担当のみ日本語Conventional Commit、RED/GREENと検証結果をreportへ。サブエージェントは起動しない。
 
-### Task 5: AI診断と振込台帳を世帯単位にする
+### Task 5: AI診断・振込台帳と0011のキー切替を揃える
 
-所有: `cloudflare/worker/src/ai-diagnosis-store.ts`と関連repository、`payment-store.ts`/`payment-status.ts`、対応API/Actions/HTTP/MSW/テストと実D1検証script。Task3/4のcontext契約を維持する。migrationとクライアント状態の最終対応は後続タスク。
+所有: `cloudflare/worker/src/ai-diagnosis-store.ts`と関連repository、`payment-store.ts`/`payment-status.ts`、対応API/Actions/HTTP/MSW/テストと実D1検証script、0011_scope_household_data.sqlとbackup-schemaの0011登録。Task3/4のcontext契約を維持する。0012の最終制約とクライアント状態は後続タスク。
 
+- 0011を同じタスクで実装し、新SQLと必要なキー/triggerを揃えて実D1検証できるcommitにする。migration-design.mdの0011を適用し、全アクセス停止下の最終NULL補完・既存世帯/不明所属guard・carryover世帯付き一意索引・AI3/payment4の世帯キーとNOT NULL/FK再構築・世帯revision/lease/immutable triggerを実装する。後段の0012は含めない。旧15表の全保持列/JSON/revision/quotaを比較し、DDL失敗rollbackを実D1で検証。0009/0010と同じく新しい業務表は増やさない。既存0001〜0010を改変しない。Task2 branchにはこのmigrationを混入させず、第三段階は全経路が揃うまでpushしない。
 - AI repository生成時にcontextを固定し、4か月context・保存済み結果・lease取得・分類保存・結果保存・補償releaseの全経路へ伝播する。SQL中のJOIN/EXISTS/UPDATEの各対象をhouseholdで絞る。保存対象のexpense IDは同じ世帯に存在するものだけ。
 - 月leaseは世帯+month、guardとsource revisionは世帯。日次利用回数とcooldownは世帯内で月を跨いで共有。lease期限/実行token/revisionによる既存の排他・stale拒否を保ち、別世帯の変更で拒否しない。古いtokenや別世帯tokenでrelease不可。失敗補償の照会・更新にもhouseholdが必要。
 - 振込の月revision/operation再送/明細snapshot/履歴JOIN/訂正・取消/保存batchの全経路をhouseholdで限定。actorは同一認証context由来。外部operation IDが別世帯にある場合は自世帯の新規操作として扱い、同じIDの結果を混同しない。対象paymentのforeign IDは404相当。過去JSONを改変せず、世帯を後付けしない。
 - runtime必須context・全SQL条件・HTTPのDB session検証を揃える。AIとpaymentのモックも同じ契約。グローバルfallbackや初回リクエスト時の暗黙legacy行作成は禁止。fixtureで各世帯guard/revisionを明示初期化する。
 - TDD: 同月2世帯で診断結果独立、guard/cooldown/日次回数独立、他世帯expense分類拒否、別世帯編集でstaleにならない、自世帯編集でstale、古いtoken補償の無害性。振込は同月同額同operation IDの再送分離、訂正/取消の越境拒否、snapshot漏洩なし、batch途中失敗rollback、revision独立。
-- 最終制約のfixtureと実共有関数を使ったSQLite/Miniflare検証を用意し、後続0011/0012の実migration適用後にも再実行可能にする。Fake parserだけを根拠にしない。既存振込整合性テスト・AI競合テストを落とさない。実D1検証はUnitから独立。
+- 0011までの実migrationと実共有関数を使ったSQLite/Miniflare検証を用意し、後続0012の実migration適用後にも再実行可能にする。Fake parserだけを根拠にしない。既存振込整合性テスト・AI競合テストを落とさない。実D1検証はUnitから独立。
 - 既存provider呼出や計算式の変更、実OpenAI API呼出、本番接続は行わない。担当のみ日本語Conventional Commit、RED/GREEN/検証/残課題をreportへ。サブエージェントは起動しない。
 
 ### Task 6: クライアント状態・表示・再取得の世帯境界
@@ -286,13 +287,13 @@ Issue完了は、全経路の2世帯分離、既存認証・金額・精算・AI
 
 ### Task 7: 最終キー切替・制約と全経路の実D1検証
 
-所有: 新規0011_scope_household_data.sql、0012_enforce_household_constraints.sql、backup-schema登録、migration fixture/実D1検証script/SQL越境テスト、CIとcoverage設定。全経路コードが完成してから実施し、第一/第二段階branchへ最終migrationを混入させない。
+所有: 新規0012_enforce_household_constraints.sql、backup-schemaの0012登録、migration fixture/実D1検証script/SQL越境テスト、CIとcoverage設定。全経路コードが完成してから実施し、第一/第二段階branchへ最終migrationを混入させない。
 
-- migration-design.mdの再構築順を使い、既存0001〜0010を改変しない。0011は全アクセス/認証発行/AI停止下の最終NULL補完とキー/trigger切替。AI3・payment4はNOT NULL/FKまで一度で完成。0012は残る明細3・session・credential・challengeを再構築。authentication challengeのみtype CHECKでNULL許容。
+- migration-design.mdの再構築順を使い、既存0001〜0011を改変しない。Task5の0011でAI3・payment4のNOT NULL/FKとキー/triggerは完成済みであることを照合する。0012は残る明細3・session・credential・challengeを再構築。authentication challengeのみtype CHECKでNULL許容。
 - 既存世帯唯一性・ID/key一致、不明所属/方式/type/越境参照拒否を事前検査。列名指定INSERT SELECTで全保持値を移す。copy中revision triggerを発火させず、旧JSON/id/token/key/counter/利用回数/revision値を保持する。
 - FKを無効化しない。子の新FKは新親を参照し、parent→child作成/コピー、child→parent旧表削除、新親→新子rename。defer_foreign_keysが必要なら同一migration内で解決する。依存triggerの削除/再作成と台帳immutableを漏らさない。
 - 世帯+月の一意制約、carryoverの世帯付き業務キー、guard/source世帯PK、payment操作の世帯+ID、operation/record/void複合FK、適切な索引を実装。家計行の所属変更を通常SQLでも防ぐ必要を検討し、公開APIに移管を追加しない。
 - SQLite/実D1で0008→0009→0010→旧NULL書込→0011→0012の段階検証。各段階の故意失敗rollback、再実行、表集合/全保持列/金額/JSON/trigger/FK検証。同月同額同担当同label/operation IDのA/B fixtureを最終schemaで共存させ、全実共有関数の越境拒否を再実行する。
-- backup-schemaに0011/0012を登録し、段階に適合する全表復元検証を確認。実D1検証はUnitから独立。CIはlint/typecheck/unit/build等の独立工程を並列Jobにし、関連schema/script変更とnightlyで実D1検証。通常PR10分目標、15分超は実測で原因を調査する。
+- backup-schemaに0011/0012を登録し、段階に適合する全表復元検証を確認。実D1検証はUnitから独立。CIはlint/typecheck/unit/build等の独立工程を並列Jobにし、関連schema/script変更とnightlyで実D1検証。通常PR10分目標、15分超は実測で原因を調査する。現在test/e2eのpull_requestはbase main限定で、積み重ねPR #120では起動しなかったため、段階別PRでも必須検証が動くtriggerへ修正する。
 - coverageにcloudflare共有ドメイン関数を含める。全体テスト/型/lint/build/実D1/E2Eを一通り確認し、不具合は担当へ戻して修正する。架空世帯を本番や旧Previewから到達可能な共有devへ入れない。
-- 0011と対応コードの第三段階branchを残し、0012は第四段階branchへ分離できるcommit単位にする。運用操作や本番接続はせず、担当のみ日本語Conventional Commitとreport。サブエージェントは起動しない。
+- Task5で実装済み0011と全対応コードの第三段階branchを先に残し、0012は第四段階branchへ分離できるcommit単位にする。運用操作や本番接続はせず、担当のみ日本語Conventional Commitとreport。サブエージェントは起動しない。

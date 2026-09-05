@@ -182,13 +182,15 @@ describe('セッション境界の世帯認可', () => {
     expect(await getSession()).toBeNull()
     expect(await isAuthenticated()).toBe(false)
   })
-  it('requireAuthはsessionを返しrequireHouseholdContextは不変の所属だけを返す', async () => {
+  it('requireHouseholdContextは同じ認証snapshotの所属・担当者・認証方式を不変で返す', async () => {
     mockSessionsApi.getSession.mockResolvedValue({ token: 'a'.repeat(64), householdId: 'B', person: 'wife', authMethod: 'passkey', expiresAt: '2026-09-05T01:00:00.000Z' })
     const { requireAuth } = await import('@/lib/webauthn/session')
     const { requireHouseholdContext } = await import('@/lib/household-context')
     expect(await requireAuth()).toEqual({ householdId: 'B', person: 'wife', authMethod: 'passkey' })
+    mockSessionsApi.getSession.mockClear()
     const context = await requireHouseholdContext()
-    expect(context).toEqual({ householdId: 'B' })
+    expect(mockSessionsApi.getSession).toHaveBeenCalledTimes(1)
+    expect(context).toEqual({ householdId: 'B', person: 'wife', authMethod: 'passkey' })
     expect(Object.isFrozen(context)).toBe(true)
   })
   it('requireAuthは所属のないsessionをログインへ戻す', async () => {

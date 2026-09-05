@@ -1,6 +1,15 @@
 # 世帯分離のSQL・処理経路台帳
 
-基準: main `c9be1ce`。状態: 実装前棚卸し。以下は移行の確認対象であり、世帯対応済みの証跡ではない。行番号は基準コミット。
+棚卸し基準: main `c9be1ce`。以下のSQL参照位置は基準コミットの行番号であり、実装後の位置とは異なる。完了範囲は次の表で区別する。
+
+| 範囲 | 実装・レビュー済みの契約 | 証跡 |
+|---|---|---|
+| 認証 | 同一session snapshotから所属・担当・認証方式を解決。管理passkey/challengeと認証前の内部処理を分離 | `ac0fe0a`、Task3レビューApproved |
+| 明細・集計 | context必須、全CRUDと再取得を世帯内に限定。HTTPもDB sessionで所属解決 | `05df935`、Task4レビューApproved |
+| 月コピー | 同一世帯の元行検証を全書込に適用。繰越fingerprint、競合404/409、batch rollback | `05df935`、SQLite・実D1検証成功 |
+| AI・振込・最終制約・クライアント状態 | 後続実装・検証対象 | 未完了 |
+
+明細の世帯条件が完成していても、0011前の繰越一意制約とAI/振込トリガーは旧来の範囲を持つ。全経路・制約の完成前に世帯分離のリリースを行わない。
 
 ## 通常経路とデータ操作
 
@@ -70,6 +79,12 @@ SQLファイルのパスは `cloudflare/worker/src/` 配下。精算計算とCSV
 - CSV/精算内訳/グラフは上記で限定された入力だけを消費する。AI、コピーpreview、パスキー一覧、振込再送のクライアント状態も世帯境界で破棄する。
 - 旧HTTPは `index.ts → authenticated-router.ts / ai-diagnosis-router.ts / payment-router.ts`。家計処理全体をBearer＋DBセッションへ揃える。配備済み旧Version/Previewからの到達も停止または対応版へ更新する。
 - バックアップ/復元/検証スクリプトは運用のDB全体操作として区別し、業務APIから呼び出さない。実D1検証は毎回隔離DBを使う。
+
+## コピーの実装後の対応
+
+`copy-month-guard.ts`へコピー元検証を集約した。batch先頭の状態SELECTと全DELETE/INSERTは同じ世帯・元月・選択行を検査し、元データの変化があれば全書込を抑止する。繰越集合は精算済みも含めて比較し、preview後の追加・削除・精算解除を検知する。コピー先のskip判定はbatch内で行う。
+
+コピー件数には`INSERT ... RETURNING id`の返却行数を使う。D1の`meta.changes`はAI/振込revisionトリガーの更新も含むため、追加した明細の件数とは一致しない。
 
 ## 実装完了時の再照合
 

@@ -10,7 +10,7 @@ Issue #102の段階別証跡。2026-09-05時点、実装は進行中で本番リ
 | 0009/0010互換追加と初回補完 | ec09c41 | 対象34件、全体1093件、型・ESLint成功。SQLite/隔離Wranglerで保持値・rollback・再適用・FK・immutable検証。独立レビューApproved |
 | 認証と試行分離 | 5355f56 | 全体1141件、型検査成功。認証対象行98.33%、分岐90.53%。ローカルChromium E2E3件成功 |
 | 同一認証snapshot | ac0fe0a | 戻り値欠落をREDで確認後、対象16件・型検査成功。認証差分全体の独立レビューApproved |
-| 明細・集計・コピー | 05df935 | 全体1181件、型・lint error 0。実SQLite34ケース、実D1 race/rollback、Chromium6件成功。独立レビュー中 |
+| 明細・集計・コピー | 05df935 | 全体1181件、型・lint error 0。実SQLite34ケース、実D1 race/rollback、Chromium6件成功。独立レビューApproved |
 
 認証E2Eでは、パスワードの成功/失敗と、仮想認証器の実署名による登録→再ログインを確認した。世帯付きuserHandle、challenge cookie消費も検証した。実環境のパスキー登録を行った証跡ではない。
 

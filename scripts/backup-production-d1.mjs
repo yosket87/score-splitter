@@ -16,30 +16,35 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
+import {
+  buildCountSql,
+  createExpectedBackupSchema,
+  validateSchemaEvidence,
+  verifyMatchingSchemaObjects,
+  verifyForeignKeyCheck,
+  readBackupSchema,
+} from './backup-schema.mjs'
+
+import {
+  BACKUP_TABLES,
+  normalizeLocalCounts,
+  normalizeRemoteCounts,
+  verifyMatchingCounts,
+} from './backup-counts.mjs'
+import { restoreAndInspectBackup } from './backup-sqlite.mjs'
+
+export { BACKUP_TABLES, normalizeLocalCounts, normalizeRemoteCounts, verifyMatchingCounts }
+
 export const EXPECTED_DATABASE_NAME = 'score-splitter'
 export const EXPECTED_DATABASE_ID = '7f8d3531-a833-4474-84d5-cee3ac98ee96'
 export const EXPECTED_DATABASE_VERSION = 'production'
 export const EXPECTED_WRANGLER_VERSION = '4.107.0'
 export const CONFIG_PATH = 'cloudflare/worker/wrangler.jsonc'
 export const BACKUP_ROOT = path.join(homedir(), 'Documents', 'Backups', 'score-splitter', 'd1')
-export const BACKUP_TABLES = Object.freeze([
-  'incomes',
-  'expenses',
-  'carryovers',
-  'sessions',
-  'passkey_credentials',
-  'webauthn_challenges',
-  'login_attempts',
-  'waitlist_entries',
-])
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const wranglerExecutableRelative = 'node_modules/.bin/wrangler'
 export const WRANGLER_EXECUTABLE = path.join(repositoryRoot, wranglerExecutableRelative)
-// D1の複合SELECT上限に依存せず、全テーブルを同じ文で集計する。
-const countSql = `SELECT ${BACKUP_TABLES.map(
-  (tableName) => `(SELECT COUNT(*) FROM ${tableName}) AS ${tableName}`
-).join(',\n')}`
 
 function asObject(value, label) {
   const candidate = Array.isArray(value) && value.length === 1 ? value[0] : value
@@ -204,7 +209,11 @@ export function buildExportArguments(outputPath) {
   ]
 }
 
-export function buildRemoteCountArguments() {
+export function buildRemoteCountArguments(tables = BACKUP_TABLES) {
+  return buildRemoteQueryArguments(buildCountSql(tables))
+}
+
+export function buildRemoteQueryArguments(sql) {
   return [
     'd1',
     'execute',
@@ -215,7 +224,7 @@ export function buildRemoteCountArguments() {
     '--yes',
     '--json',
     '--command',
-    `${countSql};`,
+    sql,
   ]
 }
 
@@ -247,95 +256,6 @@ function buildRestoreCommandArguments(bookmark) {
   ]
 }
 
-function normalizeCounts(rows) {
-  if (!Array.isArray(rows)) {
-    throw new Error('テーブル件数が配列ではありません')
-  }
-
-  const counts = {}
-  for (const row of rows) {
-    if (typeof row !== 'object' || row === null) {
-      throw new Error('テーブル件数の行が不正です')
-    }
-    const tableName = row.table_name
-    const rowCount = row.row_count
-    if (
-      !BACKUP_TABLES.includes(tableName) ||
-      typeof rowCount !== 'number' ||
-      !Number.isSafeInteger(rowCount) ||
-      rowCount < 0 ||
-      Object.hasOwn(counts, tableName)
-    ) {
-      throw new Error(`テーブル件数が不正です: ${String(tableName)}`)
-    }
-    counts[tableName] = rowCount
-  }
-
-  for (const tableName of BACKUP_TABLES) {
-    if (!Object.hasOwn(counts, tableName)) {
-      throw new Error(`テーブル件数が不足しています: ${tableName}`)
-    }
-  }
-
-  return counts
-}
-
-export function normalizeRemoteCounts(value) {
-  const executions = Array.isArray(value) ? value : [value]
-  if (executions.length !== 1) {
-    throw new Error('Wrangler D1 executeの結果件数が不正です')
-  }
-  const result = asObject(executions[0], 'Wrangler D1 execute結果')
-  if (result.success !== true) {
-    throw new Error('Wrangler D1 executeが成功していません')
-  }
-  return normalizeLocalCounts(result.results)
-}
-
-export function normalizeLocalCounts(value) {
-  if (!Array.isArray(value) || value.length !== 1) {
-    throw new Error('テーブル件数の行数が不正です')
-  }
-  const row = value[0]
-  if (typeof row !== 'object' || row === null || Array.isArray(row)) {
-    throw new Error('テーブル件数の行が不正です')
-  }
-  if (Object.keys(row).some((tableName) => !BACKUP_TABLES.includes(tableName))) {
-    throw new Error('テーブル件数に想定外の列が含まれています')
-  }
-  return normalizeCounts(
-    BACKUP_TABLES.map((tableName) => ({
-      table_name: tableName,
-      row_count: Object.hasOwn(row, tableName) ? row[tableName] : undefined,
-    }))
-  )
-}
-
-export function verifyMatchingCounts(remoteCounts, localCounts) {
-  const normalizedRemote = normalizeCounts(
-    BACKUP_TABLES.map((tableName) => ({
-      table_name: tableName,
-      row_count: remoteCounts?.[tableName],
-    }))
-  )
-  const normalizedLocal = normalizeCounts(
-    BACKUP_TABLES.map((tableName) => ({
-      table_name: tableName,
-      row_count: localCounts?.[tableName],
-    }))
-  )
-
-  for (const tableName of BACKUP_TABLES) {
-    if (normalizedRemote[tableName] !== normalizedLocal[tableName]) {
-      throw new Error(
-        `${tableName}の件数が不一致です: remote=${String(normalizedRemote[tableName])}, restored=${String(normalizedLocal[tableName])}`
-      )
-    }
-  }
-
-  return normalizedRemote
-}
-
 export function buildManifest(
   {
     startedAt,
@@ -350,12 +270,16 @@ export function buildManifest(
     remoteCounts,
     localCounts,
     integrityCheck,
+    schema,
+    foreignKeyCheck,
   },
   { backupRoot = BACKUP_ROOT } = {}
 ) {
   const verifiedDatabase = normalizeDatabaseInfo(database)
   const verifiedTimeTravel = normalizeTimeTravelInfo({ bookmark })
-  const verifiedCounts = verifyMatchingCounts(remoteCounts, localCounts)
+  const verifiedSchema = validateSchemaEvidence(schema)
+  const verifiedForeignKeyCheck = verifyForeignKeyCheck(foreignKeyCheck)
+  const verifiedCounts = verifyMatchingCounts(remoteCounts, localCounts, verifiedSchema.tables)
   const verifiedGitHeadSha = normalizeGitHeadSha(gitHeadSha)
   const verifiedWranglerVersion = normalizeWranglerVersion(wranglerVersion)
   if (integrityCheck !== 'ok') {
@@ -364,7 +288,9 @@ export function buildManifest(
   const restoreCommandArgs = buildRestoreCommandArguments(verifiedTimeTravel.bookmark)
 
   const manifest = {
-    schemaVersion: 2,
+    schemaVersion: 4,
+    schema: verifiedSchema,
+    sqliteForeignKeyCheck: verifiedForeignKeyCheck,
     verification: 'PASS',
     startedAt,
     completedAt,
@@ -395,7 +321,7 @@ export function buildManifest(
 
 export function validateManifest(value, { backupRoot = BACKUP_ROOT } = {}) {
   const manifest = asObject(value, 'manifest')
-  if (manifest.schemaVersion !== 2 || manifest.verification !== 'PASS') {
+  if (manifest.schemaVersion !== 4 || manifest.verification !== 'PASS') {
     throw new Error('manifestのschemaVersionまたはverificationが不正です')
   }
   const startedAt = normalizeIsoTimestamp(manifest.startedAt, 'manifest.startedAt')
@@ -441,7 +367,9 @@ export function validateManifest(value, { backupRoot = BACKUP_ROOT } = {}) {
     throw new Error('manifestのSQL情報が不正です')
   }
   const counts = asObject(manifest.counts, 'manifest.counts')
-  verifyMatchingCounts(counts.remote, counts.restored)
+  const schema = validateSchemaEvidence(manifest.schema)
+  verifyForeignKeyCheck(manifest.sqliteForeignKeyCheck)
+  verifyMatchingCounts(counts.remote, counts.restored, schema.tables)
   if (manifest.sqliteIntegrityCheck !== 'ok') {
     throw new Error('manifestのSQLite integrity_checkが不正です')
   }
@@ -515,9 +443,13 @@ function verifyPrivateDirectory(directoryPath, label) {
   }
 }
 
+/**
+ * @param {string} manifestPath
+ * @param {{expectedGitHeadSha: string, clock?: () => Date, backupRoot?: string, commandRunner?: Function}} options
+ */
 export function verifyReleaseBackupArtifacts(
   manifestPath,
-  { expectedGitHeadSha, now, backupRoot = BACKUP_ROOT }
+  { expectedGitHeadSha, clock = () => new Date(), backupRoot = BACKUP_ROOT, commandRunner = runCommand }
 ) {
   const verifiedManifestPath = normalizeReleaseManifestPath(manifestPath, backupRoot)
   const backupDirectory = path.dirname(verifiedManifestPath)
@@ -527,7 +459,7 @@ export function verifyReleaseBackupArtifacts(
   const manifestFile = readPrivateRegularFile(verifiedManifestPath, 'manifest')
   const manifest = validateReleaseManifest(
     parseJson(manifestFile.contents.toString('utf8'), 'manifest'),
-    { expectedGitHeadSha, now, backupRoot }
+    { expectedGitHeadSha, now: clock().toISOString(), backupRoot }
   )
 
   const sqlPath = path.join(backupDirectory, 'score-splitter.sql')
@@ -553,6 +485,27 @@ export function verifyReleaseBackupArtifacts(
   if (timeTravel.bookmark !== manifest.timeTravel.bookmark) {
     throw new Error('Time Travel bookmarkがmanifestと一致しません')
   }
+
+  const restoreDirectory = mkdtempSync(path.join(tmpdir(), 'score-splitter-release-verify-'))
+  chmodSync(restoreDirectory, 0o700)
+  try {
+    validateBackupSql(sqlFile.contents.toString('utf8'))
+    const restored = restoreAndInspectBackup(sqlFile.contents, path.join(restoreDirectory, 'restored.sqlite'), commandRunner)
+    const expected = createExpectedBackupSchema(
+      manifest.schema.migrations, path.join(restoreDirectory, 'expected.sqlite'), commandRunner
+    )
+    verifyMatchingSchemaObjects(expected.objects, manifest.schema.objects, ['expected', 'manifest'])
+    verifyMatchingSchemaObjects(expected.objects, restored.schema.objects, ['expected', 'restored'])
+    verifyMatchingCounts(manifest.counts.remote, normalizeLocalCounts(restored.countRows, restored.schema.tables), restored.schema.tables)
+  } finally {
+    rmSync(restoreDirectory, { recursive: true })
+  }
+
+  validateReleaseManifest(manifest, {
+    expectedGitHeadSha,
+    now: clock().toISOString(),
+    backupRoot,
+  })
 
   return {
     manifest,
@@ -599,9 +552,10 @@ export function runReleaseBackupVerification(
   )
 
   return verifyReleaseBackupArtifacts(manifestPath, {
+    commandRunner,
     backupRoot,
     expectedGitHeadSha: gitHeadSha,
-    now: clock().toISOString(),
+    clock,
   })
 }
 
@@ -637,6 +591,13 @@ export function finalizeBackupFiles({ manifestPartPath, manifestPath, restoreDir
       { cause: error }
     )
   }
+}
+
+function remoteRows(value) {
+  if (!Array.isArray(value) || value.length !== 1 || value[0]?.success !== true || !Array.isArray(value[0].results)) {
+    throw new Error('schemaのリモート取得が成功していません')
+  }
+  return value[0].results
 }
 
 export function runProductionBackup(
@@ -707,39 +668,32 @@ export function runProductionBackup(
     renameSync(sqlPartPath, sqlPath)
     chmodSync(sqlPath, 0o600)
 
+    const schema = readBackupSchema((sql) => remoteRows(parseJson(commandRunner(
+      wranglerExecutable, buildRemoteQueryArguments(sql), { label: '本番D1のschema取得' }
+    ), '本番D1 schema')))
     const remoteCountOutput = commandRunner(
       wranglerExecutable,
-      buildRemoteCountArguments(),
+      buildRemoteCountArguments(schema.tables),
       {
         label: '本番D1のテーブル件数取得',
       }
     )
     const remoteCounts = normalizeRemoteCounts(
-      parseJson(remoteCountOutput, '本番D1テーブル件数')
+      parseJson(remoteCountOutput, '本番D1テーブル件数'), schema.tables
     )
 
     restoreDirectory = mkdtempSync(path.join(tmpdir(), 'score-splitter-backup-verify-'))
     chmodSync(restoreDirectory, 0o700)
     const restoreDatabasePath = path.join(restoreDirectory, 'restored.sqlite')
-    commandRunner('sqlite3', buildSqliteRestoreArguments(restoreDatabasePath), {
-      input: readFileSync(sqlPath),
-      label: 'SQLiteへのバックアップ復元',
-    })
-    chmodSync(restoreDatabasePath, 0o600)
-    const integrityCheck = commandRunner(
-      'sqlite3',
-      ['-safe', restoreDatabasePath, 'PRAGMA integrity_check;'],
-      { label: 'SQLite integrity_check' }
-    ).trim()
-    const localCountOutput = commandRunner(
-      'sqlite3',
-      ['-safe', '-json', restoreDatabasePath, `${countSql};`],
-      { label: '復元SQLiteのテーブル件数取得' }
+    const restored = restoreAndInspectBackup(readFileSync(sqlPath), restoreDatabasePath, commandRunner)
+    const { integrityCheck, foreignKeyCheck } = restored
+    const expected = createExpectedBackupSchema(
+      schema.migrations, path.join(restoreDirectory, 'expected.sqlite'), commandRunner
     )
-    const localCounts = normalizeLocalCounts(
-      parseJson(localCountOutput, '復元SQLiteテーブル件数')
-    )
-    verifyMatchingCounts(remoteCounts, localCounts)
+    verifyMatchingSchemaObjects(expected.objects, schema.objects, ['expected', 'remote'])
+    verifyMatchingSchemaObjects(expected.objects, restored.schema.objects, ['expected', 'restored'])
+    const localCounts = normalizeLocalCounts(restored.countRows, schema.tables)
+    verifyMatchingCounts(remoteCounts, localCounts, schema.tables)
 
     const sqlStats = statSync(sqlPath)
     const completedAt = clock().toISOString()
@@ -757,6 +711,8 @@ export function runProductionBackup(
         remoteCounts,
         localCounts,
         integrityCheck,
+        schema,
+        foreignKeyCheck,
       },
       { backupRoot }
     )

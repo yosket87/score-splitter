@@ -97,13 +97,19 @@ npm run preview        # フロントエンドをworkerd上でローカル実行
 
 ### 本番バックアップとPRゲート
 
-本番D1 `score-splitter` には失ってはいけないデータがあるため、本番binding変更や本番デプロイの前に必ずバックアップを取得する。scriptは本番D1 UUIDを照合し、Time Travel bookmark、全量SQL、SHA-256、SQLiteへの一時復元、integrity_check、全8テーブルの件数一致を確認して、Git管理外の `~/Documents/Backups/score-splitter/d1/` にPASS manifestを保存する。
+本番D1 `score-splitter` には失ってはいけないデータがあるため、本番binding変更や本番デプロイの前に必ずバックアップを取得する。scriptは本番D1 UUIDを照合し、Time Travel bookmark、全量SQL、SHA-256、SQLiteへの一時復元、integrity_check、foreign_key_check、適用済みmigrationに対応する全業務テーブルの集合・件数一致を確認して、Git管理外の `~/Documents/Backups/score-splitter/d1/` にPASS manifestを保存する。
 
-本番切替の直前には、バックアップ時に表示された絶対パスを使って次を実行する。Git HEADと30分以内の条件に加え、SQL実体の存在・サイズ・SHA-256、Time Travel情報のbookmark、保存rootとバックアップdirの0700、SQL・Time Travel・manifestの0600を再検証する。相対パス、固定保存root外、規定より深いパスは拒否され、このモードはCloudflareへ接続しない。
+PASS manifestはschemaVersion 4で、適用済みmigration名・照合対象表に加え、表・明示的な索引・トリガー・ビューの正規化した定義を `schema.objects` に記録する。適用済みmigrationだけを空の一時SQLiteに実行して期待定義を生成し、取得元D1・復元SQLiteとの3者一致を要求する。表の列・FK・CHECK・UNIQUEや、同名トリガーの処理変更も検出する。SQLは引用内の文字列・識別子を保持し、引用外の空白・コメント差だけを無視して比較する。
+
+0008時点は15業務表、households追加後は16業務表を対象にする。未知の表・定義・migration、欠番、定義の欠落・変更、外部キー違反はPASSにしない。`d1_migrations` と既知の内部表 `_cf_KV`・`_cf_METADATA`、SQLite予約表とそれらの付属定義は業務DDL照合から除外する。SQL定義を持たない自動索引の制約は表DDLで確認する。未知の `_cf_*` 表は除外しない。旧v2・v3 manifestは再取得が必要で、自動変換しない。
+
+本番切替の直前には、バックアップ時に表示された絶対パスを使って次を実行する。Git HEADと30分以内の条件に加え、SQL実体の存在・サイズ・SHA-256、Time Travel情報のbookmark、保存rootとバックアップdirの0700、SQL・Time Travel・manifestの0600を再検証する。SQLをローカルSQLiteに実復元し、期待定義・manifestの取得元証跡・復元先定義の一致と、件数・整合性・外部キーを確認する。開始時と、全検査および一時DB削除の完了後の両方で現在時刻を取得し、バックアップ完了から0〜30分以内を要求する。検証中に30分を超えた場合も失敗し、manifestの完了時刻は延長しない。相対パス、固定保存root外、規定より深いパスは拒否され、このモードはCloudflareへ接続しない。
 
 ```bash
 npm run verify:d1:production-backup -- ~/Documents/Backups/score-splitter/d1/<UTC日時>/manifest.json
 ```
+
+バックアップ処理のローカルD1互換性は `npm run test:d1:backup` で検証する。隔離したMiniflare D1から実際にexportし、全15表の定義・保存値・振込履歴の更新削除禁止を復元後に照合する。リモートD1や本番設定は使用しない。通常Unitとは独立した `Backup D1 consistency` Jobが関連差分・nightlyで実行し、`npm run test:coverage:backup` でバックアップモジュール自体も80%以上のカバレッジを要求する。実行にはNode.js 22以上と `sqlite3` CLIが必要。
 
 本番PRは最初からDraftで作成し、Preview確認とバックアップscriptのPASS、ユーザーの明示承認が揃うまでReady for reviewへの変更・merge・本番デプロイを禁止する。Time Travel restoreは自動実行せず、データ破損時にユーザーが明示承認した場合だけ実施する。
 
@@ -138,7 +144,7 @@ PR HEADのPASSを含む検証結果と、次の変更順序・停止条件・切
 1. **状態を記録する。** 対象IDのWorker名・tag、稼働Versionと配分、そのVersionのbindings（本番D1 UUIDとSecret名）、両Custom Domainの割当、Git連携先・本番ブランチ・Build/Deploy command・非本番ビルド無効を再取得する。Workerの最新設定だけでなく、実際に100%配信中のVersionを確認する。開発WorkerのVersion・DB・PR Previewも記録し、切替中は対象外のmain更新を止める。
 2. **本番自動デプロイを保留する。** Dashboardの対象本番Worker → Settings → Buildで現在のDeploy command全体を保存する。通常は `npx opennextjs-cloudflare deploy`。Deploy command全体を `node -e 'console.error("本番Worker改名作業中のためデプロイを保留"); process.exit(1)'` へ一時置換する。Build commandの `npx opennextjs-cloudflare build` は維持し、開発側は変更しない。保存後に再読込して確認し、変更前から進行中・待機中のBuildを終端状態まで待つ。現mainのBuildをRetryし、OpenNext build後に保留コマンドで意図どおり失敗すること、稼働Versionが変わらないことを確認する。保留設定を確認できない場合はマージしない。
 3. **PRをマージする。** マージで起動した本番Buildも保留コマンドで停止し、進行中・待機中の本番Buildが残っていないことを確認する。最終マージSHAを記録し、ローカルのGit HEADをそのSHAへ合わせる。mainが別SHAへ進んだ場合は切替を止めて対象を再確認する。
-4. **最終SHAで全量バックアップを取り直す。** 上記の同じ取得コマンドで新規に取得し、Time Travel情報・全量SQL・ローカル復元・8テーブル件数照合をPASSにする。改名直前に新しいmanifestを指定して再検証し、Git HEAD一致、バックアップ完了から30分以内、SQLのサイズとSHA-256、ディレクトリ0700・各ファイル0600を確認する。不一致・期限超過時は新規取得からやり直す。
+4. **最終SHAで全量バックアップを取り直す。** 上記の同じ取得コマンドで新規に取得し、Time Travel情報・全量SQL・ローカル復元・適用済みschema全業務テーブルの件数照合をPASSにする。改名直前に新しいmanifestを指定して再検証し、Git HEAD一致、バックアップ完了から30分以内、SQLのサイズとSHA-256、ディレクトリ0700・各ファイル0600を確認する。不一致・期限超過時は新規取得からやり直す。
 5. **同一Workerの名前だけを更新する。** [Edit Worker API](https://developers.cloudflare.com/api/resources/workers/subresources/beta/subresources/workers/methods/edit/) にBluespecの認証を使い、次のPATCHを送る。認証ヘッダーの値を出力・保存しない。PUTや新名へのdeployでWorkerを作成しない。省略した属性は変更されない部分更新を使う。
 
 ```http

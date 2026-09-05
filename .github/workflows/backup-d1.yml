@@ -1,0 +1,43 @@
+name: Backup D1 consistency
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/backup-*.mjs'
+      - 'scripts/test-backup-d1.mjs'
+      - 'tests/unit/scripts/backup-*.test.ts'
+      - 'cloudflare/worker/migrations/**'
+      - 'package*.json'
+      - '.github/workflows/backup-d1.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/backup-*.mjs'
+      - 'scripts/test-backup-d1.mjs'
+      - 'cloudflare/worker/migrations/**'
+      - 'package*.json'
+      - '.github/workflows/backup-d1.yml'
+  schedule:
+    - cron: '35 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup-d1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: SQLite CLIを確認
+        run: sqlite3 --version
+      - name: バックアップ処理のカバレッジを検証
+        run: npm run test:coverage:backup
+      - name: ローカルD1のexportとバックアップ復元を検証
+        run: npm run test:d1:backup

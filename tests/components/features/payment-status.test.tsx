@@ -104,17 +104,17 @@ it('Aの遅い記録応答はBの画面・保存操作・再取得へ影響し�
   expect(screen.getByRole('button', { name: '結果を確認' })).toBeEnabled()
 })
 
-it('旧操作は入力を移管せず結果照会だけを許し、他世帯で不存在でも再送しない', async () => {
+it('既存世帯の旧操作は入力を移管せず結果照会だけを許し、不存在でも再送しない', async () => {
   const legacy = JSON.stringify({ kind: 'record', input: { month: '202609', operationId: 'old-operation', confirmedSignedYen: 99999 } })
   sessionStorage.setItem('payment-operation:202609', legacy)
   actions.getPaymentOperation.mockResolvedValue({ success: true, data: null })
-  render(<PaymentStatusPanel householdId="B" month="202609" initialResult={{ success: true, data: status }} />)
+  render(<PaymentStatusPanel householdId="A" canCheckLegacyPayment month="202609" initialResult={{ success: true, data: status }} />)
   expect(screen.queryByRole('button', { name: '同じ内容で再送' })).not.toBeInTheDocument()
   expect(screen.queryByText(/99,999/)).not.toBeInTheDocument()
   await userEvent.click(await screen.findByRole('button', { name: '結果を確認' }))
   expect(actions.getPaymentOperation).toHaveBeenCalledWith('202609', 'old-operation')
   expect(actions.recordPayment).not.toHaveBeenCalled()
-  expect(sessionStorage.getItem('payment-operation:B:202609')).toBeNull()
+  expect(sessionStorage.getItem('payment-operation:A:202609')).toBeNull()
   expect(sessionStorage.getItem('payment-operation:202609')).toBe(legacy)
 })
 
@@ -137,7 +137,7 @@ it('Aの確認取得がBの記録中に完了してもBのbusyと確認画面を
 it('旧操作の所属内照会が成功したときだけ旧キーを削除する', async () => {
   sessionStorage.setItem('payment-operation:202609', JSON.stringify({ kind: 'record', input: { month: '202609', operationId: 'old-operation' } }))
   actions.getPaymentOperation.mockResolvedValue({ success: true, data: { operationId: 'old-operation' } })
-  render(<PaymentStatusPanel householdId="A" month="202609" initialResult={{ success: true, data: status }} />)
+  render(<PaymentStatusPanel householdId="A" canCheckLegacyPayment month="202609" initialResult={{ success: true, data: status }} />)
   await userEvent.click(await screen.findByRole('button', { name: '結果を確認' }))
   await waitFor(() => expect(sessionStorage.getItem('payment-operation:202609')).toBeNull())
   expect(sessionStorage.getItem('payment-operation:A:202609')).toBeNull()
@@ -152,4 +152,27 @@ it('壊れた旧キーがあっても現在の世帯の未確認操作を復元�
   await userEvent.click(await screen.findByRole('button', { name: '結果を確認' }))
   expect(actions.getPaymentOperation).toHaveBeenCalledWith('202609', 'current-operation')
   expect(screen.getByRole('button', { name: '振込済みにする' })).toBeDisabled()
+})
+
+it.each([false, undefined])('旧キーは別世帯の同ID成功で消さず、既存世帯へ戻ると照会できる (%s)', async (canCheckLegacyPayment) => {
+  const legacy = JSON.stringify({ kind: 'record', input: { month: '202609', operationId: 'shared-operation', confirmedSignedYen: 99999 } })
+  sessionStorage.setItem('payment-operation:202609', legacy)
+  const view = render(<PaymentStatusPanel householdId="A" canCheckLegacyPayment month="202609" initialResult={{ success: true, data: status }} />)
+  expect(await screen.findByRole('button', { name: '結果を確認' })).toBeEnabled()
+  // Bに同じ操作番号の成功があっても、旧キーの所有者でないため照会しない。
+  actions.getPaymentOperation.mockResolvedValue({ success: true, data: { operationId: 'shared-operation', paymentId: 'B-payment' } })
+  view.rerender(<PaymentStatusPanel householdId="B" canCheckLegacyPayment={canCheckLegacyPayment} month="202609" initialResult={{ success: true, data: status }} />)
+  expect(screen.queryByRole('button', { name: '結果を確認' })).not.toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: '振込記録を確認' }))
+  expect(screen.getByRole('dialog', { name: '振込記録' })).toBeInTheDocument()
+  expect(actions.getPaymentOperation).not.toHaveBeenCalled()
+  expect(sessionStorage.getItem('payment-operation:202609')).toBe(legacy)
+  expect(sessionStorage.getItem('payment-operation:B:202609')).toBeNull()
+  view.rerender(<PaymentStatusPanel householdId="A" canCheckLegacyPayment month="202609" initialResult={{ success: true, data: status }} />)
+  actions.getPaymentOperation.mockResolvedValue({ success: true, data: { operationId: 'shared-operation', paymentId: 'A-payment' } })
+  await userEvent.click(await screen.findByRole('button', { name: '結果を確認' }))
+  await waitFor(() => expect(sessionStorage.getItem('payment-operation:202609')).toBeNull())
+  expect(actions.getPaymentOperation).toHaveBeenCalledOnce()
+  expect(actions.recordPayment).not.toHaveBeenCalled()
+  expect(sessionStorage.getItem('payment-operation:A:202609')).toBeNull()
 })

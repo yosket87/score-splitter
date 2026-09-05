@@ -22,6 +22,8 @@ type Pending = { kind: 'record'; input: RecordPaymentInput } | { kind: 'correct'
 
 interface PaymentStatusPanelProps {
   householdId: string
+  // RSCがDBで既存世帯との一致を確認した場合だけ旧操作を照会する。
+  canCheckLegacyPayment?: boolean
   month: string
   initialResult: PaymentActionResult<PaymentStatus>
 }
@@ -30,7 +32,7 @@ export function PaymentStatusPanel(props: PaymentStatusPanelProps) {
   return <ScopedPaymentStatusPanel key={`${props.householdId}:${props.month}`} {...props} />
 }
 
-function ScopedPaymentStatusPanel({ householdId, month, initialResult }: PaymentStatusPanelProps) {
+function ScopedPaymentStatusPanel({ householdId, canCheckLegacyPayment = false, month, initialResult }: PaymentStatusPanelProps) {
   const captureRequest = useRequestGuard()
   const router = useRouter()
   const [loaded, setLoaded] = useState<{ source: typeof initialResult; value: typeof initialResult } | null>(null)
@@ -164,7 +166,7 @@ function ScopedPaymentStatusPanel({ householdId, month, initialResult }: Payment
       })}>結果を確認</Button><Button disabled={busy} onClick={() => run((isCurrent) => submit(pending, isCurrent))}>同じ内容で再送</Button></div></div>}
       {legacyOperationId && !pending && <div className="space-y-2 rounded-xl border p-3 text-sm">
         <p>以前の記録の結果が未確認です。振込記録と照らし合わせて確認してください。</p>
-        <Button variant="outline" disabled={busy} onClick={() => run(async (isCurrent) => {
+        {canCheckLegacyPayment ? <Button variant="outline" disabled={busy} onClick={() => run(async (isCurrent) => {
           const response = await getPaymentOperation(month, legacyOperationId)
           if (!isCurrent()) return
           if (response.success && response.data) {
@@ -174,7 +176,10 @@ function ScopedPaymentStatusPanel({ householdId, month, initialResult }: Payment
           } else {
             setError(response.success ? 'このログインでは記録を確認できませんでした。記録時のログインで確認してください。' : response.error)
           }
-        })}>結果を確認</Button>
+        })}>結果を確認</Button> : <>
+          <p>以前の記録は記録時のログインで確認してください。</p>
+          <Button variant="outline" disabled={busy || !status} onClick={() => setHistory(true)}>振込記録を確認</Button>
+        </>}
       </div>}
       <Dialog open={!!quote && !pending} onOpenChange={(open) => { if (!open && !busy) { setQuote(null); setEditing(null) } }}>
         <DialogContent onCloseAutoFocus={(event) => { event.preventDefault(); (historyButton.current ?? primaryButton.current)?.focus() }} className="max-h-[85dvh] overflow-y-auto"><DialogHeader><DialogTitle>{editing ? voidOnly ? '振込記録を取り消す' : '振込記録を訂正する' : '振込内容の確認'}</DialogTitle><DialogDescription>実際の振込・返金は行いません。銀行で行った振込の記録です。</DialogDescription></DialogHeader>

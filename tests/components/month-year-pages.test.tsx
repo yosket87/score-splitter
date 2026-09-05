@@ -16,6 +16,10 @@ vi.mock('next/navigation', () => ({
   }),
 }))
 
+vi.mock('@/lib/api/households', () => ({
+  getLegacyHouseholdContext: vi.fn().mockResolvedValue({ householdId: 'A' }),
+}))
+
 vi.mock('@/lib/webauthn/session', () => ({
   requireAuth: vi.fn(),
 }))
@@ -55,6 +59,7 @@ vi.mock('@/features/monthly-overview', () => ({
     summary: { incomes: unknown[]; expenses: unknown[]; carryovers: unknown[] }
     summaries: unknown[]
     aiDiagnosisAvailable: boolean
+    canCheckLegacyPayment: boolean
   }) => (
     <div
       data-testid="monthly-overview"
@@ -64,6 +69,7 @@ vi.mock('@/features/monthly-overview', () => ({
       data-expenses={props.summary.expenses.length}
       data-carryovers={props.summary.carryovers.length}
       data-summaries={props.summaries.length}
+      data-can-check-legacy-payment={String(props.canCheckLegacyPayment)}
       data-ai-diagnosis-available={String(props.aiDiagnosisAvailable)}
     />
   ),
@@ -244,4 +250,14 @@ it('RSCで検証した所属だけを画面キーにし同月の別世帯で子�
   expect(b.key).toBe('B')
   const { container } = render(b)
   expect(container.textContent).not.toContain('household')
+})
+
+it.each([['A', 'true'], ['B', 'false']])('検証済み所属%sとDBの既存世帯を照合して旧操作照会可否を渡す', async (householdId, expected) => {
+  vi.mocked(requireAuth).mockResolvedValue({ householdId, person: null, authMethod: 'password' })
+  vi.mocked(getIncomesByMonth).mockResolvedValue(success([]) as never)
+  vi.mocked(getExpensesByMonth).mockResolvedValue(success([]) as never)
+  vi.mocked(getCarryoversByMonth).mockResolvedValue(success([]) as never)
+  vi.mocked(getMonthlySummaries).mockResolvedValue(success([]) as never)
+  render(await MonthPage({ params: Promise.resolve({ year: '2026', month: '02' }) }))
+  expect(screen.getByTestId('monthly-overview')).toHaveAttribute('data-can-check-legacy-payment', expected)
 })

@@ -37,6 +37,7 @@ export interface MonthlyOverviewSummary {
 
 interface MonthlyOverviewProps {
   householdId: string
+  canCheckLegacyPayment?: boolean
   year: number
   month: number
   summary: MonthlyOverviewSummary
@@ -83,6 +84,7 @@ export function MonthlyOverview(props: MonthlyOverviewProps) {
 
 function ScopedMonthlyOverview({
   householdId,
+  canCheckLegacyPayment = false,
   year,
   month,
   summary,
@@ -230,7 +232,7 @@ function ScopedMonthlyOverview({
           </h1>
         </div>
 
-        {paymentStatus && <PaymentStatusPanel householdId={householdId} key={`${householdId}:${currentMonth}`} month={currentMonth} initialResult={paymentStatus} />}
+        {paymentStatus && <PaymentStatusPanel canCheckLegacyPayment={canCheckLegacyPayment} householdId={householdId} key={`${householdId}:${currentMonth}`} month={currentMonth} initialResult={paymentStatus} />}
 
         <SettlementBreakdown
           result={result}

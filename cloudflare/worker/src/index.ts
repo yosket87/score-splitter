@@ -1,4 +1,5 @@
 import { routeAiDiagnosis, type WorkerRouteContext } from './ai-diagnosis-router'
+import { routeAuthControlPlane, routeAuthManagement } from './auth-router'
 import { routeAuthenticated } from './authenticated-router'
 import { createRuntime, type Env, type RuntimeDeps } from './d1'
 import { assertAuth, errorJson, HttpError, json, readJson } from './http'
@@ -30,6 +31,8 @@ export async function handleRequest(
     assertAuth(request, env.WORKER_API_TOKEN)
     const context: WorkerRouteContext = { request, env, runtime, url, parts }
     return (
+      (await routeAuthControlPlane(context)) ??
+      (await routeAuthManagement(context)) ??
       (await routeAiDiagnosis(context)) ??
       (await routeAuthenticated(context)) ??
       errorJson('エンドポイントが見つかりません', 404)

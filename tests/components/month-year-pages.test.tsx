@@ -103,7 +103,7 @@ const failure = (error?: string) => ({ success: false as const, error })
 describe('MonthPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(requireAuth).mockResolvedValue(undefined)
+    vi.mocked(requireAuth).mockResolvedValue({ householdId: 'A', person: null, authMethod: 'password' })
     vi.mocked(isAiDiagnosisAvailable).mockReturnValue(false)
   })
 
@@ -192,7 +192,7 @@ describe('MonthPage', () => {
 describe('YearPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(requireAuth).mockResolvedValue(undefined)
+    vi.mocked(requireAuth).mockResolvedValue({ householdId: 'A', person: null, authMethod: 'password' })
   })
 
   it('対象年と月別サマリーを一覧へ渡す', async () => {

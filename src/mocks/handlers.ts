@@ -2,6 +2,7 @@
  * MSWハンドラー: Cloudflare Worker APIをインターセプト
  */
 
+import { createAuthHandlers } from './auth-handlers'
 import { createPaymentHandlers } from './payment-handlers'
 import { http, HttpResponse } from 'msw'
 import {
@@ -34,6 +35,7 @@ const WORKER_API_TOKEN = process.env.CLOUDFLARE_WORKER_API_TOKEN || 'mock-worker
 type Row = Record<string, unknown>
 
 export const handlers = [
+  ...createAuthHandlers(WORKER_API_URL, WORKER_API_TOKEN),
   ...createPaymentHandlers(WORKER_API_URL, WORKER_API_TOKEN),
   http.post(`${WORKER_API_URL}/waitlist`, async ({ request }) => {
     const body = (await request.json()) as {
@@ -89,18 +91,6 @@ export const handlers = [
     const targetMonth = url.searchParams.get('targetMonth') ?? ''
     return HttpResponse.json({
       data: buildCopyMonthPreview(sourceMonth, targetMonth),
-    })
-  }),
-
-  http.get(`${WORKER_API_URL}/passkeys`, ({ request }) => {
-    if (!isAuthorized(request)) return unauthorized()
-    const person = new URL(request.url).searchParams.get('person')
-    const rows = person
-      ? applyFilters([...getTable('passkey_credentials')], { person: `eq.${person}` })
-      : [...getTable('passkey_credentials')]
-
-    return HttpResponse.json({
-      data: applyOrder(rows, 'created_at.asc').map(toApiPasskey),
     })
   }),
 
@@ -396,18 +386,6 @@ export const handlers = [
     const table = params.table as string
     const body = (await request.json()) as Row
 
-    if (table === 'sessions') {
-      const inserted = insertRows('sessions', [
-        {
-          token: body.token,
-          person: body.person,
-          auth_method: body.authMethod,
-          expires_at: body.expiresAt,
-        },
-      ])[0]
-      return HttpResponse.json({ data: toApiSession(inserted) }, { status: 201 })
-    }
-
     if (table === 'copy-month') {
       return HttpResponse.json(copyMonth(body))
     }
@@ -422,11 +400,6 @@ export const handlers = [
     const table = params.table as string
     const id = params.id as string
     const body = (await request.json()) as Row
-
-    if (table === 'passkeys') {
-      updateRows('passkey_credentials', { id: `eq.${id}` }, { counter: body.counter })
-      return HttpResponse.json({ success: true })
-    }
 
     if (!isRecordTable(table)) return notFound()
     const existing = getTable(table).find((row) => row.id === id)
@@ -464,22 +437,12 @@ export const handlers = [
     const table = params.table as string
     const id = params.id as string
 
-    if (table === 'sessions') {
-      deleteRows('sessions', { token: `eq.${id}` })
-      return HttpResponse.json({ success: true })
-    }
-
     if (!isRecordTable(table)) return notFound()
     deleteRows(table, { id: `eq.${id}` })
     return HttpResponse.json({ success: true })
   }),
 
-  http.get(`${WORKER_API_URL}/sessions/:token`, ({ params, request }) => {
-    if (!isAuthorized(request)) return unauthorized()
-    const token = params.token as string
-    const row = applyFilters([...getTable('sessions')], { token: `eq.${token}` })[0]
-    return HttpResponse.json({ data: row ? toApiSession(row) : null })
-  }),
+
 ]
 
 function isAuthorized(request: Request): boolean {
@@ -557,20 +520,6 @@ function toApiRecord(table: string, row: Row) {
   return base
 }
 
-function toApiPasskey(row: Row) {
-  return {
-    id: row.id,
-    person: row.person,
-    publicKeyBase64: row.public_key_base64,
-    counter: row.counter,
-    deviceName: row.device_name ?? null,
-    transports:
-      typeof row.transports === 'string'
-        ? (JSON.parse(row.transports) as string[])
-        : (row.transports ?? []),
-    createdAt: row.created_at,
-  }
-}
 
 function toDbRecord(table: string, row: Row) {
   const base = {
@@ -588,14 +537,6 @@ function toDbRecord(table: string, row: Row) {
   return base
 }
 
-function toApiSession(row: Row) {
-  return {
-    token: row.token,
-    person: row.person,
-    authMethod: row.auth_method,
-    expiresAt: row.expires_at,
-  }
-}
 
 function copyMonth(body: Row) {
   const sourceMonth = String(body.sourceMonth ?? '')

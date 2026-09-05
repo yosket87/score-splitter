@@ -4,6 +4,7 @@ import { createHash } from 'crypto'
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import bcrypt from 'bcryptjs'
+import { getLegacyHouseholdContext } from '@/lib/api/households'
 import {
   checkLoginRateLimit,
   recordFailedLoginAttempt,
@@ -47,7 +48,8 @@ export async function login(
   }
 
   await resetLoginAttempts(loginAttemptKey)
-  await createSession(null, 'password')
+  const context = await getLegacyHouseholdContext()
+  await createSession(context, null, 'password')
   redirect('/')
 }
 

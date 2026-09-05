@@ -58,33 +58,6 @@ type FakeLoginAttemptRow = {
   updated_at: string
 }
 
-type FakeSessionRow = {
-  token: string
-  person: 'husband' | 'wife' | null
-  auth_method: 'password' | 'passkey'
-  expires_at: string
-  created_at: string
-}
-
-type FakePasskeyRow = {
-  id: string
-  person: 'husband' | 'wife'
-  public_key_base64: string
-  counter: number
-  device_name: string | null
-  transports: string
-  created_at: string
-}
-
-type FakeChallengeRow = {
-  id: string
-  challenge: string
-  type: 'registration' | 'authentication'
-  person: 'husband' | 'wife' | null
-  expires_at: string
-  created_at: string
-}
-
 type FakeDiagnosisRow = {
   month: string
   result_json: string | null
@@ -132,19 +105,6 @@ export class FakeD1Database implements D1DatabaseLike {
     },
   ]
   private loginAttemptRows: FakeLoginAttemptRow[] = []
-  private sessionRows: FakeSessionRow[] = []
-  private passkeyRows: FakePasskeyRow[] = [
-    {
-      id: 'credential-1',
-      person: 'husband',
-      public_key_base64: 'AQID',
-      counter: 0,
-      device_name: 'iPhone',
-      transports: '["internal"]',
-      created_at: '2026-01-04T00:00:00.000Z',
-    },
-  ]
-  private challengeRows: FakeChallengeRow[] = []
   private diagnosisRows: FakeDiagnosisRow[] = []
   private sourceRevision = 0
 
@@ -171,9 +131,6 @@ export class FakeD1Database implements D1DatabaseLike {
     expenses?: FakeExpenseRow[]
     carryovers?: FakeCarryoverRow[]
     loginAttempts?: FakeLoginAttemptRow[]
-    sessions?: FakeSessionRow[]
-    passkeys?: FakePasskeyRow[]
-    challenges?: FakeChallengeRow[]
     diagnoses?: FakeDiagnosisRow[]
     sourceRevision?: number
   } = {}) {
@@ -181,9 +138,6 @@ export class FakeD1Database implements D1DatabaseLike {
     this.expenseRows = rows.expenses ?? this.expenseRows
     this.carryoverRows = rows.carryovers ?? this.carryoverRows
     this.loginAttemptRows = rows.loginAttempts ?? this.loginAttemptRows
-    this.sessionRows = rows.sessions ?? this.sessionRows
-    this.passkeyRows = rows.passkeys ?? this.passkeyRows
-    this.challengeRows = rows.challenges ?? this.challengeRows
     this.diagnosisRows = rows.diagnoses ?? this.diagnosisRows
     this.sourceRevision = rows.sourceRevision ?? this.sourceRevision
   }
@@ -239,26 +193,7 @@ export class FakeD1Database implements D1DatabaseLike {
         this.loginAttemptRows.find((row) => row.attempt_key === params[0]) ?? null
       ) as T | null
     }
-    if (query.includes('FROM sessions')) {
-      return (
-        this.sessionRows.find((row) => row.token === params[0]) ?? null
-      ) as T | null
-    }
-    if (query.includes('FROM passkey_credentials')) {
-      return (
-        this.passkeyRows.find((row) => row.id === params[0]) ?? null
-      ) as T | null
-    }
-    if (query.includes('FROM webauthn_challenges')) {
-      const type = params[0] as 'registration' | 'authentication'
-      const person = query.includes('person IS NULL')
-        ? null
-        : (params[1] as 'husband' | 'wife')
-      const rows = this.challengeRows
-        .filter((row) => row.type === type && row.person === person)
-        .sort((a, b) => b.created_at.localeCompare(a.created_at))
-      return (rows[0] ?? null) as T | null
-    }
+
     return null
   }
 
@@ -295,12 +230,6 @@ export class FakeD1Database implements D1DatabaseLike {
       const rows = query.includes('WHERE month = ?')
         ? this.carryoverRows.filter((row) => row.month === params[0])
         : this.carryoverRows
-      return { results: rows as T[] }
-    }
-    if (query.includes('FROM passkey_credentials')) {
-      const rows = query.includes('WHERE person = ?')
-        ? this.passkeyRows.filter((row) => row.person === params[0])
-        : this.passkeyRows
       return { results: rows as T[] }
     }
     return { results: [] }
@@ -546,64 +475,6 @@ export class FakeD1Database implements D1DatabaseLike {
     if (query.startsWith('DELETE FROM login_attempts')) {
       this.loginAttemptRows = this.loginAttemptRows.filter(
         (row) => row.attempt_key !== params[0]
-      )
-    }
-    if (query.startsWith('INSERT INTO sessions')) {
-      this.sessionRows.push({
-        token: params[0] as string,
-        person: params[1] as 'husband' | 'wife' | null,
-        auth_method: params[2] as 'password' | 'passkey',
-        expires_at: params[3] as string,
-        created_at: params[4] as string,
-      })
-    }
-    if (query.startsWith('DELETE FROM sessions')) {
-      this.sessionRows = this.sessionRows.filter((row) => row.token !== params[0])
-    }
-    if (query.startsWith('INSERT INTO passkey_credentials')) {
-      this.passkeyRows.push({
-        id: params[0] as string,
-        person: params[1] as 'husband' | 'wife',
-        public_key_base64: params[2] as string,
-        counter: params[3] as number,
-        device_name: params[4] as string | null,
-        transports: params[5] as string,
-        created_at: params[6] as string,
-      })
-    }
-    if (query.startsWith('UPDATE passkey_credentials SET counter')) {
-      this.passkeyRows = this.passkeyRows.map((row) =>
-        row.id === params[1] ? { ...row, counter: params[0] as number } : row
-      )
-    }
-    if (query.startsWith('DELETE FROM passkey_credentials')) {
-      this.passkeyRows = this.passkeyRows.filter((row) => row.id !== params[0])
-    }
-    if (query.startsWith('INSERT INTO webauthn_challenges')) {
-      this.challengeRows.push({
-        id: params[0] as string,
-        challenge: params[1] as string,
-        type: params[2] as 'registration' | 'authentication',
-        person: params[3] as 'husband' | 'wife' | null,
-        expires_at: params[4] as string,
-        created_at: params[5] as string,
-      })
-    }
-    if (query.startsWith('DELETE FROM webauthn_challenges WHERE type')) {
-      const type = params[0] as 'registration' | 'authentication'
-      if (query.includes('person IS NULL')) {
-        this.challengeRows = this.challengeRows.filter(
-          (row) => !(row.type === type && row.person === null)
-        )
-      } else {
-        this.challengeRows = this.challengeRows.filter(
-          (row) => !(row.type === type && row.person === params[1])
-        )
-      }
-    }
-    if (query.startsWith('DELETE FROM webauthn_challenges WHERE expires_at')) {
-      this.challengeRows = this.challengeRows.filter(
-        (row) => row.expires_at >= (params[0] as string)
       )
     }
     if (

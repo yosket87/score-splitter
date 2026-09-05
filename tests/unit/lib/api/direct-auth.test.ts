@@ -1,3 +1,7 @@
+import '../../../../tests/mocks/next'
+import { mockCookies } from '../../../../tests/mocks/next'
+vi.mock('server-only', () => ({}))
+const context = { householdId: 'A' }
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { D1DatabaseLike, Runtime } from '../../../../cloudflare/worker/src/d1'
 
@@ -20,16 +24,15 @@ const loginAttempts = vi.hoisted(() => ({
 const passkeys = vi.hoisted(() => ({
   listPasskeys: vi.fn(),
   getPasskey: vi.fn(),
+  findAuthenticationCredential: vi.fn(),
   createPasskey: vi.fn(),
   updatePasskeyCounter: vi.fn(),
   deletePasskey: vi.fn(),
 }))
 const challenges = vi.hoisted(() => ({
   createChallenge: vi.fn(),
-  getLatestChallenge: vi.fn(),
-  deleteChallenges: vi.fn(),
+  consumeChallenge: vi.fn(),
   deleteExpiredChallenges: vi.fn(),
-  parseChallengeType: vi.fn(),
 }))
 const client = vi.hoisted(() => ({ apiRequest: vi.fn() }))
 
@@ -53,11 +56,11 @@ import {
 import {
   createChallenge,
   createPasskey,
-  deleteChallenges,
   deleteExpiredChallenges,
   deletePasskey,
-  getLatestChallenge,
+  consumeChallenge,
   getPasskey,
+  findAuthenticationCredential,
   listPasskeys,
   updatePasskeyCounter,
 } from '@/lib/api/passkeys'
@@ -66,6 +69,7 @@ const fakeDb = {} as D1DatabaseLike
 const fakeRuntime = {} as Runtime
 const session = {
   token: 'a'.repeat(64),
+  householdId: 'A',
   person: 'husband' as const,
   authMethod: 'password' as const,
   expiresAt: '2026-09-02T01:00:00.000Z',
@@ -102,11 +106,11 @@ describe('認証APIのD1直接アクセス', () => {
     sessions.getSession.mockResolvedValue(null)
     sessions.deleteSession.mockResolvedValue(undefined)
 
-    await expect(createSession(session)).resolves.toEqual(session)
+    await expect(createSession(context, session)).resolves.toEqual(session)
     await expect(getSession(session.token)).resolves.toBeNull()
     await expect(deleteSession(session.token)).resolves.toBeUndefined()
 
-    expect(sessions.createSession).toHaveBeenCalledWith(fakeDb, fakeRuntime, session)
+    expect(sessions.createSession).toHaveBeenCalledWith(fakeDb, fakeRuntime, context, session)
     expect(sessions.getSession).toHaveBeenCalledWith(fakeDb, session.token)
     expect(sessions.deleteSession).toHaveBeenCalledWith(fakeDb, session.token)
     expect(backend.runD1Operation).toHaveBeenCalledTimes(3)
@@ -154,10 +158,10 @@ describe('認証APIのD1直接アクセス', () => {
     passkeys.updatePasskeyCounter.mockResolvedValue(undefined)
     passkeys.deletePasskey.mockResolvedValue(undefined)
 
-    await expect(listPasskeys('wife')).resolves.toEqual([passkey])
-    await expect(getPasskey(passkey.id)).resolves.toBeNull()
+    await expect(listPasskeys(context, 'wife')).resolves.toEqual([passkey])
+    await expect(getPasskey(context, passkey.id)).resolves.toBeNull()
     await expect(
-      createPasskey({
+      createPasskey(context, {
         id: passkey.id,
         person: passkey.person,
         publicKeyBase64: passkey.publicKeyBase64,
@@ -166,12 +170,12 @@ describe('認証APIのD1直接アクセス', () => {
         transports: passkey.transports,
       })
     ).resolves.toEqual(passkey)
-    await expect(updatePasskeyCounter(passkey.id, 7)).resolves.toBeUndefined()
-    await expect(deletePasskey(passkey.id)).resolves.toBeUndefined()
+    await expect(updatePasskeyCounter(context, passkey.id, 7)).resolves.toBeUndefined()
+    await expect(deletePasskey(context, passkey.id)).resolves.toBeUndefined()
 
-    expect(passkeys.listPasskeys).toHaveBeenCalledWith(fakeDb, 'wife')
-    expect(passkeys.getPasskey).toHaveBeenCalledWith(fakeDb, passkey.id)
-    expect(passkeys.createPasskey).toHaveBeenCalledWith(fakeDb, fakeRuntime, {
+    expect(passkeys.listPasskeys).toHaveBeenCalledWith(fakeDb, context, 'wife')
+    expect(passkeys.getPasskey).toHaveBeenCalledWith(fakeDb, context, passkey.id)
+    expect(passkeys.createPasskey).toHaveBeenCalledWith(fakeDb, fakeRuntime, context, {
       id: passkey.id,
       person: passkey.person,
       publicKeyBase64: passkey.publicKeyBase64,
@@ -179,98 +183,54 @@ describe('認証APIのD1直接アクセス', () => {
       deviceName: passkey.deviceName,
       transports: [],
     })
-    expect(passkeys.updatePasskeyCounter).toHaveBeenCalledWith(fakeDb, passkey.id, { counter: 7 })
-    expect(passkeys.deletePasskey).toHaveBeenCalledWith(fakeDb, passkey.id)
+    expect(passkeys.updatePasskeyCounter).toHaveBeenCalledWith(fakeDb, context, passkey.id, { counter: 7 })
+    expect(passkeys.deletePasskey).toHaveBeenCalledWith(fakeDb, context, passkey.id)
     expect(backend.runD1Operation).toHaveBeenCalledTimes(5)
     expect(client.apiRequest).not.toHaveBeenCalled()
   })
 
-  it('通常環境のchallenge操作は型を解析してD1関数へ委譲する', async () => {
+  it('登録と認証前challengeのscope/IDをD1へ明示的に渡す', async () => {
     backend.isWorkerApiMockEnabled.mockReturnValue(false)
     backend.getDatabase.mockReturnValue(fakeDb)
     backend.getRuntime.mockReturnValue(fakeRuntime)
     backend.runD1Operation.mockImplementation((operation: () => Promise<unknown>) => operation())
-    challenges.parseChallengeType.mockReturnValue('registration')
     challenges.createChallenge.mockResolvedValue(challenge)
-    challenges.getLatestChallenge.mockResolvedValue(null)
-    challenges.deleteChallenges.mockResolvedValue(undefined)
-    challenges.deleteExpiredChallenges.mockResolvedValue(undefined)
-    const getLatestInput = { type: 'registration' as const, person: null }
-    const deleteInput = { type: 'registration' as const, person: 'wife' as const }
-
-    await expect(
-      createChallenge({
-        challenge: challenge.challenge,
-        type: challenge.type,
-        person: challenge.person,
-        expiresAt: challenge.expiresAt,
-      })
-    ).resolves.toEqual(challenge)
-    await expect(getLatestChallenge(getLatestInput)).resolves.toBeNull()
-    await expect(deleteChallenges(deleteInput)).resolves.toBeUndefined()
-    await expect(deleteExpiredChallenges('2026-09-02T00:00:00.000Z')).resolves.toBeUndefined()
-
-    expect(challenges.createChallenge).toHaveBeenCalledWith(fakeDb, fakeRuntime, {
-      challenge: challenge.challenge,
-      type: challenge.type,
-      person: challenge.person,
-      expiresAt: challenge.expiresAt,
-    })
-    expect(challenges.parseChallengeType).toHaveBeenNthCalledWith(1, 'registration')
-    expect(challenges.getLatestChallenge).toHaveBeenCalledWith(fakeDb, 'registration', null)
-    expect(challenges.parseChallengeType).toHaveBeenNthCalledWith(2, 'registration')
-    expect(challenges.deleteChallenges).toHaveBeenCalledWith(fakeDb, 'registration', 'wife')
-    expect(challenges.deleteExpiredChallenges).toHaveBeenCalledWith(
-      fakeDb,
-      '2026-09-02T00:00:00.000Z'
-    )
-    expect(backend.runD1Operation).toHaveBeenCalledTimes(4)
+    challenges.consumeChallenge.mockResolvedValue(null)
+    const scope = { type: 'registration' as const, context }
+    const input = { challenge: challenge.challenge, person: challenge.person, expiresAt: challenge.expiresAt }
+    expect(await createChallenge(scope, input)).toEqual(challenge)
+    expect(await consumeChallenge(scope, 'id', 'wife')).toBeNull()
+    await deleteExpiredChallenges('before')
+    expect(challenges.createChallenge).toHaveBeenCalledWith(fakeDb, fakeRuntime, scope, input)
+    expect(challenges.consumeChallenge).toHaveBeenCalledWith(fakeDb, fakeRuntime, scope, 'id', 'wife')
+    expect(challenges.deleteExpiredChallenges).toHaveBeenCalledWith(fakeDb, 'before')
     expect(client.apiRequest).not.toHaveBeenCalled()
   })
 
-  it('モック環境のvoid操作はHTTPだけを呼びD1操作を呼ばない', async () => {
+  it('認証前credential検索を管理用取得から分けて委譲する', async () => {
+    backend.isWorkerApiMockEnabled.mockReturnValue(false)
+    backend.getDatabase.mockReturnValue(fakeDb)
+    backend.runD1Operation.mockImplementation((operation: () => Promise<unknown>) => operation())
+    passkeys.findAuthenticationCredential.mockResolvedValue(passkey)
+    expect(await findAuthenticationCredential(passkey.id)).toEqual(passkey)
+    expect(passkeys.findAuthenticationCredential).toHaveBeenCalledWith(fakeDb, passkey.id)
+    expect(passkeys.getPasskey).not.toHaveBeenCalled()
+  })
+
+  it('モックHTTPの管理経路だけにcookie sessionを渡し、内部control-planeと区別する', async () => {
     backend.isWorkerApiMockEnabled.mockReturnValue(true)
-    client.apiRequest.mockResolvedValue(undefined)
-
-    await expect(deleteSession(session.token)).resolves.toBeUndefined()
-    await expect(resetLoginAttempts('login-key')).resolves.toBeUndefined()
-    await expect(updatePasskeyCounter(passkey.id, 7)).resolves.toBeUndefined()
-    await expect(deletePasskey(passkey.id)).resolves.toBeUndefined()
-    await expect(
-      deleteChallenges({ type: 'authentication', person: null })
-    ).resolves.toBeUndefined()
-    await expect(deleteExpiredChallenges('2026-09-02T00:00:00.000Z')).resolves.toBeUndefined()
-
-    expect(client.apiRequest).toHaveBeenNthCalledWith(1, `/sessions/${session.token}`, {
-      method: 'DELETE',
-    })
-    expect(client.apiRequest).toHaveBeenNthCalledWith(2, '/login-attempts/reset', {
-      method: 'POST',
-      body: { key: 'login-key' },
-    })
-    expect(client.apiRequest).toHaveBeenNthCalledWith(3, `/passkeys/${passkey.id}`, {
-      method: 'PATCH',
-      body: { counter: 7 },
-    })
-    expect(client.apiRequest).toHaveBeenNthCalledWith(4, `/passkeys/${passkey.id}`, {
-      method: 'DELETE',
-    })
-    expect(client.apiRequest).toHaveBeenNthCalledWith(5, '/webauthn-challenges?type=authentication', {
-      method: 'DELETE',
-    })
-    expect(client.apiRequest).toHaveBeenNthCalledWith(
-      6,
-      '/webauthn-challenges/expired?before=2026-09-02T00%3A00%3A00.000Z',
-      { method: 'DELETE' }
-    )
+    client.apiRequest.mockResolvedValue({ data: session })
+    mockCookies.get.mockReturnValue({ value: session.token })
+    await deleteSession(session.token)
+    await resetLoginAttempts('login-key')
+    await updatePasskeyCounter(context, passkey.id, 7)
+    await deletePasskey(context, passkey.id)
+    await deleteExpiredChallenges('before')
+    expect(client.apiRequest).toHaveBeenCalledWith(`/internal/auth/sessions/${session.token}`, { method: 'DELETE' })
+    expect(client.apiRequest).toHaveBeenCalledWith('/login-attempts/reset', { method: 'POST', body: { key: 'login-key' } })
+    expect(client.apiRequest).toHaveBeenCalledWith(`/internal/auth/credentials/${passkey.id}`, { method: 'PATCH', body: { householdId: 'A', counter: 7 } })
+    expect(client.apiRequest).toHaveBeenCalledWith(`/passkeys/${passkey.id}`, { method: 'DELETE', sessionToken: session.token })
+    expect(client.apiRequest).toHaveBeenCalledWith('/internal/auth/challenges/expired', { method: 'DELETE', body: { before: 'before' } })
     expect(backend.getDatabase).not.toHaveBeenCalled()
-    expect(backend.getRuntime).not.toHaveBeenCalled()
-    expect(backend.runD1Operation).not.toHaveBeenCalled()
-    expect(sessions.deleteSession).not.toHaveBeenCalled()
-    expect(loginAttempts.resetLoginAttempts).not.toHaveBeenCalled()
-    expect(passkeys.updatePasskeyCounter).not.toHaveBeenCalled()
-    expect(passkeys.deletePasskey).not.toHaveBeenCalled()
-    expect(challenges.deleteChallenges).not.toHaveBeenCalled()
-    expect(challenges.deleteExpiredChallenges).not.toHaveBeenCalled()
   })
 })

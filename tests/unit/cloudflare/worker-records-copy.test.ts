@@ -119,60 +119,6 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
   })
 
   it.each([
-    ['token', { token: 'invalid' }, 'tokenが不正です'],
-    ['person', { person: 'partner' }, 'personが不正です'],
-    ['authMethod', { authMethod: 'magic-link' }, 'authMethodが不正です'],
-    ['expiresAt', { expiresAt: 'invalid-date' }, 'expiresAtが不正です'],
-  ])('セッションの%sが不正なら400を返す', async (_name, override, error) => {
-    const response = await handleRequest(
-      createRequest('/sessions', {
-        method: 'POST',
-        headers: {
-          authorization: 'Bearer secret-token',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          token: 'a'.repeat(64),
-          person: 'wife',
-          authMethod: 'passkey',
-          expiresAt: '2026-02-10T04:05:06.000Z',
-          ...override,
-        }),
-      }),
-      createEnv()
-    )
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toEqual({ error })
-  })
-
-  it.each([
-    ['type', { type: 'invalid' }, 'typeが不正です'],
-    ['expiresAt', { expiresAt: 'invalid-date' }, 'expiresAtが不正です'],
-  ])('WebAuthnチャレンジの%sが不正なら400を返す', async (_name, override, error) => {
-    const response = await handleRequest(
-      createRequest('/webauthn-challenges', {
-        method: 'POST',
-        headers: {
-          authorization: 'Bearer secret-token',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          challenge: 'challenge',
-          type: 'registration',
-          person: 'husband',
-          expiresAt: '2026-02-10T04:05:06.000Z',
-          ...override,
-        }),
-      }),
-      createEnv()
-    )
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toEqual({ error })
-  })
-
-  it.each([
     ['mode', { mode: 'invalid' }],
     ['selectedItems', { selectedItems: null }],
   ])('月コピーの%sが不正なら400を返す', async (_name, override) => {

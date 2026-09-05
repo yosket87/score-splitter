@@ -1,3 +1,5 @@
+import 'server-only'
+import { assertHouseholdContext, type HouseholdContext } from '../../../cloudflare/worker/src/households'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import {
@@ -17,14 +19,16 @@ function generateToken(): string {
 }
 
 export async function createSession(
+  context: HouseholdContext,
   person: Person | null,
   authMethod: 'password' | 'passkey'
 ): Promise<string> {
+  assertHouseholdContext(context)
   const token = generateToken()
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE * 1000)
 
   try {
-    await createApiSession({
+    await createApiSession(context, {
       token,
       person,
       authMethod,
@@ -48,6 +52,7 @@ export async function createSession(
 }
 
 export interface SessionInfo {
+  householdId: string
   person: Person | null
   authMethod: 'password' | 'passkey'
 }
@@ -66,12 +71,13 @@ export async function getSession(): Promise<SessionInfo | null> {
     return null
   }
 
-  if (new Date(data.expiresAt) < new Date()) {
-    await deleteSession()
+  if (!data.householdId?.trim() || !['password', 'passkey'].includes(data.authMethod) ||
+    !Number.isFinite(Date.parse(data.expiresAt)) || Date.parse(data.expiresAt) <= Date.now()) {
     return null
   }
 
   return {
+    householdId: data.householdId,
     person: data.person as Person | null,
     authMethod: data.authMethod,
   }
@@ -89,23 +95,11 @@ export async function deleteSession(): Promise<void> {
 }
 
 export async function isAuthenticated(): Promise<boolean> {
-  const cookieStore = await cookies()
-  const cookie = cookieStore.get(SESSION_COOKIE_NAME)
-
-  if (!cookie?.value) {
-    return false
-  }
-
-  const data = await getApiSession(cookie.value)
-  if (!data) {
-    return false
-  }
-
-  return new Date(data.expiresAt) > new Date()
+  return (await getSession()) !== null
 }
 
-export async function requireAuth(): Promise<void> {
-  if (!(await isAuthenticated())) {
-    redirect('/login')
-  }
+export async function requireAuth(): Promise<SessionInfo> {
+  const session = await getSession()
+  if (!session) redirect('/login')
+  return session
 }

@@ -3,13 +3,6 @@ import { copyMonthData, getCopyMonthPreview } from './copy-month'
 import type { WorkerRouteContext } from './ai-diagnosis-router'
 import { json, readJson } from './http'
 import {
-  createChallenge,
-  deleteChallenges,
-  deleteExpiredChallenges,
-  getLatestChallenge,
-  parseChallengeType,
-} from './challenges'
-import {
   createRecord,
   deleteRecord,
   listMonthlyAmounts,
@@ -17,14 +10,6 @@ import {
   patchRecordFlag,
   updateRecord,
 } from './records'
-import { createSession, deleteSession, getSession } from './sessions'
-import {
-  createPasskey,
-  deletePasskey,
-  getPasskey,
-  listPasskeys,
-  updatePasskeyCounter,
-} from './passkeys'
 import {
   checkLoginRateLimit,
   recordFailedLoginAttempt,
@@ -41,9 +26,6 @@ export async function routeAuthenticated(
     (await routeRecordItem(context)) ??
     (await routeRecordExtras(context)) ??
     (await routeCopyMonth(context)) ??
-    (await routeSessions(context)) ??
-    (await routePasskeys(context)) ??
-    (await routeChallenges(context)) ??
     (await routeLoginAttempts(context))
   )
 }
@@ -113,70 +95,6 @@ async function routeCopyMonth({ request, env, runtime, url, parts }: WorkerRoute
   }
   if (parts.length === 1 && request.method === 'POST') {
     return json(await copyMonthData(env.DB, runtime, await readJson(request)))
-  }
-  return null
-}
-
-async function routeSessions({ request, env, runtime, parts }: WorkerRouteContext) {
-  if (parts[0] !== 'sessions') return null
-  if (parts.length === 1 && request.method === 'POST') {
-    const data = await createSession(env.DB, runtime, await readJson(request))
-    return json({ data }, { status: 201 })
-  }
-  if (parts.length !== 2) return null
-  const token = decodeURIComponent(parts[1])
-  if (request.method === 'GET') return json({ data: await getSession(env.DB, token) })
-  if (request.method === 'DELETE') {
-    await deleteSession(env.DB, token)
-    return json({ success: true })
-  }
-  return null
-}
-
-async function routePasskeys({ request, env, runtime, url, parts }: WorkerRouteContext) {
-  if (parts[0] !== 'passkeys') return null
-  if (parts.length === 1 && request.method === 'GET') {
-    return json({ data: await listPasskeys(env.DB, url.searchParams.get('person')) })
-  }
-  if (parts.length === 1 && request.method === 'POST') {
-    const data = await createPasskey(env.DB, runtime, await readJson(request))
-    return json({ data }, { status: 201 })
-  }
-  if (parts.length !== 2) return null
-  const id = decodeURIComponent(parts[1])
-  if (request.method === 'GET') return json({ data: await getPasskey(env.DB, id) })
-  if (request.method === 'PATCH') {
-    await updatePasskeyCounter(env.DB, id, await readJson(request))
-    return json({ success: true })
-  }
-  if (request.method === 'DELETE') {
-    await deletePasskey(env.DB, id)
-    return json({ success: true })
-  }
-  return null
-}
-
-async function routeChallenges({ request, env, runtime, url, parts }: WorkerRouteContext) {
-  if (parts[0] !== 'webauthn-challenges') return null
-  if (parts.length === 1 && request.method === 'POST') {
-    const data = await createChallenge(env.DB, runtime, await readJson(request))
-    return json({ data }, { status: 201 })
-  }
-  const type = url.searchParams.get('type')
-  const person = url.searchParams.get('person')
-  if (parts.length === 1 && request.method === 'DELETE') {
-    await deleteChallenges(env.DB, parseChallengeType(type), person)
-    return json({ success: true })
-  }
-  if (parts.length === 2 && parts[1] === 'latest' && request.method === 'GET') {
-    return json({ data: await getLatestChallenge(env.DB, parseChallengeType(type), person) })
-  }
-  if (parts.length === 2 && parts[1] === 'expired' && request.method === 'DELETE') {
-    await deleteExpiredChallenges(
-      env.DB,
-      url.searchParams.get('before') ?? runtime.now().toISOString()
-    )
-    return json({ success: true })
   }
   return null
 }

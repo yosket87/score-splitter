@@ -17,6 +17,7 @@ export function mockAuthenticatedSession(): void {
   mockCookies.get.mockReturnValue({ value: 'valid-session-token' })
   mockSessionsApi.getSession.mockResolvedValue({
     token: 'valid-session-token',
+    householdId: 'A',
     person: null,
     authMethod: 'password',
     expiresAt: new Date(Date.now() + 86400000).toISOString(),

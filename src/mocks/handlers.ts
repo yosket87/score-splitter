@@ -3,7 +3,7 @@ import { createRecordHandlers } from './record-handlers'
  * MSWハンドラー: Cloudflare Worker APIをインターセプト
  */
 
-import { createAuthHandlers } from './auth-handlers'
+import { validSession, createAuthHandlers } from './auth-handlers'
 import { createPaymentHandlers } from './payment-handlers'
 import { http, HttpResponse } from 'msw'
 import {
@@ -80,19 +80,22 @@ export const handlers = [
 
   http.get(`${WORKER_API_URL}/ai-diagnoses/:month/context`, ({ params, request }) => handleAiWire(async () => {
     if (!isAuthorized(request)) return unauthorized()
+    const session = validSession(request.headers.get('x-household-session') ?? '')
+    if (!session) return unauthorized()
+    const householdId = session.household_id
     const targetMonth = parseAiDiagnosisMonth(params.month)
     const months = getDiagnosisMonths(targetMonth)
+    const revision = getTable('ai_diagnosis_source_revision').find(row => row.household_id === householdId)?.revision
+    if (!Number.isSafeInteger(revision) || Number(revision) < 0) return internalError()
     return HttpResponse.json({
       data: {
         targetMonth,
-        sourceRevision: Number(
-          getTable('ai_diagnosis_source_revision')[0]?.revision ?? 0
-        ),
+        sourceRevision: Number(revision),
         incomes: getTable('incomes')
-          .filter(({ month }) => months.includes(String(month)))
+          .filter(({ month, household_id }) => household_id === householdId && months.includes(String(month)))
           .map(({ month, amount }) => ({ month, amount })),
         expenses: getTable('expenses')
-          .filter(({ month }) => months.includes(String(month)))
+          .filter(({ month, household_id }) => household_id === householdId && months.includes(String(month)))
           .map(({ id, month, label, amount, is_carryover, ai_category }) => ({
             id,
             month,
@@ -102,7 +105,7 @@ export const handlers = [
             aiCategory: ai_category ?? null,
           })),
         carryovers: getTable('carryovers')
-          .filter(({ month }) => months.includes(String(month)))
+          .filter(({ month, household_id }) => household_id === householdId && months.includes(String(month)))
           .map(({ month, amount, is_cleared }) => ({
             month,
             amount,
@@ -114,8 +117,11 @@ export const handlers = [
 
   http.get(`${WORKER_API_URL}/ai-diagnoses/:month`, ({ params, request }) => handleAiWire(async () => {
     if (!isAuthorized(request)) return unauthorized()
+    const session = validSession(request.headers.get('x-household-session') ?? '')
+    if (!session) return unauthorized()
+    const householdId = session.household_id
     const month = parseAiDiagnosisMonth(params.month)
-    const row = getTable('ai_diagnoses').find((record) => record.month === month)
+    const row = getTable('ai_diagnoses').find((record) => record.household_id === householdId && record.month === month)
     if (!row || row.result_json == null) return HttpResponse.json({ data: null })
     if (
       typeof row.input_hash !== 'string' ||
@@ -141,13 +147,17 @@ export const handlers = [
 
   http.post(`${WORKER_API_URL}/ai-diagnoses/:month/lease`, ({ params, request }) => handleAiWire(async () => {
     if (!isAuthorized(request)) return unauthorized()
+    const session = validSession(request.headers.get('x-household-session') ?? '')
+    if (!session) return unauthorized()
+    const householdId = session.household_id
     const month = parseAiDiagnosisMonth(params.month)
     const { runToken } = parseRunTokenInput(await readAiJson(request))
     const now = new Date()
     const nowIso = now.toISOString()
     const diagnoses = getTable('ai_diagnoses')
-    const existing = diagnoses.find((record) => record.month === month)
-    const guard = getTable('ai_execution_guard')[0]
+    const existing = diagnoses.find((record) => record.household_id === householdId && record.month === month)
+    const guard = getTable('ai_execution_guard').find(row => row.household_id === householdId)
+    if (!guard) return internalError()
     if (
       (existing?.run_token != null &&
         typeof existing.run_expires_at === 'string' &&
@@ -206,6 +216,7 @@ export const handlers = [
     if (existing) Object.assign(existing, lease)
     else {
       diagnoses.push({
+        household_id: householdId,
         id: crypto.randomUUID(),
         month,
         result_json: null,
@@ -227,13 +238,16 @@ export const handlers = [
 
   http.patch(`${WORKER_API_URL}/ai-diagnoses/categories`, ({ request }) => handleAiWire(async () => {
     if (!isAuthorized(request)) return unauthorized()
+    const session = validSession(request.headers.get('x-household-session') ?? '')
+    if (!session) return unauthorized()
+    const householdId = session.household_id
     const { month, runToken, assignments } = parseCategoryAssignments(
       await readAiJson(request)
     )
     const lease = getTable('ai_diagnoses').find(
-      (record) => record.month === month && record.run_token === runToken
+      (record) => record.household_id === householdId && record.month === month && record.run_token === runToken
     )
-    const guard = getTable('ai_execution_guard')[0]
+    const guard = getTable('ai_execution_guard').find(row => row.household_id === householdId)
     const nowDate = new Date()
     if (
       !lease ||
@@ -253,7 +267,8 @@ export const handlers = [
       assignment.expenseIds.map((expenseId) => ({ expenseId, assignment }))
     ).map(({ expenseId, assignment }) => ({
       row: getTable('expenses').find(
-        ({ id, label, ai_category }) =>
+        ({ id, label, ai_category, household_id }) =>
+          household_id === householdId &&
           id === expenseId &&
           label === assignment.expectedLabel &&
           ai_category == null
@@ -279,16 +294,19 @@ export const handlers = [
 
   http.put(`${WORKER_API_URL}/ai-diagnoses/:month`, ({ params, request }) => handleAiWire(async () => {
     if (!isAuthorized(request)) return unauthorized()
+    const session = validSession(request.headers.get('x-household-session') ?? '')
+    if (!session) return unauthorized()
+    const householdId = session.household_id
     const month = parseAiDiagnosisMonth(params.month)
     const body = parseSaveDiagnosisInput(await readAiJson(request))
     if (body.diagnosis.month !== month) {
       throw new AiDiagnosisWireError('診断月が不正です')
     }
-    const row = getTable('ai_diagnoses').find((record) => record.month === month)
-    const guard = getTable('ai_execution_guard')[0]
+    const row = getTable('ai_diagnoses').find((record) => record.household_id === householdId && record.month === month)
+    const guard = getTable('ai_execution_guard').find(row => row.household_id === householdId)
     const nowIso = new Date().toISOString()
     const sourceRevision = Number(
-      getTable('ai_diagnosis_source_revision')[0]?.revision ?? -1
+      getTable('ai_diagnosis_source_revision').find(row => row.household_id === householdId)?.revision ?? -1
     )
     if (sourceRevision !== body.expectedSourceRevision) {
       return HttpResponse.json(
@@ -326,9 +344,12 @@ export const handlers = [
 
   http.delete(`${WORKER_API_URL}/ai-diagnoses/:month/lease`, ({ params, request }) => handleAiWire(async () => {
     if (!isAuthorized(request)) return unauthorized()
+    const session = validSession(request.headers.get('x-household-session') ?? '')
+    if (!session) return unauthorized()
+    const householdId = session.household_id
     const month = parseAiDiagnosisMonth(params.month)
     const { runToken } = parseRunTokenInput(await readAiJson(request))
-    const row = getTable('ai_diagnoses').find((record) => record.month === month)
+    const row = getTable('ai_diagnoses').find((record) => record.household_id === householdId && record.month === month)
     if (!row || row.run_token !== runToken) {
       return HttpResponse.json(
         { error: '診断リースが失効しているため解放できません' },
@@ -336,7 +357,7 @@ export const handlers = [
       )
     }
     Object.assign(row, { run_token: null, run_expires_at: null })
-    const guard = getTable('ai_execution_guard')[0]
+    const guard = getTable('ai_execution_guard').find(row => row.household_id === householdId)
     if (guard?.run_token === runToken) {
       Object.assign(guard, { run_token: null, run_expires_at: null })
     }

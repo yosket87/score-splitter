@@ -1,22 +1,24 @@
 'use server'
 
 import { z } from 'zod'
+import { assertHouseholdContext } from '@/lib/household-context'
 import { getSession } from '@/lib/webauthn/session'
+import type { SessionInfo } from '@/lib/webauthn/session'
 import { isValidMonth } from '@/lib/utils/format'
 import { ApiError } from '@/lib/api/client'
 import * as api from '@/lib/api/payment-status'
 import { recordPaymentSchema, correctPaymentSchema } from '@/lib/validations/payment-status'
 import { revalidateHouseholdData } from './revalidation'
-import type { Session } from '@/types'
 import type { CorrectPaymentInput, PaymentActionResult, PaymentOperationResult, PaymentStatus, RecordPaymentInput } from '@/types/payment-status'
 
 async function authenticated<T>(
-  operation: (actor: Session) => Promise<T>,
+  operation: (actor: SessionInfo) => Promise<T>,
   errorMessage: string
 ): Promise<PaymentActionResult<T>> {
   try {
     const actor = await getSession()
     if (!actor) return { success: false, code: 401, error: 'ログインし直してください。' }
+    assertHouseholdContext(actor)
     return { success: true, data: await operation(actor) }
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -36,7 +38,7 @@ function validateMonth(month: string) {
 
 export async function getPaymentStatus(month: string): Promise<PaymentActionResult<PaymentStatus>> {
   return authenticated(
-    () => api.getPaymentStatus(validateMonth(month)),
+    (actor) => api.getPaymentStatus(actor, validateMonth(month)),
     '振込記録を取得できませんでした。もう一度お試しください。'
   )
 }
@@ -44,7 +46,7 @@ export async function getPaymentStatus(month: string): Promise<PaymentActionResu
 export async function recordPayment(input: RecordPaymentInput): Promise<PaymentActionResult<PaymentOperationResult>> {
   return authenticated(async (actor) => {
     const parsed = recordPaymentSchema.parse(input)
-    const result = await api.recordPayment(parsed, actor)
+    const result = await api.recordPayment(actor, parsed)
     revalidateHouseholdData(result.month)
     return result
   }, '振込記録の結果を確認できませんでした。同じ操作でもう一度確認してください。')
@@ -53,7 +55,7 @@ export async function recordPayment(input: RecordPaymentInput): Promise<PaymentA
 export async function correctPayment(input: CorrectPaymentInput): Promise<PaymentActionResult<PaymentOperationResult>> {
   return authenticated(async (actor) => {
     const parsed = correctPaymentSchema.parse(input)
-    const result = await api.correctPayment(parsed, actor)
+    const result = await api.correctPayment(actor, parsed)
     revalidateHouseholdData(result.month)
     return result
   }, '訂正の結果を確認できませんでした。同じ操作でもう一度確認してください。')
@@ -61,7 +63,7 @@ export async function correctPayment(input: CorrectPaymentInput): Promise<Paymen
 
 export async function getPaymentOperation(month: string, operationId: string): Promise<PaymentActionResult<PaymentOperationResult | null>> {
   return authenticated(
-    () => api.getPaymentOperation(validateMonth(month), z.string().uuid().parse(operationId)),
+    (actor) => api.getPaymentOperation(actor, validateMonth(month), z.string().uuid().parse(operationId)),
     '振込記録の結果を確認できませんでした。もう一度お試しください。'
   )
 }

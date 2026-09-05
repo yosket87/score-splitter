@@ -19,6 +19,8 @@ try {
   }
   const A={householdId:(await real.prepare("SELECT id FROM households WHERE legacy_auth_key='legacy'").first()).id},B={householdId:'B'}
   await real.prepare('INSERT INTO households(id,created_at) VALUES(?,?)').bind('B','2026-09-05').run()
+  await real.prepare("INSERT INTO ai_execution_guard(household_id,id,usage_date,daily_count,updated_at) VALUES('B',1,'1970-01-01',0,'now')").run()
+  await real.prepare("INSERT INTO ai_diagnosis_source_revision(household_id,id,revision,updated_at) VALUES('B',1,0,'now')").run()
   const runtime={randomUUID:()=>crypto.randomUUID(),now:()=>new Date('2026-09-05')}
   const seed=(context,type,month,label='同名',extra={})=>api.createRecord(real,runtime,context,type,{month,label,person:'husband',amount:type==='income'?100:-100,...extra})
   const input=async(sourceMonth='202608',extra={})=>{
@@ -28,7 +30,7 @@ try {
   // 実トリガーが追加更新を行う場合も、フラグ更新・削除は成功件数を正しく扱う。
   for (const type of ['income','expense','carryover']) {
     const own = await seed(A,type,'202607',type)
-    const other = await seed(B,type,'202607',type,{amount:type==='income'?200:-200})
+    const other = await seed(B,type,'202607',type)
     for (const id of [other.id,'missing']) {
       await assert.rejects(api.updateRecord(real,runtime,A,type,id,{label:'変更',amount:type==='income'?100:-100,person:'wife'}),e=>e.status===404)
       await assert.rejects(api.deleteRecord(real,A,type,id),e=>e.status===404)
@@ -38,6 +40,9 @@ try {
     await api.deleteRecord(real,A,type,own.id)
     assert.equal((await api.listRecordsByMonth(real,B,type,'202607'))[0].id,other.id)
   }
+  const sameA=await seed(A,'carryover','202606','同額同キー'),sameB=await seed(B,'carryover','202606','同額同キー')
+  assert.notEqual(sameA.id,sameB.id)
+  assert.equal(sameA.amount,sameB.amount)
   const source=await seed(A,'income','202608'),foreign=await seed(B,'income','202608')
   await seed(A,'income','202609'); await seed(B,'income','202609')
   const wrap=(sql,params=[])=>({prepare:sql=>real.prepare(sql),batch:async statements=>{await real.prepare(sql).bind(...params).run();return real.batch(statements)}})

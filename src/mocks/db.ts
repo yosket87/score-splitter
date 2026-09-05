@@ -40,6 +40,7 @@ export function initStore(): void {
     ai_diagnoses: [],
     ai_execution_guard: [
       {
+        household_id: '3975b870-bbfa-49fd-ae3d-d273c9f6e107',
         id: 1,
         run_token: null,
         run_expires_at: null,
@@ -50,7 +51,7 @@ export function initStore(): void {
       },
     ],
     ai_diagnosis_source_revision: [
-      { id: 1, revision: 0, updated_at: '1970-01-01T00:00:00.000Z' },
+      { household_id: '3975b870-bbfa-49fd-ae3d-d273c9f6e107', id: 1, revision: 0, updated_at: '1970-01-01T00:00:00.000Z' },
     ],
   }
 }
@@ -157,16 +158,17 @@ export function insertRows(table: string, rows: Row[]): Row[] {
   const tableData = getTable(table)
   const now = new Date().toISOString()
 
-  const inserted = rows.map((row) => ({
+  const inserted: Row[] = rows.map((row) => ({
     ...row,
     id: row.id ?? crypto.randomUUID(),
     created_at: row.created_at ?? now,
     updated_at: row.updated_at ?? now,
   }))
 
+  for (const row of inserted) assertRecordHousehold(table, row)
   tableData.push(...inserted)
   for (const row of inserted) trackPaymentRevision(table, row)
-  incrementSourceRevision(table, inserted.length)
+  for (const row of inserted) incrementSourceRevision(table, row.household_id, 1)
   return inserted
 }
 
@@ -181,6 +183,8 @@ export function updateRows(
   const updated: Row[] = []
 
   const matching = applyFilters(tableData, filters)
+  for (const row of matching) assertRecordHousehold(table, row)
+  if ('household_id' in updates && matching.some(row => row.household_id !== updates.household_id)) throw new Error('世帯所属は変更できません')
   const matchingIds = new Set(matching.map((r) => r.id))
 
   for (let i = 0; i < tableData.length; i++) {
@@ -198,7 +202,7 @@ export function updateRows(
       }
       const fields = REVISION_FIELDS[table] ?? []
       if (fields.some((field) => before[field] !== tableData[i][field])) {
-        incrementSourceRevision(table, 1)
+        incrementSourceRevision(table, before.household_id, 1)
       }
       updated.push(tableData[i])
     }
@@ -215,31 +219,40 @@ export function deleteRows(
   const store = getStore()
   const tableData = getTable(table)
   const matching = applyFilters(tableData, filters)
+  for (const row of matching) assertRecordHousehold(table, row)
   const matchingIds = new Set(matching.map((r) => r.id))
 
   const before = tableData.length
   store[table] = tableData.filter((r) => !matchingIds.has(r.id))
   for (const row of matching) trackPaymentRevision(table, row)
   const deleted = before - store[table].length
-  incrementSourceRevision(table, deleted)
+  for (const row of matching) incrementSourceRevision(table, row.household_id, 1)
   return deleted
 }
 
-function incrementSourceRevision(table: string, count: number): void {
+function incrementSourceRevision(table: string, householdId: unknown, count: number): void {
   if (!(table in REVISION_FIELDS) || count === 0) return
-  const row = getTable('ai_diagnosis_source_revision')[0]
+  const row = getTable('ai_diagnosis_source_revision').find(row => row.household_id === householdId)
   if (!row) throw new Error('診断source revisionが初期化されていません')
   row.revision = Number(row.revision) + count
   row.updated_at = new Date().toISOString()
 }
 
-export function incrementPaymentRevision(month: string): void {
+export function incrementPaymentRevision(householdId: string, month: string): void {
   const rows = getTable('month_payment_revisions')
-  const index = rows.findIndex((row) => row.month === month)
-  if (index < 0) rows.push({ month, revision: 1 })
+  const index = rows.findIndex((row) => row.household_id === householdId && row.month === month)
+  if (index < 0) rows.push({ household_id: householdId, month, revision: 1 })
   else rows[index] = { ...rows[index], revision: Number(rows[index].revision) + 1 }
 }
 
 function trackPaymentRevision(table: string, row: Row): void {
-  if (table in REVISION_FIELDS) incrementPaymentRevision(String(row.month))
+  if (table in REVISION_FIELDS) incrementPaymentRevision(String(row.household_id), String(row.month))
+}
+
+function assertRecordHousehold(table: string, row: Row): void {
+  if (!(table in REVISION_FIELDS)) return
+  if (typeof row.household_id !== 'string' || !getTable('households').some(household => household.id === row.household_id) ||
+    !getTable('ai_diagnosis_source_revision').some(revision => revision.household_id === row.household_id)) {
+    throw new Error('世帯と診断source revisionが初期化されていません')
+  }
 }

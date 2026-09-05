@@ -64,7 +64,7 @@ describe('AI家計診断のモックAPI', () => {
     expectedStatus,
     expectedBody,
   }) => {
-    getTable('ai_diagnoses').push({
+    getTable('ai_diagnoses').push({ household_id: '3975b870-bbfa-49fd-ae3d-d273c9f6e107',
       month: seedMonth,
       result_json: diagnosis,
       input_hash: inputHash,
@@ -151,6 +151,7 @@ describe('AI家計診断のモックAPI', () => {
     expect(Number(cooldown.headers.get('Retry-After'))).toBeGreaterThan(0)
 
     initStore()
+    getTable('sessions').push({token:'a'.repeat(64),household_id:'3975b870-bbfa-49fd-ae3d-d273c9f6e107',person:null,auth_method:'password',expires_at:'2099-01-01'})
     const guard = getTable('ai_execution_guard')[0]
     Object.assign(guard, {
       usage_date: new Date().toISOString().slice(0, 10),
@@ -161,6 +162,7 @@ describe('AI家計診断のモックAPI', () => {
     expect(daily.status).toBe(429)
 
     initStore()
+    getTable('sessions').push({token:'a'.repeat(64),household_id:'3975b870-bbfa-49fd-ae3d-d273c9f6e107',person:null,auth_method:'password',expires_at:'2099-01-01'})
     expect((await acquire('run-4')).status).toBe(200)
   })
 
@@ -172,7 +174,7 @@ describe('AI家計診断のモックAPI', () => {
   }) => {
     const response = await fetch(`${API_URL}${path}`, {
       method,
-      headers: method === 'GET' ? { authorization: AUTHORIZATION } : jsonHeaders,
+      headers: method === 'GET' ? { authorization: AUTHORIZATION, 'x-household-session': 'a'.repeat(64) } : jsonHeaders,
       body: method === 'GET' ? undefined : (rawBody ?? JSON.stringify(body)),
     })
 

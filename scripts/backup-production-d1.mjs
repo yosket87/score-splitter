@@ -18,7 +18,9 @@ import { spawnSync } from 'node:child_process'
 
 import {
   buildCountSql,
+  createExpectedBackupSchema,
   validateSchemaEvidence,
+  verifyMatchingSchemaObjects,
   verifyForeignKeyCheck,
   readBackupSchema,
 } from './backup-schema.mjs'
@@ -286,7 +288,7 @@ export function buildManifest(
   const restoreCommandArgs = buildRestoreCommandArguments(verifiedTimeTravel.bookmark)
 
   const manifest = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     schema: verifiedSchema,
     sqliteForeignKeyCheck: verifiedForeignKeyCheck,
     verification: 'PASS',
@@ -319,7 +321,7 @@ export function buildManifest(
 
 export function validateManifest(value, { backupRoot = BACKUP_ROOT } = {}) {
   const manifest = asObject(value, 'manifest')
-  if (manifest.schemaVersion !== 3 || manifest.verification !== 'PASS') {
+  if (manifest.schemaVersion !== 4 || manifest.verification !== 'PASS') {
     throw new Error('manifestのschemaVersionまたはverificationが不正です')
   }
   const startedAt = normalizeIsoTimestamp(manifest.startedAt, 'manifest.startedAt')
@@ -441,9 +443,13 @@ function verifyPrivateDirectory(directoryPath, label) {
   }
 }
 
+/**
+ * @param {string} manifestPath
+ * @param {{expectedGitHeadSha: string, clock?: () => Date, backupRoot?: string, commandRunner?: Function}} options
+ */
 export function verifyReleaseBackupArtifacts(
   manifestPath,
-  { expectedGitHeadSha, now, backupRoot = BACKUP_ROOT, commandRunner = runCommand }
+  { expectedGitHeadSha, clock = () => new Date(), backupRoot = BACKUP_ROOT, commandRunner = runCommand }
 ) {
   const verifiedManifestPath = normalizeReleaseManifestPath(manifestPath, backupRoot)
   const backupDirectory = path.dirname(verifiedManifestPath)
@@ -453,7 +459,7 @@ export function verifyReleaseBackupArtifacts(
   const manifestFile = readPrivateRegularFile(verifiedManifestPath, 'manifest')
   const manifest = validateReleaseManifest(
     parseJson(manifestFile.contents.toString('utf8'), 'manifest'),
-    { expectedGitHeadSha, now, backupRoot }
+    { expectedGitHeadSha, now: clock().toISOString(), backupRoot }
   )
 
   const sqlPath = path.join(backupDirectory, 'score-splitter.sql')
@@ -485,13 +491,21 @@ export function verifyReleaseBackupArtifacts(
   try {
     validateBackupSql(sqlFile.contents.toString('utf8'))
     const restored = restoreAndInspectBackup(sqlFile.contents, path.join(restoreDirectory, 'restored.sqlite'), commandRunner)
-    if (JSON.stringify(restored.schema) !== JSON.stringify(manifest.schema)) {
-      throw new Error('SQL実体のschemaがmanifestと一致しません')
-    }
+    const expected = createExpectedBackupSchema(
+      manifest.schema.migrations, path.join(restoreDirectory, 'expected.sqlite'), commandRunner
+    )
+    verifyMatchingSchemaObjects(expected.objects, manifest.schema.objects, ['expected', 'manifest'])
+    verifyMatchingSchemaObjects(expected.objects, restored.schema.objects, ['expected', 'restored'])
     verifyMatchingCounts(manifest.counts.remote, normalizeLocalCounts(restored.countRows, restored.schema.tables), restored.schema.tables)
   } finally {
     rmSync(restoreDirectory, { recursive: true })
   }
+
+  validateReleaseManifest(manifest, {
+    expectedGitHeadSha,
+    now: clock().toISOString(),
+    backupRoot,
+  })
 
   return {
     manifest,
@@ -541,7 +555,7 @@ export function runReleaseBackupVerification(
     commandRunner,
     backupRoot,
     expectedGitHeadSha: gitHeadSha,
-    now: clock().toISOString(),
+    clock,
   })
 }
 
@@ -673,9 +687,11 @@ export function runProductionBackup(
     const restoreDatabasePath = path.join(restoreDirectory, 'restored.sqlite')
     const restored = restoreAndInspectBackup(readFileSync(sqlPath), restoreDatabasePath, commandRunner)
     const { integrityCheck, foreignKeyCheck } = restored
-    if (JSON.stringify(schema) !== JSON.stringify(restored.schema)) {
-      throw new Error('本番と復元SQLiteのschemaが一致しません')
-    }
+    const expected = createExpectedBackupSchema(
+      schema.migrations, path.join(restoreDirectory, 'expected.sqlite'), commandRunner
+    )
+    verifyMatchingSchemaObjects(expected.objects, schema.objects, ['expected', 'remote'])
+    verifyMatchingSchemaObjects(expected.objects, restored.schema.objects, ['expected', 'restored'])
     const localCounts = normalizeLocalCounts(restored.countRows, schema.tables)
     verifyMatchingCounts(remoteCounts, localCounts, schema.tables)
 

@@ -99,13 +99,17 @@ npm run preview        # フロントエンドをworkerd上でローカル実行
 
 本番D1 `score-splitter` には失ってはいけないデータがあるため、本番binding変更や本番デプロイの前に必ずバックアップを取得する。scriptは本番D1 UUIDを照合し、Time Travel bookmark、全量SQL、SHA-256、SQLiteへの一時復元、integrity_check、foreign_key_check、適用済みmigrationに対応する全業務テーブルの集合・件数一致を確認して、Git管理外の `~/Documents/Backups/score-splitter/d1/` にPASS manifestを保存する。
 
-PASS manifestはschemaVersion 3で、適用済みmigration名と照合対象表を記録する。0008時点は15業務表、households追加後は16業務表を対象にする。未知の表・migration、欠番、対象表の欠落、外部キー違反はPASSにしない。旧v2 manifestは再取得が必要。
+PASS manifestはschemaVersion 4で、適用済みmigration名・照合対象表に加え、表・明示的な索引・トリガー・ビューの正規化した定義を `schema.objects` に記録する。適用済みmigrationだけを空の一時SQLiteに実行して期待定義を生成し、取得元D1・復元SQLiteとの3者一致を要求する。表の列・FK・CHECK・UNIQUEや、同名トリガーの処理変更も検出する。SQLは引用内の文字列・識別子を保持し、引用外の空白・コメント差だけを無視して比較する。
 
-本番切替の直前には、バックアップ時に表示された絶対パスを使って次を実行する。Git HEADと30分以内の条件に加え、SQL実体の存在・サイズ・SHA-256、Time Travel情報のbookmark、保存rootとバックアップdirの0700、SQL・Time Travel・manifestの0600を再検証する。再検証でもSQLをローカルSQLiteに実復元し、schema・件数・整合性・外部キーを再照合する。相対パス、固定保存root外、規定より深いパスは拒否され、このモードはCloudflareへ接続しない。
+0008時点は15業務表、households追加後は16業務表を対象にする。未知の表・定義・migration、欠番、定義の欠落・変更、外部キー違反はPASSにしない。`d1_migrations` と既知の内部表 `_cf_KV`・`_cf_METADATA`、SQLite予約表とそれらの付属定義は業務DDL照合から除外する。SQL定義を持たない自動索引の制約は表DDLで確認する。未知の `_cf_*` 表は除外しない。旧v2・v3 manifestは再取得が必要で、自動変換しない。
+
+本番切替の直前には、バックアップ時に表示された絶対パスを使って次を実行する。Git HEADと30分以内の条件に加え、SQL実体の存在・サイズ・SHA-256、Time Travel情報のbookmark、保存rootとバックアップdirの0700、SQL・Time Travel・manifestの0600を再検証する。SQLをローカルSQLiteに実復元し、期待定義・manifestの取得元証跡・復元先定義の一致と、件数・整合性・外部キーを確認する。開始時と、全検査および一時DB削除の完了後の両方で現在時刻を取得し、バックアップ完了から0〜30分以内を要求する。検証中に30分を超えた場合も失敗し、manifestの完了時刻は延長しない。相対パス、固定保存root外、規定より深いパスは拒否され、このモードはCloudflareへ接続しない。
 
 ```bash
 npm run verify:d1:production-backup -- ~/Documents/Backups/score-splitter/d1/<UTC日時>/manifest.json
 ```
+
+バックアップ処理のローカルD1互換性は `npm run test:d1:backup` で検証する。隔離したMiniflare D1から実際にexportし、全15表の定義・保存値・振込履歴の更新削除禁止を復元後に照合する。リモートD1や本番設定は使用しない。通常Unitとは独立した `Backup D1 consistency` Jobが関連差分・nightlyで実行し、`npm run test:coverage:backup` でバックアップモジュール自体も80%以上のカバレッジを要求する。実行にはNode.js 22以上と `sqlite3` CLIが必要。
 
 本番PRは最初からDraftで作成し、Preview確認とバックアップscriptのPASS、ユーザーの明示承認が揃うまでReady for reviewへの変更・merge・本番デプロイを禁止する。Time Travel restoreは自動実行せず、データ破損時にユーザーが明示承認した場合だけ実施する。
 

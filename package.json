@@ -28,6 +28,8 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:d1:payment": "node scripts/test-payment-d1.mjs",
+    "test:d1:records": "node scripts/test-records-household-d1.mjs",
+    "test:d1:ai-payment": "node scripts/test-ai-payment-household-d1.mjs",
     "test:d1:household-migrations": "node scripts/test-household-migrations.mjs"
   },
   "dependencies": {

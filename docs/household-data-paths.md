@@ -8,7 +8,8 @@
 | 明細・集計 | context必須、全CRUDと再取得を世帯内に限定。HTTPもDB sessionで所属解決 | `05df935`、Task4レビューApproved |
 | 月コピー | 同一世帯の元行検証を全書込に適用。繰越fingerprint、競合404/409、batch rollback | `05df935`、SQLite・実D1検証成功 |
 | AI・振込 | repository/actorの所属固定、lease・quota・revision・再送・snapshot・全HTTPの世帯分離 | `ec2b511`、実D1/HTTP検証成功、独立レビューApproved |
-| 最終制約・クライアント状態 | 後続実装・検証対象 | 未完了 |
+| クライアント状態 | 世帯key、画面寿命による応答失効、世帯＋月storage、既存世帯だけの旧操作確認 | `d121e4e`、Task6再レビューApproved |
+| 最終制約0012 | 残る6表の制約、全値保持、失敗時0011動作、別D1復元後の全経路境界 | `6355a92`、Task7仕様レビューApproved |
 
 0011で繰越一意制約とAI/振込トリガーを世帯化する。0011前のDBに対応コードだけを配備しない。全経路・制約・クライアント状態の完成前に世帯分離のリリースを行わない。
 
@@ -58,6 +59,8 @@ SQLファイルのパスは `cloudflare/worker/src/` 配下。精算計算とCSV
 | `login-attempts.ts` check/failure/reset | 47,62,75,83 | ログイン前の濫用対策。世帯未所属でも必要なので家計スコープ外 |
 | `waitlist.ts` register | 30 | 公開LPの登録。入力検証/一意性を維持、家計スコープ外 |
 
+`households.ts / getLegacyHouseholdContext` は新規追加の所属解決SQLであり、既存パスワード認証・ログイン許可の照合と、旧形式の振込操作を確認できる画面の判定に使う。家計CRUDの既定世帯として使わない。`d1.ts` はprepare/batchの型とruntime生成のみで、独立したSQL入口ではない。
+
 ## トリガーと制約
 
 | 定義元 | 対象 | 変更時に守る条件 |
@@ -88,5 +91,7 @@ SQLファイルのパスは `cloudflare/worker/src/` 配下。精算計算とCSV
 コピー件数には`INSERT ... RETURNING id`の返却行数を使う。D1の`meta.changes`はAI/振込revisionトリガーの更新も含むため、追加した明細の件数とは一致しない。
 
 ## 実装完了時の再照合
+
+b15531d時点で `rg -l` によるprepare/batch利用ファイルと本台帳を再照合した。新規の世帯解決・コピーguardを含め、未記載の家計SQL入口はなかった。共有ドメイン/APIアダプター/root設定のscheduled・queue・waitUntil検索にも該当はなかった。
 
 `rg -n 'prepare\(|batch\(|DELETE FROM|scheduled|waitUntil|cron|queue' cloudflare/worker/src src/lib/api scripts` と追加migrationを照合し、この台帳の各家計操作に世帯条件と対応する越境テストがあることを確認する。表の追加やSQL入口の新設を黙って除外しない。

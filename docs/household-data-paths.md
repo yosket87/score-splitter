@@ -7,9 +7,10 @@
 | 認証 | 同一session snapshotから所属・担当・認証方式を解決。管理passkey/challengeと認証前の内部処理を分離 | `ac0fe0a`、Task3レビューApproved |
 | 明細・集計 | context必須、全CRUDと再取得を世帯内に限定。HTTPもDB sessionで所属解決 | `05df935`、Task4レビューApproved |
 | 月コピー | 同一世帯の元行検証を全書込に適用。繰越fingerprint、競合404/409、batch rollback | `05df935`、SQLite・実D1検証成功 |
-| AI・振込・最終制約・クライアント状態 | 後続実装・検証対象 | 未完了 |
+| AI・振込 | repository/actorの所属固定、lease・quota・revision・再送・snapshot・全HTTPの世帯分離 | `ec2b511`、実D1/HTTP検証成功、独立レビューApproved |
+| 最終制約・クライアント状態 | 後続実装・検証対象 | 未完了 |
 
-明細の世帯条件が完成していても、0011前の繰越一意制約とAI/振込トリガーは旧来の範囲を持つ。全経路・制約の完成前に世帯分離のリリースを行わない。
+0011で繰越一意制約とAI/振込トリガーを世帯化する。0011前のDBに対応コードだけを配備しない。全経路・制約・クライアント状態の完成前に世帯分離のリリースを行わない。
 
 ## 通常経路とデータ操作
 

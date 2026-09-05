@@ -295,6 +295,7 @@ Issue完了は、全経路の2世帯分離、既存認証・金額・精算・AI
 - FKを無効化しない。子の新FKは新親を参照し、parent→child作成/コピー、child→parent旧表削除、新親→新子rename。defer_foreign_keysが必要なら同一migration内で解決する。依存triggerの削除/再作成と台帳immutableを漏らさない。
 - 世帯+月の一意制約、carryoverの世帯付き業務キー、guard/source世帯PK、payment操作の世帯+ID、operation/record/void複合FK、適切な索引を実装。家計行の所属変更を通常SQLでも防ぐ必要を検討し、公開APIに移管を追加しない。
 - SQLite/実D1で0008→0009→0010→旧NULL書込→0011→0012の段階検証。各段階の故意失敗rollback、再実行、表集合/全保持列/金額/JSON/trigger/FK検証。同月同額同担当同label/operation IDのA/B fixtureを最終schemaで共存させ、全実共有関数の越境拒否を再実行する。
+- 0012失敗後の0011環境でも世帯対応の共有関数が動くことを確認する。最終fixtureをexportして別の隔離DBへ復元し、表集合・保持値・FK/triggerと実共有関数の世帯境界を再確認する。本番データは使用しない。
 - backup-schemaに0011/0012を登録し、段階に適合する全表復元検証を確認。実D1検証はUnitから独立。CIはlint/typecheck/unit/build等の独立工程を並列Jobにし、関連schema/script変更とnightlyで実D1検証。通常PR10分目標、15分超は実測で原因を調査する。現在test/e2eのpull_requestはbase main限定で、積み重ねPR #120では起動しなかったため、段階別PRでも必須検証が動くtriggerへ修正する。
 - coverageにcloudflare共有ドメイン関数を含める。全体テスト/型/lint/build/実D1/E2Eを一通り確認し、不具合は担当へ戻して修正する。架空世帯を本番や旧Previewから到達可能な共有devへ入れない。
 - Task5で実装済み0011と全対応コードの第三段階branchを先に残し、0012は第四段階branchへ分離できるcommit単位にする。運用操作や本番接続はせず、担当のみ日本語Conventional Commitとreport。サブエージェントは起動しない。

@@ -5,6 +5,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -45,6 +46,9 @@ import {
   verifyMatchingCounts,
 } from '../../../scripts/backup-production-d1.mjs'
 
+import { BACKUP_MIGRATIONS, resolveBackupSchema } from '../../../scripts/backup-schema.mjs'
+const BASE_SCHEMA = resolveBackupSchema([...BACKUP_TABLES], BACKUP_MIGRATIONS.slice(0, 4).map((migration) => migration.name))
+
 const VALID_DATABASE_INFO = {
   name: 'score-splitter',
   uuid: EXPECTED_DATABASE_ID,
@@ -74,7 +78,11 @@ function createReleaseBackupFixture() {
 
   const sqlPath = path.join(backupDirectory, 'score-splitter.sql')
   const sql = Buffer.from(
-    "CREATE TABLE incomes (id TEXT PRIMARY KEY);\nINSERT INTO incomes VALUES ('1');\n"
+    [...BACKUP_TABLES.flatMap((table) => [
+      `CREATE TABLE ${table} (id INTEGER PRIMARY KEY);`,
+      ...Array.from({ length: EXPECTED_COUNTS[table] }, (_, index) => `INSERT INTO ${table} VALUES (${index + 1});`),
+    ]), 'CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY, name TEXT);',
+    ...BASE_SCHEMA.migrations.map((name, index) => `INSERT INTO d1_migrations VALUES (${index + 1}, '${name}');`)].join('\n')
   )
   writeFileSync(sqlPath, sql, { mode: 0o600 })
   chmodSync(sqlPath, 0o600)
@@ -94,7 +102,9 @@ function createReleaseBackupFixture() {
     `--bookmark=${bookmark}`,
   ]
   const manifest = {
-    schemaVersion: 2,
+    schemaVersion: 3,
+    schema: BASE_SCHEMA,
+    sqliteForeignKeyCheck: [],
     verification: 'PASS',
     startedAt: STARTED_AT,
     completedAt: COMPLETED_AT,
@@ -133,9 +143,11 @@ function createReleaseBackupFixture() {
   }
 }
 
-function createFakeBackupCommandRunner({ failAt }: { failAt?: string } = {}) {
+function createFakeBackupCommandRunner({
+  failAt, schema = BASE_SCHEMA, counts = EXPECTED_COUNTS, overrides = {},
+}: { failAt?: string; schema?: typeof BASE_SCHEMA; counts?: Record<string, number>; overrides?: Record<string, string> } = {}) {
   const executionOrder: string[] = []
-  const countRows = [{ ...EXPECTED_COUNTS }]
+  const countRows = [{ ...counts }]
 
   const commandRunner = (
     executable: string,
@@ -164,6 +176,12 @@ function createFakeBackupCommandRunner({ failAt }: { failAt?: string } = {}) {
         "CREATE TABLE incomes (id TEXT PRIMARY KEY);\nINSERT INTO incomes VALUES ('1');\n"
       )
       output = ''
+    } else if (args.at(-1)?.includes('sqlite_schema') || args.at(-1)?.includes('FROM d1_migrations')) {
+      const remote = executable !== 'sqlite3'
+      const isTables = args.at(-1)?.includes('sqlite_schema')
+      operation = `${remote ? 'remote' : 'sqlite'}-${isTables ? 'schema' : 'migrations'}`
+      const results = (isTables ? [...schema.tables, 'd1_migrations', '_cf_KV', 'sqlite_sequence'] : schema.migrations).map((name) => ({ name }))
+      output = JSON.stringify(remote ? [{ success: true, results }] : results)
     } else if (args[0] === 'd1' && args[1] === 'execute') {
       operation = 'remote-count'
       output = JSON.stringify([{ success: true, results: countRows }])
@@ -174,6 +192,9 @@ function createFakeBackupCommandRunner({ failAt }: { failAt?: string } = {}) {
     } else if (executable === 'sqlite3' && args.includes('PRAGMA integrity_check;')) {
       operation = 'sqlite-integrity'
       output = 'ok\n'
+    } else if (args.includes('PRAGMA foreign_key_check;')) {
+      operation = 'sqlite-fk'
+      output = ''
     } else if (executable === 'sqlite3' && args.includes('-json')) {
       operation = 'sqlite-count'
       output = JSON.stringify(countRows)
@@ -185,7 +206,7 @@ function createFakeBackupCommandRunner({ failAt }: { failAt?: string } = {}) {
     if (operation === failAt) {
       throw new Error(`${operation}のテスト失敗`)
     }
-    return output
+    return overrides[operation] ?? output
   }
 
   return { commandRunner, executionOrder }
@@ -458,6 +479,8 @@ describe('本番D1バックアップmanifest', () => {
       sqlPath: path.join(BACKUP_ROOT, '20260902T090000Z', 'score-splitter.sql'),
       sqlBytes: 2048,
       sqlSha256: 'a'.repeat(64),
+      schema: BASE_SCHEMA,
+      foreignKeyCheck: [],
       remoteCounts: EXPECTED_COUNTS,
       localCounts: { ...EXPECTED_COUNTS },
       integrityCheck: 'ok',
@@ -465,7 +488,9 @@ describe('本番D1バックアップmanifest', () => {
 
     expect(validateManifest(manifest)).toEqual(manifest)
     expect(manifest).toMatchObject({
-      schemaVersion: 2,
+      schemaVersion: 3,
+    schema: BASE_SCHEMA,
+    sqliteForeignKeyCheck: [],
       verification: 'PASS',
       startedAt: STARTED_AT,
       completedAt: COMPLETED_AT,
@@ -543,6 +568,37 @@ describe('本番D1バックアップmanifest', () => {
     ).toThrow(/30分/)
   })
 
+  it('旧manifest、schema段階の改変、FK結果欠落を再検証で拒否する', () => {
+    const fixture = createReleaseBackupFixture()
+    try {
+      for (const manifest of [
+        { ...fixture.manifest, schemaVersion: 2 },
+        { ...fixture.manifest, schema: { ...BASE_SCHEMA, stage: '0008' } },
+        { ...fixture.manifest, schema: { ...BASE_SCHEMA, migrations: BASE_SCHEMA.migrations.slice(0, 3) } },
+        { ...fixture.manifest, schema: { ...BASE_SCHEMA, tables: [...BASE_SCHEMA.tables, 'unknown'] } },
+        { ...fixture.manifest, sqliteForeignKeyCheck: undefined },
+      ]) {
+        expect(() => validateManifest(manifest, { backupRoot: fixture.backupRoot })).toThrow()
+      }
+    } finally {
+      rmSync(fixture.backupRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('ハッシュが一致してもSQL実体のschemaがmanifestと違えば再検証を拒否する', () => {
+    const fixture = createReleaseBackupFixture()
+    try {
+      const sql = Buffer.from("CREATE TABLE incomes (id TEXT); INSERT INTO incomes VALUES ('1');")
+      writeFileSync(fixture.sqlPath, sql, { mode: 0o600 })
+      writeFileSync(fixture.manifestPath, JSON.stringify({ ...fixture.manifest, sql: { ...fixture.manifest.sql, bytes: sql.byteLength, sha256: createHash('sha256').update(sql).digest('hex') } }), { mode: 0o600 })
+      expect(() => verifyReleaseBackupArtifacts(fixture.manifestPath, {
+        backupRoot: fixture.backupRoot, expectedGitHeadSha: VALID_GIT_HEAD_SHA, now: COMPLETED_AT,
+      })).toThrow(/schema|migration/)
+    } finally {
+      rmSync(fixture.backupRoot, { recursive: true, force: true })
+    }
+  })
+
   it('manifest確定後にだけ一時SQLiteを削除する', () => {
     const testDirectory = mkdtempSync(path.join(tmpdir(), 'score-splitter-finalize-test-'))
     try {
@@ -618,6 +674,8 @@ describe('本番D1バックアップmanifest', () => {
       sqlPath: path.join(BACKUP_ROOT, '20260902T090000Z', 'score-splitter.sql'),
       sqlBytes: 2048,
       sqlSha256: 'a'.repeat(64),
+      schema: BASE_SCHEMA,
+      foreignKeyCheck: [],
       remoteCounts: EXPECTED_COUNTS,
       localCounts: EXPECTED_COUNTS,
     }
@@ -636,7 +694,7 @@ describe('本番D1バックアップmanifest', () => {
 })
 
 describe('本番切替直前のバックアップ実体再検証', () => {
-  it('再検証モードはGit HEAD取得とローカル実体検証だけを実行する', () => {
+  it('再検証モードはGit HEAD取得とローカルSQLite検証だけを実行する', () => {
     const fixture = createReleaseBackupFixture()
     const commands: Array<{ executable: string; args: string[] }> = []
     try {
@@ -645,10 +703,15 @@ describe('本番切替直前のバックアップ実体再検証', () => {
         {
           backupRoot: fixture.backupRoot,
           clock: () => new Date('2026-09-02T09:34:59.000Z'),
-          commandRunner: (executable: string, args: string[]) => {
+          commandRunner: (executable: string, args: string[], options: { input?: Buffer } = {}) => {
             commands.push({ executable, args })
             if (executable === 'git' && args.join(' ') === 'rev-parse HEAD') {
               return `${VALID_GIT_HEAD_SHA}\n`
+            }
+            if (executable === 'sqlite3') {
+              const result = spawnSync(executable, args, { input: options.input, encoding: 'utf8' })
+              if (result.status !== 0) throw new Error(String(result.stderr))
+              return result.stdout
             }
             throw new Error(`許可していない外部操作です: ${executable}`)
           },
@@ -656,7 +719,8 @@ describe('本番切替直前のバックアップ実体再検証', () => {
       )
 
       expect(result.manifestPath).toBe(fixture.manifestPath)
-      expect(commands).toEqual([{ executable: 'git', args: ['rev-parse', 'HEAD'] }])
+      expect(commands[0]).toEqual({ executable: 'git', args: ['rev-parse', 'HEAD'] })
+      expect(commands.slice(1).map((command) => command.executable)).toEqual(Array(6).fill('sqlite3'))
     } finally {
       rmSync(fixture.backupRoot, { recursive: true, force: true })
     }
@@ -892,9 +956,14 @@ describe('本番D1バックアップ処理の統合', () => {
         'd1-list',
         'bookmark',
         'export',
+        'remote-schema',
+        'remote-migrations',
         'remote-count',
         'sqlite-restore',
         'sqlite-integrity',
+        'sqlite-schema',
+        'sqlite-migrations',
+        'sqlite-fk',
         'sqlite-count',
       ])
       expect(executionOrder).not.toContain('time-travel-restore')
@@ -903,6 +972,43 @@ describe('本番D1バックアップ処理の統合', () => {
       expect(process.umask()).toBe(originalUmask)
     } finally {
       process.umask(originalUmask)
+      rmSync(backupRoot, { recursive: true, force: true })
+    }
+  })
+
+  it.each(['正常', 'AI件数不一致', '振込件数不一致', 'FK違反'])('15表の本番フロー: %s', (scenario) => {
+    const backupRoot = mkdtempSync(path.join(tmpdir(), 'score-splitter-backup-15-tables-'))
+    const migrations = BACKUP_MIGRATIONS.slice(0, 8)
+    const schema = resolveBackupSchema(migrations.flatMap((migration) => migration.tables), migrations.map((migration) => migration.name))
+    const counts = Object.fromEntries(schema.tables.map((table) => [table, 1]))
+    const overrides: Record<string, string> = scenario === 'AI件数不一致'
+      ? { 'sqlite-count': JSON.stringify([{ ...counts, ai_diagnoses: 2 }]) }
+      : scenario === '振込件数不一致'
+        ? { 'sqlite-count': JSON.stringify([{ ...counts, payment_records: 2 }]) }
+        : scenario === 'FK違反'
+          ? { 'sqlite-fk': JSON.stringify([{ table: 'payment_records', rowid: 1, parent: 'payment_operations', fkid: 0 }]) }
+          : {}
+    const fake = createFakeBackupCommandRunner({ schema, counts, overrides })
+    const restoreDirectories: string[] = []
+    const commandRunner = (executable: string, args: string[], options: { input?: Buffer } = {}) => {
+      if (executable === 'sqlite3' && args.includes('-bail')) {
+        restoreDirectories.push(path.dirname(args.at(-1) as string))
+      }
+      return fake.commandRunner(executable, args, options)
+    }
+    try {
+      const run = () => runProductionBackup(['--confirm-production-d1', EXPECTED_DATABASE_ID], {
+        backupRoot, commandRunner, clock: () => new Date(STARTED_AT),
+      })
+      if (scenario === '正常') {
+        const result = run()
+        expect(JSON.parse(readFileSync(result.manifestPath, 'utf8')).schema).toEqual(schema)
+      } else {
+        expect(run).toThrow(/不一致|foreign_key_check/)
+        expect(existsSync(path.join(backupRoot, '20260902T090000Z', 'manifest.json'))).toBe(false)
+      }
+    } finally {
+      for (const directory of restoreDirectories) rmSync(directory, { recursive: true, force: true })
       rmSync(backupRoot, { recursive: true, force: true })
     }
   })
@@ -931,6 +1037,8 @@ describe('本番D1バックアップ処理の統合', () => {
         'd1-list',
         'bookmark',
         'export',
+        'remote-schema',
+        'remote-migrations',
         'remote-count',
       ])
       expect(existsSync(path.join(backupRoot, '20260902T090000Z', 'manifest.json'))).toBe(

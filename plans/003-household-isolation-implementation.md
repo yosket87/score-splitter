@@ -236,11 +236,11 @@ Issue完了は、全経路の2世帯分離、既存認証・金額・精算・AI
 
 ### Task 3: 認証済み世帯コンテキストと認証データ経路
 
-所有: 新規 `cloudflare/worker/src/households.ts`、`src/lib/api/households.ts`、既存のsessions/passkeys/challenges共有D1モジュールとAPIアダプター、`src/lib/webauthn/session.ts`、`src/app/actions/auth.ts`/`passkeys.ts`、認証ルート（必要ならauthenticated-routerから分離）、認証関連MSW/FakeD1/fixtures/テスト。家計明細・AI・振込SQLとmigrationは変更しない。必要な型呼出修正は認証境界に限定し、他の家計経路へのscope伝播は後続タスク。
+所有: 新規 `cloudflare/worker/src/households.ts`、`src/lib/api/households.ts`、`src/lib/household-context.ts`、既存のsessions/passkeys/challenges共有D1モジュールとAPIアダプター、`src/lib/webauthn/session.ts`、`src/app/actions/auth.ts`/`passkeys.ts`、認証ルート（必要ならauthenticated-routerから分離）、認証関連MSW/FakeD1/fixtures/テスト。家計明細・AI・振込SQLとmigrationは変更しない。必要な型呼出修正は認証境界に限定し、他の家計経路へのscope伝播は後続タスク。
 
 - 不変 `HouseholdContext = Readonly<{ householdId: string }>` を共有し、D1家計関数へ渡す基礎とする。context欠落/空値はruntimeでも拒否。セッションtokenを検証し、期限・実在household JOIN・既知auth_methodを確認してcontextを作る。NULL/不明所属から既存世帯へのfallback禁止。HTTPも同じ解決関数を利用する。
 - 既存パスワードログインはbcrypt成功後のみlegacy_auth_key='legacy'でhouseholdを解決し、明示的にその世帯のsessionを作る。パスキー認証は署名検証済みcredentialの所属からsessionを作り、別途既存世帯として許可されていることを確認する（他世帯の新規ログイン解禁は後続Issue）。person husband/wifeは担当者として維持する。
-- SessionInfo/ApiSessionにhouseholdId追加。requireAuthは認証済みSessionInfo（householdIdを含む）を返せるようにし、既存の戻り値未使用呼出元を壊さない。セッション期限境界は <= now を無効に統一。無効日時/未知認証方式/所属なしも認証失敗にする。Cookieの属性と有効期間を維持。
+- SessionInfo/ApiSessionにhouseholdId追加。server-onlyのrequireHouseholdContext()を共通境界として提供する。requireAuthは認証済みSessionInfo（householdIdを含む）を返せるようにし、既存の戻り値未使用呼出元を壊さない。セッション期限境界は <= now を無効に統一。無効日時/未知認証方式/所属なしも認証失敗にする。Cookieの属性と有効期間を維持。
 - passkey一覧/登録/管理取得/削除、登録challenge作成/検索/消費はcontext必須で世帯条件。認証前credential検索は内部用途を名前で区別し、所属をJOIN検証し返却結果をブラウザに公開しない。署名成功後のcounter更新も検証済み世帯+credential ID。外部payloadのhouseholdIdを認可根拠にしない。
 - challengeは登録=世帯、認証前=NULLの別契約。最新challengeを全ユーザーで共有する現状を避け、生成したchallenge IDをhttpOnly短期cookieで当該ブラウザ試行と結び、type/期限/世帯/IDで取得、一回だけ消費する。消費はDELETE RETURNING等の原子的操作で行い、二重検証がsessionを二回発行できないことを検証。登録時も世帯+challenge IDで対応づける。WebAuthn userIDは新規登録ではhousehold+personから生成し、既存credentialのバイト列は変更しない。
 - HTTPの認証管理ルートを明確に分ける。管理passkey/登録challengeはBearerに加えDB sessionからcontext。認証前credential/challenge/session発行はサーバー内部control-planeとして区別し、通常家計HTTPへBearerだけで入れる根拠にしない。無認証の外部ブラウザにcredential/public key/session発行APIを開放しない。MSWでは同じリクエスト/レスポンス契約を実装。
@@ -248,3 +248,50 @@ Issue完了は、全経路の2世帯分離、既存認証・金額・精算・AI
 - 必要な既存認証テスト/FakeD1/MSWを実契約に合わせて更新し、型検査と関連テストを通す。SQL条件が本当に作用する検証は実SQLiteか既存の隔離D1テスト基盤で行う。型だけのブランドをセキュリティ境界とは主張しない。
 - 家計経路全体がまだ未対応の中間commit。リリース可能/世帯分離完成とは主張しない。既存APIをoptional household引数で互換化しない。
 - 担当のみ日本語Conventional Commit、RED/GREEN/検証/制約をタスクレポートへ。サブエージェントは起動しない。
+
+### Task 4: 明細・集計・月コピーの全経路へ世帯を伝播
+
+所有: `cloudflare/worker/src/records.ts`/`copy-month.ts`、対応するAPIアダプター、明細/集計/コピーActions、これらのHTTPルート・MSW・FakeD1・テスト。Task3の認証contextを利用し、認証契約を緩めない。AI/振込本体と最終migrationは後続。
+
+- 共有D1関数はcontext必須、全SELECT/INSERT/UPDATE/DELETEに認証済み世帯を明示。月一覧/全月集計/フラグ/更新後再取得/コピー内INSERTの内部関数も省略・既定値なし。他世帯IDと不存在は同じ404。
+- Action/RSC入口から認証済みcontextをAPIへ渡し、HTTPはセッショントークンで解決したcontextを使用する。body/query/headerの任意householdIdは使わない。認証失敗を正常な空データに変換しない。一般登録は追加しない。
+- コピーはsourceMonth+household+選択IDから元データを再取得する。元のラベル/担当/コピー対象金額が確認時と異なる場合409とし、改ざん入力で明細を作らない。labelOnlyは既存どおり金額をコピーしない。不正な選択ID混入は全処理を拒否。replace削除・重複キー判定・繰越生成・先月支出/未清算繰越も世帯内。全書込は既存batch原子性を維持し、コピーに振込履歴を含めない。
+- 正負の金額・ソート・CSV/精算計算・コピーmodeの既存仕様を維持する。世帯を変更する更新APIは作らない。
+- A/B同月・同担当・同ラベルを持つfixtureで、一覧/集計/全mutation/preview/skip/replace/carryoverの分離とforeign ID拒否・入力改ざん・preview後変更409・batch失敗rollbackを検証。共有Fakeだけでなく実SQLite/D1のSQL実行で条件が作用することを確認する。後段の一意制約変更が必要な同額同キー共存は最終migrationタスクでも再検証する。
+- 各API/Actionのテストと型検査を通す。新たなcontext必須signatureの影響でAI/振込の呼出修正が必要な場合、既に認証されたcontextを渡す機械的修正まで行ってよいが、独立した仕様変更はしない。テストが未対応の中間状態を成功扱いしない。
+- 担当のみ日本語Conventional Commit、RED/GREENと検証結果をreportへ。サブエージェントは起動しない。
+
+### Task 5: AI診断と振込台帳を世帯単位にする
+
+所有: `cloudflare/worker/src/ai-diagnosis-store.ts`と関連repository、`payment-store.ts`/`payment-status.ts`、対応API/Actions/HTTP/MSW/テストと実D1検証script。Task3/4のcontext契約を維持する。migrationとクライアント状態の最終対応は後続タスク。
+
+- AI repository生成時にcontextを固定し、4か月context・保存済み結果・lease取得・分類保存・結果保存・補償releaseの全経路へ伝播する。SQL中のJOIN/EXISTS/UPDATEの各対象をhouseholdで絞る。保存対象のexpense IDは同じ世帯に存在するものだけ。
+- 月leaseは世帯+month、guardとsource revisionは世帯。日次利用回数とcooldownは世帯内で月を跨いで共有。lease期限/実行token/revisionによる既存の排他・stale拒否を保ち、別世帯の変更で拒否しない。古いtokenや別世帯tokenでrelease不可。失敗補償の照会・更新にもhouseholdが必要。
+- 振込の月revision/operation再送/明細snapshot/履歴JOIN/訂正・取消/保存batchの全経路をhouseholdで限定。actorは同一認証context由来。外部operation IDが別世帯にある場合は自世帯の新規操作として扱い、同じIDの結果を混同しない。対象paymentのforeign IDは404相当。過去JSONを改変せず、世帯を後付けしない。
+- runtime必須context・全SQL条件・HTTPのDB session検証を揃える。AIとpaymentのモックも同じ契約。グローバルfallbackや初回リクエスト時の暗黙legacy行作成は禁止。fixtureで各世帯guard/revisionを明示初期化する。
+- TDD: 同月2世帯で診断結果独立、guard/cooldown/日次回数独立、他世帯expense分類拒否、別世帯編集でstaleにならない、自世帯編集でstale、古いtoken補償の無害性。振込は同月同額同operation IDの再送分離、訂正/取消の越境拒否、snapshot漏洩なし、batch途中失敗rollback、revision独立。
+- 最終制約のfixtureと実共有関数を使ったSQLite/Miniflare検証を用意し、後続0011/0012の実migration適用後にも再実行可能にする。Fake parserだけを根拠にしない。既存振込整合性テスト・AI競合テストを落とさない。実D1検証はUnitから独立。
+- 既存provider呼出や計算式の変更、実OpenAI API呼出、本番接続は行わない。担当のみ日本語Conventional Commit、RED/GREEN/検証/残課題をreportへ。サブエージェントは起動しない。
+
+### Task 6: クライアント状態・表示・再取得の世帯境界
+
+所有: 各RSCページ、monthly-overview、AI/copy/passkey/paymentのクライアント機能、関連UIテスト。サーバーで解決したhouseholdIdをscopeとして渡し、データアクセスの権限は引き続きサーバーで判断する。
+
+- 月・設定画面の世帯依存React keyをhousehold+month等にし、同月の別世帯へ遷移/再ログインしても古いデータ・選択・preview・結果を残さない。開始時scopeと現在scopeが違う非同期応答を無視する。
+- 振込pending operationのsessionStorageはhousehold+month。旧 `payment-operation:${month}` を新世帯キーへ移管・自動再送しない。既存世帯の未確認操作はサーバーの当該世帯operation照会/履歴から結果を確認する導線を保つ。
+- CSV/集計/グラフ/精算内訳は世帯で限定されたpropsだけを使う。URL・計算・CSV形式・revalidatePathの既存振舞いを維持。永続共有cacheを追加しない。
+- コンポーネントテストでA→B同月、遅いA応答、旧pending key、Bでforeign operation照会不可、空データ・境界値を検証。必要なモックを利用し、npm run dev:mockとブラウザでログイン（password）→通常/空/境界表示を確認しscreenshots保存。課金する実AI呼出はしない。
+- UI変更は最小限。技術的なhousehold IDや移行用語を通常ユーザーの表示へ出さない。担当のみ日本語Conventional Commit、検証結果をreportへ。サブエージェントは起動しない。
+
+### Task 7: 最終キー切替・制約と全経路の実D1検証
+
+所有: 新規0011_scope_household_data.sql、0012_enforce_household_constraints.sql、backup-schema登録、migration fixture/実D1検証script/SQL越境テスト、CIとcoverage設定。全経路コードが完成してから実施し、第一/第二段階branchへ最終migrationを混入させない。
+
+- migration-design.mdの再構築順を使い、既存0001〜0010を改変しない。0011は全アクセス/認証発行/AI停止下の最終NULL補完とキー/trigger切替。AI3・payment4はNOT NULL/FKまで一度で完成。0012は残る明細3・session・credential・challengeを再構築。authentication challengeのみtype CHECKでNULL許容。
+- 既存世帯唯一性・ID/key一致、不明所属/方式/type/越境参照拒否を事前検査。列名指定INSERT SELECTで全保持値を移す。copy中revision triggerを発火させず、旧JSON/id/token/key/counter/利用回数/revision値を保持する。
+- FKを無効化しない。子の新FKは新親を参照し、parent→child作成/コピー、child→parent旧表削除、新親→新子rename。defer_foreign_keysが必要なら同一migration内で解決する。依存triggerの削除/再作成と台帳immutableを漏らさない。
+- 世帯+月の一意制約、carryoverの世帯付き業務キー、guard/source世帯PK、payment操作の世帯+ID、operation/record/void複合FK、適切な索引を実装。家計行の所属変更を通常SQLでも防ぐ必要を検討し、公開APIに移管を追加しない。
+- SQLite/実D1で0008→0009→0010→旧NULL書込→0011→0012の段階検証。各段階の故意失敗rollback、再実行、表集合/全保持列/金額/JSON/trigger/FK検証。同月同額同担当同label/operation IDのA/B fixtureを最終schemaで共存させ、全実共有関数の越境拒否を再実行する。
+- backup-schemaに0011/0012を登録し、段階に適合する全表復元検証を確認。実D1検証はUnitから独立。CIはlint/typecheck/unit/build等の独立工程を並列Jobにし、関連schema/script変更とnightlyで実D1検証。通常PR10分目標、15分超は実測で原因を調査する。
+- coverageにcloudflare共有ドメイン関数を含める。全体テスト/型/lint/build/実D1/E2Eを一通り確認し、不具合は担当へ戻して修正する。架空世帯を本番や旧Previewから到達可能な共有devへ入れない。
+- 0011と対応コードの第三段階branchを残し、0012は第四段階branchへ分離できるcommit単位にする。運用操作や本番接続はせず、担当のみ日本語Conventional Commitとreport。サブエージェントは起動しない。

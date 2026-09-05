@@ -32,9 +32,10 @@ Issue #102の段階別証跡。2026-09-05時点、ローカル実装・検証は
 
 #120では旧APIの自動Previewも生成され、本番D1のbindingを確認した。本番migrationは未適用、旧APIの本番配分は不変だった。後続pushには旧APIの非本番自動upload停止/隔離が必要。[切替手順と実環境差異](household-release-runbook.md)
 
+最終レビューでは0012完了まで停止を維持する手順に修正し、c35b063の文書差分の限定確認を完了した。Task7仕様・全体品質/セキュリティともApproved、未解消Critical/Importantは0件。
+
 ## 残るリリース前確認
 
-- 最終レビューの手順書修正（0012完了まで停止維持）の限定確認。
 - 独立したリモート開発DBと検証Workerでの移行演習。共有devへ2世帯fixtureを投入しない。
 - 旧APIの非本番自動upload停止/隔離、旧入口と既存Previewの到達停止。
 - 対象本番HEADの新規バックアップPASS、本番操作の明示承認、適用後smoke。

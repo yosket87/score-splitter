@@ -91,7 +91,7 @@ function deferred<T>() {
 describe('AiDiagnosisDialog', () => {
   it('保存済み診断を4ブロックと数値根拠で表示する', async () => {
     const user = userEvent.setup()
-    render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+    render(<AiDiagnosisDialog householdId="A" month="202604" hasActualExpenses />)
 
     await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
 
@@ -115,7 +115,7 @@ describe('AiDiagnosisDialog', () => {
       data: { diagnosis, stale: true },
     })
     const user = userEvent.setup()
-    render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+    render(<AiDiagnosisDialog householdId="A" month="202604" hasActualExpenses />)
 
     await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
 
@@ -135,7 +135,7 @@ describe('AiDiagnosisDialog', () => {
       data: updatedDiagnosis,
     })
     const user = userEvent.setup()
-    render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+    render(<AiDiagnosisDialog householdId="A" month="202604" hasActualExpenses />)
 
     await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
     await user.click(await screen.findByRole('button', { name: '最新データで再診断' }))
@@ -152,7 +152,7 @@ describe('AiDiagnosisDialog', () => {
       errorCode: 'source_revision_conflict',
     })
     const user = userEvent.setup()
-    render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+    render(<AiDiagnosisDialog householdId="A" month="202604" hasActualExpenses />)
 
     await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
     await user.click(await screen.findByRole('button', { name: 'もう一度診断する' }))
@@ -168,7 +168,7 @@ describe('AiDiagnosisDialog', () => {
       data: { diagnosis: null, stale: false },
     })
     const user = userEvent.setup()
-    render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+    render(<AiDiagnosisDialog householdId="A" month="202604" hasActualExpenses />)
 
     expect(loadAiDiagnosis).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
@@ -188,7 +188,7 @@ describe('AiDiagnosisDialog', () => {
       })
     )
     const user = userEvent.setup()
-    render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+    render(<AiDiagnosisDialog householdId="A" month="202604" hasActualExpenses />)
     await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
 
     const status = await screen.findByRole('status')
@@ -243,7 +243,7 @@ describe('AiDiagnosisDialog', () => {
       })
     )
     const user = userEvent.setup()
-    render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+    render(<AiDiagnosisDialog householdId="A" month="202604" hasActualExpenses />)
     const trigger = screen.getByRole('button', { name: 'AIで今月を振り返る' })
 
     await user.click(trigger)
@@ -278,7 +278,7 @@ describe('AiDiagnosisDialog', () => {
     }
     const Harness = ({ month }: { month: string }) => (
       <>
-        <AiDiagnosisDialog month={month} hasActualExpenses />
+        <AiDiagnosisDialog householdId="A" month={month} hasActualExpenses />
         <Probe month={month} />
       </>
     )
@@ -314,7 +314,7 @@ describe('AiDiagnosisDialog', () => {
             破棄される月変更
           </button>
           <Suspense fallback={<p>月を切り替えています</p>}>
-            <AiDiagnosisDialog month={month} hasActualExpenses />
+            <AiDiagnosisDialog householdId="A" month={month} hasActualExpenses />
             <SuspendMay month={month} />
           </Suspense>
         </>
@@ -349,11 +349,11 @@ describe('AiDiagnosisDialog', () => {
       month === '202604' ? oldLoad.promise : newLoad.promise
     )
     const user = userEvent.setup()
-    const { rerender } = render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+    const { rerender } = render(<AiDiagnosisDialog householdId="A" month="202604" hasActualExpenses />)
     await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
     await waitFor(() => expect(loadAiDiagnosis).toHaveBeenCalledWith('202604'))
 
-    rerender(<AiDiagnosisDialog month="202605" hasActualExpenses />)
+    rerender(<AiDiagnosisDialog householdId="A" month="202605" hasActualExpenses />)
     await waitFor(() => expect(loadAiDiagnosis).toHaveBeenCalledWith('202605'))
     await act(async () => {
       newLoad.resolve({ success: true, data: { diagnosis: newDiagnosis, stale: false } })
@@ -375,13 +375,13 @@ describe('AiDiagnosisDialog', () => {
       .mockReturnValueOnce(oldLoad.promise)
       .mockReturnValueOnce(newLoad.promise)
     const user = userEvent.setup()
-    const { rerender } = render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+    const { rerender } = render(<AiDiagnosisDialog householdId="A" month="202604" hasActualExpenses />)
     const trigger = screen.getByRole('button', { name: 'AIで今月を振り返る' })
     await user.click(trigger)
     await waitFor(() => expect(loadAiDiagnosis).toHaveBeenCalledTimes(1))
     await user.keyboard('{Escape}')
 
-    rerender(<AiDiagnosisDialog month="202605" hasActualExpenses />)
+    rerender(<AiDiagnosisDialog householdId="A" month="202605" hasActualExpenses />)
     await act(async () => {
       oldLoad.resolve({ success: true, data: { diagnosis, stale: false } })
     })
@@ -404,11 +404,11 @@ describe('AiDiagnosisDialog', () => {
       .mockResolvedValueOnce({ success: true, data: { diagnosis: newDiagnosis, stale: false } })
     vi.mocked(generateAiDiagnosis).mockReturnValueOnce(oldRun.promise)
     const user = userEvent.setup()
-    const { rerender } = render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+    const { rerender } = render(<AiDiagnosisDialog householdId="A" month="202604" hasActualExpenses />)
     await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
     fireEvent.click(await screen.findByRole('button', { name: '診断を始める' }))
 
-    rerender(<AiDiagnosisDialog month="202605" hasActualExpenses />)
+    rerender(<AiDiagnosisDialog householdId="A" month="202605" hasActualExpenses />)
     expect(await screen.findByText(newDiagnosis.summaryText)).toBeInTheDocument()
     await act(async () => {
       oldRun.resolve({ success: true, data: diagnosis })
@@ -425,7 +425,7 @@ describe('AiDiagnosisDialog', () => {
       data: { diagnosis: null, stale: false },
     })
     vi.mocked(generateAiDiagnosis).mockReturnValueOnce(pendingRun.promise)
-    const { result, unmount } = renderHook(() => useAiDiagnosis('202604'))
+    const { result, unmount } = renderHook(() => useAiDiagnosis('202604', "A"))
     await act(async () => {
       await result.current.ensureLoaded()
     })
@@ -444,7 +444,7 @@ describe('AiDiagnosisDialog', () => {
   })
 
   it('実支出がない月は起点を無効にし、その理由を知覚可能にする', () => {
-    render(<AiDiagnosisDialog month="202604" hasActualExpenses={false} />)
+    render(<AiDiagnosisDialog householdId="A" month="202604" hasActualExpenses={false} />)
 
     const trigger = screen.getByRole('button', { name: 'AIで今月を振り返る' })
     const reason = screen.getByText('実支出がある月で利用できます')
@@ -469,7 +469,7 @@ describe('AiDiagnosisDialog', () => {
         }) as MediaQueryList
     )
     const user = userEvent.setup()
-    render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+    render(<AiDiagnosisDialog householdId="A" month="202604" hasActualExpenses />)
 
     await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
     const drawer = document.querySelector('[data-slot="drawer-content"]')
@@ -489,7 +489,7 @@ describe('AiDiagnosisDialog', () => {
         data: { diagnosis: null, stale: false },
       })
     const user = userEvent.setup()
-    render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+    render(<AiDiagnosisDialog householdId="A" month="202604" hasActualExpenses />)
 
     await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('AI診断に失敗しました')
@@ -503,7 +503,7 @@ describe('AiDiagnosisDialog', () => {
   it('読み込みActionがrejectしても安全な文言で再試行可能にする', async () => {
     vi.mocked(loadAiDiagnosis).mockRejectedValueOnce(new Error('network details'))
     const user = userEvent.setup()
-    render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+    render(<AiDiagnosisDialog householdId="A" month="202604" hasActualExpenses />)
 
     await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
 
@@ -522,7 +522,7 @@ describe('AiDiagnosisDialog', () => {
       .mockResolvedValueOnce({ success: false, error: 'AI診断に失敗しました' })
       .mockResolvedValueOnce({ success: true, data: diagnosis })
     const user = userEvent.setup()
-    render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+    render(<AiDiagnosisDialog householdId="A" month="202604" hasActualExpenses />)
 
     await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
     await user.click(await screen.findByRole('button', { name: '診断を始める' }))
@@ -544,7 +544,7 @@ describe('AiDiagnosisDialog', () => {
     })
     vi.mocked(generateAiDiagnosis).mockRejectedValueOnce(new Error('network details'))
     const user = userEvent.setup()
-    render(<AiDiagnosisDialog month="202604" hasActualExpenses />)
+    render(<AiDiagnosisDialog householdId="A" month="202604" hasActualExpenses />)
 
     await user.click(screen.getByRole('button', { name: 'AIで今月を振り返る' }))
     await user.click(await screen.findByRole('button', { name: '診断を始める' }))
@@ -666,4 +666,17 @@ describe('DiagnosisResult', () => {
       expect(screen.getByText(text)).toHaveClass('min-w-0', '[overflow-wrap:anywhere]')
     }
   })
+})
+
+it('同月の世帯切替で保存診断と遅いA応答を破棄する', async () => {
+  const response = deferred<Awaited<ReturnType<typeof loadAiDiagnosis>>>()
+  vi.mocked(loadAiDiagnosis).mockReturnValueOnce(response.promise)
+  const view = renderHook(({ householdId }) => useAiDiagnosis('202604', householdId), { initialProps: { householdId: 'A' } })
+  act(() => { void view.result.current.ensureLoaded() })
+  view.rerender({ householdId: 'B' })
+  expect(view.result.current.state.status).toBe('idle')
+  await act(async () => response.resolve({ success: true, data: { diagnosis, stale: false } }))
+  expect(view.result.current.state.status).toBe('idle')
+  await act(async () => { await view.result.current.ensureLoaded() })
+  expect(view.result.current.state.status).toBe('saved')
 })

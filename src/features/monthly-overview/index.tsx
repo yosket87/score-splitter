@@ -36,6 +36,7 @@ export interface MonthlyOverviewSummary {
 }
 
 interface MonthlyOverviewProps {
+  householdId: string
   year: number
   month: number
   summary: MonthlyOverviewSummary
@@ -76,7 +77,12 @@ function useMonthDirection(currentMonth: string): number {
   return state.direction
 }
 
-export function MonthlyOverview({
+export function MonthlyOverview(props: MonthlyOverviewProps) {
+  return <ScopedMonthlyOverview key={props.householdId} {...props} />
+}
+
+function ScopedMonthlyOverview({
+  householdId,
   year,
   month,
   summary,
@@ -174,6 +180,7 @@ export function MonthlyOverview({
 
           <div className="flex w-full flex-wrap items-start gap-2">
             <CopyMonthDialog
+              householdId={householdId}
               currentMonth={currentMonth}
               previousMonth={previousMonth}
             />
@@ -185,7 +192,8 @@ export function MonthlyOverview({
             />
             {aiDiagnosisAvailable && (
               <AiDiagnosisDialog
-                key={createDiagnosisDataVersion(summary)}
+                key={`${householdId}:${currentMonth}:${createDiagnosisDataVersion(summary)}`}
+                householdId={householdId}
                 month={currentMonth}
                 hasActualExpenses={expenses.some((expense) => !expense.isCarryover)}
               />
@@ -222,7 +230,7 @@ export function MonthlyOverview({
           </h1>
         </div>
 
-        {paymentStatus && <PaymentStatusPanel key={currentMonth} month={currentMonth} initialResult={paymentStatus} />}
+        {paymentStatus && <PaymentStatusPanel householdId={householdId} key={`${householdId}:${currentMonth}`} month={currentMonth} initialResult={paymentStatus} />}
 
         <SettlementBreakdown
           result={result}

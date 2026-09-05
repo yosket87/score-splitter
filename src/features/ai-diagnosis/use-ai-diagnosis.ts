@@ -48,6 +48,7 @@ function clearTimer(timer: MutableRefObject<number | null>) {
 
 function useLifecycleEffects(
   month: string,
+  householdId: string,
   currentMonthRef: MutableRefObject<string>,
   mountedRef: MutableRefObject<boolean>,
   invalidate: () => void,
@@ -65,11 +66,12 @@ function useLifecycleEffects(
     invalidate()
     setState({ status: 'idle', month })
     return invalidate
-  }, [currentMonthRef, invalidate, month, setState])
+  }, [currentMonthRef, householdId, invalidate, month, setState])
 }
 
 function useRequestLifecycle(
   month: string,
+  householdId: string,
   setState: SetDiagnosisState
 ): RequestLifecycle {
   const currentMonthRef = useRef(month)
@@ -89,6 +91,7 @@ function useRequestLifecycle(
   }, [])
   useLifecycleEffects(
     month,
+    householdId,
     currentMonthRef,
     mountedRef,
     invalidate,
@@ -286,9 +289,9 @@ function useRunDiagnosis(
   ])
 }
 
-export function useAiDiagnosis(month: string) {
+export function useAiDiagnosis(month: string, householdId: string) {
   const [state, setState] = useState<AiDiagnosisState>({ status: 'idle', month })
-  const lifecycle = useRequestLifecycle(month, setState)
+  const lifecycle = useRequestLifecycle(month, householdId, setState)
   const load = useLoadDiagnosis(lifecycle, setState)
   const run = useRunDiagnosis(lifecycle, state, setState)
   const visibleState: AiDiagnosisState =

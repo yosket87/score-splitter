@@ -230,3 +230,18 @@ describe('YearPage', () => {
     expect(redirect).toHaveBeenCalledWith('/')
   })
 })
+
+it('RSCで検証した所属だけを画面キーにし同月の別世帯で子状態を作り直す', async () => {
+  vi.mocked(getIncomesByMonth).mockResolvedValue(success([]) as never)
+  vi.mocked(getExpensesByMonth).mockResolvedValue(success([]) as never)
+  vi.mocked(getCarryoversByMonth).mockResolvedValue(success([]) as never)
+  vi.mocked(getMonthlySummaries).mockResolvedValue(success([]) as never)
+  vi.mocked(requireAuth).mockResolvedValue({ householdId: 'A', person: null, authMethod: 'password' })
+  const a = await MonthPage({ params: Promise.resolve({ year: '2026', month: '02' }) })
+  vi.mocked(requireAuth).mockResolvedValue({ householdId: 'B', person: null, authMethod: 'password' })
+  const b = await MonthPage({ params: Promise.resolve({ year: '2026', month: '02' }) })
+  expect(a.key).toBe('A')
+  expect(b.key).toBe('B')
+  const { container } = render(b)
+  expect(container.textContent).not.toContain('household')
+})

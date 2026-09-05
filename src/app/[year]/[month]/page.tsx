@@ -20,7 +20,7 @@ interface MonthPageProps {
 
 export default async function MonthPage({ params }: MonthPageProps) {
   const { year, month: monthParam } = await params
-  await requireAuth()
+  const { householdId } = await requireAuth()
 
   if (!isValidYear(year) || !isValidMonthParam(monthParam)) {
     redirect('/')
@@ -50,7 +50,7 @@ export default async function MonthPage({ params }: MonthPageProps) {
   const aiDiagnosisAvailable = isAiDiagnosisAvailable()
 
   return (
-    <div className="app-shell">
+    <div key={householdId} className="app-shell">
       <Header backHref={`/${year}`} backLabel="月の一覧へ戻る" />
       <main
         id="main"
@@ -59,6 +59,7 @@ export default async function MonthPage({ params }: MonthPageProps) {
       >
         <aside className="min-w-0 lg:sticky lg:top-20">
           <MonthlyOverview
+            householdId={householdId}
             paymentStatus={paymentStatus}
             year={Number(year)}
             month={Number(monthParam)}

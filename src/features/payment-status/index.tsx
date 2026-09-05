@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRequestGuard } from '@/hooks/use-request-guard'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, Clock3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -19,7 +20,18 @@ function today() {
 }
 type Pending = { kind: 'record'; input: RecordPaymentInput } | { kind: 'correct'; input: CorrectPaymentInput }
 
-export function PaymentStatusPanel({ month, initialResult }: { month: string; initialResult: PaymentActionResult<PaymentStatus> }) {
+interface PaymentStatusPanelProps {
+  householdId: string
+  month: string
+  initialResult: PaymentActionResult<PaymentStatus>
+}
+
+export function PaymentStatusPanel(props: PaymentStatusPanelProps) {
+  return <ScopedPaymentStatusPanel key={`${props.householdId}:${props.month}`} {...props} />
+}
+
+function ScopedPaymentStatusPanel({ householdId, month, initialResult }: PaymentStatusPanelProps) {
+  const captureRequest = useRequestGuard()
   const router = useRouter()
   const [loaded, setLoaded] = useState<{ source: typeof initialResult; value: typeof initialResult } | null>(null)
   const result = loaded?.source === initialResult ? loaded.value : initialResult
@@ -37,7 +49,9 @@ export function PaymentStatusPanel({ month, initialResult }: { month: string; in
   const [direction, setDirection] = useState('1')
   const [reason, setReason] = useState('')
   const [pending, setPending] = useState<Pending | null>(null)
-  const storageKey = `payment-operation:${month}`
+  const storageKey = `payment-operation:${householdId}:${month}`
+  const legacyKey = `payment-operation:${month}`
+  const [legacyOperationId, setLegacyOperationId] = useState<string | null>(null)
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem(storageKey)
@@ -46,51 +60,64 @@ export function PaymentStatusPanel({ month, initialResult }: { month: string; in
         if (operation.input?.month === month && ['record', 'correct'].includes(operation.kind)) setPending(operation)
       }
     } catch { setError('保存中の操作を読み込めませんでした。振込記録を確認してください。') }
-  }, [storageKey, month])
+    try {
+      const legacy = sessionStorage.getItem(legacyKey)
+      if (legacy) {
+        const operation = JSON.parse(legacy)
+        if (operation.input?.month === month && typeof operation.input.operationId === 'string') setLegacyOperationId(operation.input.operationId)
+      }
+    } catch { setError('以前の操作を読み込めませんでした。振込記録を確認してください。') }
+  }, [storageKey, legacyKey, month])
 
-  async function refresh() {
+  async function refresh(isCurrent: () => boolean) {
     const next = await getPaymentStatus(month)
+    if (!isCurrent()) return next
     setLoaded({ source: initialResult, value: next })
     return next
   }
-  async function run(task: () => Promise<void>) {
+  async function run(task: (isCurrent: () => boolean) => Promise<void>) {
+    const isCurrent = captureRequest()
     if (running.current) return
     running.current = true
     setBusy(true)
     setError('')
-    try { await task() } catch { setError('通信を確認できませんでした。記録の結果を確認してから再送してください。') }
-    finally { running.current = false; setBusy(false) }
+    try { await task(isCurrent) } catch { if (isCurrent()) setError('通信を確認できませんでした。記録の結果を確認してから再送してください。') }
+    finally { if (isCurrent()) { running.current = false; setBusy(false) } }
   }
   function clearPending() {
     sessionStorage.removeItem(storageKey)
     setPending(null)
   }
-  async function complete() {
+  async function complete(isCurrent: () => boolean) {
+    if (!isCurrent()) return
     clearPending()
     setQuote(null)
     setEditing(null)
-    await refresh()
-    router.refresh()
+    await refresh(isCurrent)
+    if (isCurrent()) router.refresh()
   }
-  async function submit(operation: Pending) {
+  async function submit(operation: Pending, isCurrent: () => boolean) {
+    if (!isCurrent()) return
     // 応答が失われても、操作番号だけでなく確定時の全入力をそのまま再送する。
     sessionStorage.setItem(storageKey, JSON.stringify(operation))
     setPending(operation)
     const response = operation.kind === 'record' ? await recordPayment(operation.input) : await correctPayment(operation.input)
-    if (response.success) await complete()
+    if (!isCurrent()) return
+    if (response.success) await complete(isCurrent)
     else {
       setError(response.error)
       if (response.code >= 400 && response.code < 500) {
         clearPending()
         setQuote(null)
         setEditing(null)
-        await refresh()
+        await refresh(isCurrent)
       }
     }
   }
   async function confirm(record?: PaymentRecord, cancel = false) {
-    await run(async () => {
-      const latest = await refresh()
+    await run(async (isCurrent) => {
+      const latest = await refresh(isCurrent)
+      if (!isCurrent()) return
       if (!latest.success) { setError(latest.error); return }
       if (record) {
         const current = latest.data.payments.find((payment) => payment.id === record.id && !payment.voidedAt)
@@ -127,20 +154,35 @@ export function PaymentStatusPanel({ month, initialResult }: { month: string; in
         {status.state === 'unnecessary' && <p className="mt-2 text-xs text-muted-foreground">この月の振込は必要ありません。</p>}
         {status.remainingSignedYen !== 0 && <Button ref={primaryButton} className="mt-3 w-full rounded-xl bg-accent text-accent-foreground hover:bg-accent/90" disabled={busy || !!pending} onClick={() => confirm()}>{status.state === 'difference' ? '差額を振込済みにする' : '振込済みにする'}</Button>}
         {status.payments.length > 0 && <Button ref={historyButton} variant="ghost" className="mt-2 h-auto min-h-9 px-0 text-sm" onClick={() => setHistory(true)}>記録を見る</Button>}
-      </div> : <div role="alert" className="rounded-xl border border-destructive/30 p-4 text-sm">{result.success ? '' : result.error}<Button variant="outline" className="mt-2 block" disabled={busy} onClick={() => run(async () => { await refresh() })}>再取得</Button></div>}
+      </div> : <div role="alert" className="rounded-xl border border-destructive/30 p-4 text-sm">{result.success ? '' : result.error}<Button variant="outline" className="mt-2 block" disabled={busy} onClick={() => run(async (isCurrent) => { await refresh(isCurrent) })}>再取得</Button></div>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      {pending && <div className="space-y-2 rounded-xl border p-3 text-sm"><p>記録の結果が未確認です。新しい記録を作る前に確認してください。</p><div className="flex flex-wrap gap-2"><Button variant="outline" disabled={busy} onClick={() => run(async () => {
+      {pending && <div className="space-y-2 rounded-xl border p-3 text-sm"><p>記録の結果が未確認です。新しい記録を作る前に確認してください。</p><div className="flex flex-wrap gap-2"><Button variant="outline" disabled={busy} onClick={() => run(async (isCurrent) => {
         const response = await getPaymentOperation(month, pending.input.operationId)
-        if (response.success && response.data) await complete()
+        if (!isCurrent()) return
+        if (response.success && response.data) await complete(isCurrent)
         else setError(response.success ? '記録はまだ確認できません。同じ内容で再送できます。' : response.error)
-      })}>結果を確認</Button><Button disabled={busy} onClick={() => run(() => submit(pending))}>同じ内容で再送</Button></div></div>}
+      })}>結果を確認</Button><Button disabled={busy} onClick={() => run((isCurrent) => submit(pending, isCurrent))}>同じ内容で再送</Button></div></div>}
+      {legacyOperationId && !pending && <div className="space-y-2 rounded-xl border p-3 text-sm">
+        <p>以前の記録の結果が未確認です。振込記録と照らし合わせて確認してください。</p>
+        <Button variant="outline" disabled={busy} onClick={() => run(async (isCurrent) => {
+          const response = await getPaymentOperation(month, legacyOperationId)
+          if (!isCurrent()) return
+          if (response.success && response.data) {
+            sessionStorage.removeItem(legacyKey)
+            setLegacyOperationId(null)
+            await refresh(isCurrent)
+          } else {
+            setError(response.success ? 'このログインでは記録を確認できませんでした。記録時のログインで確認してください。' : response.error)
+          }
+        })}>結果を確認</Button>
+      </div>}
       <Dialog open={!!quote && !pending} onOpenChange={(open) => { if (!open && !busy) { setQuote(null); setEditing(null) } }}>
         <DialogContent onCloseAutoFocus={(event) => { event.preventDefault(); (historyButton.current ?? primaryButton.current)?.focus() }} className="max-h-[85dvh] overflow-y-auto"><DialogHeader><DialogTitle>{editing ? voidOnly ? '振込記録を取り消す' : '振込記録を訂正する' : '振込内容の確認'}</DialogTitle><DialogDescription>実際の振込・返金は行いません。銀行で行った振込の記録です。</DialogDescription></DialogHeader>
           <form className="space-y-4" onSubmit={(event) => {
             event.preventDefault()
             if (!quote) return
             const base = { month, operationId: crypto.randomUUID(), expectedRevision: quote.revision }
-            void run(() => submit(editing ? { kind: 'correct', input: { ...base, paymentId: editing.id, reason, replacement: voidOnly ? null : { signedYen: Number(amount) * Number(direction), paidOn } } } : { kind: 'record', input: { ...base, confirmedSignedYen: quote.remainingSignedYen, paidOn } }))
+            void run((isCurrent) => submit(editing ? { kind: 'correct', input: { ...base, paymentId: editing.id, reason, replacement: voidOnly ? null : { signedYen: Number(amount) * Number(direction), paidOn } } } : { kind: 'record', input: { ...base, confirmedSignedYen: quote.remainingSignedYen, paidOn } }, isCurrent))
           }}>
             {!editing && <><p className="text-xl font-bold">{paymentLabel(quote?.remainingSignedYen ?? 0)}</p><p className="text-xs text-muted-foreground">1円未満は切り捨てて記録します。</p></>}
             {editing && !voidOnly && <><label className="block text-sm">振込方向<select aria-label="振込方向" className="mt-1 block w-full rounded-md border bg-background p-2" value={direction} onChange={(event) => setDirection(event.target.value)}><option value="1">夫 → 妻</option><option value="-1">妻 → 夫</option></select></label><label className="block text-sm">実際の振込額（円）<Input type="number" min="1" max={Number.MAX_SAFE_INTEGER} step="1" required value={amount} onChange={(event) => setAmount(event.target.value)} /></label></>}

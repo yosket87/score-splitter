@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRequestGuard } from '@/hooks/use-request-guard'
 import { useRouter } from 'next/navigation'
 import { Copy, LoaderCircle } from 'lucide-react'
 import { toast } from 'sonner'
@@ -23,15 +24,21 @@ import type {
 } from '@/types'
 
 interface CopyMonthDialogProps {
+  householdId: string
   currentMonth: string
   previousMonth: string
 }
 
-export function CopyMonthDialog({
+export function CopyMonthDialog(props: CopyMonthDialogProps) {
+  return <ScopedCopyMonthDialog key={`${props.householdId}:${props.currentMonth}`} {...props} />
+}
+
+function ScopedCopyMonthDialog({
   currentMonth,
   previousMonth,
 }: CopyMonthDialogProps) {
   const router = useRouter()
+  const captureRequest = useRequestGuard()
   const [open, setOpen] = useState(false)
   const [isPending, setIsPending] = useState(false)
   const [preview, setPreview] = useState<CopyMonthPreview | null>(null)
@@ -66,17 +73,23 @@ export function CopyMonthDialog({
 
   // ダイアログを開いた時にプレビューを取得
   useEffect(() => {
+    let active = true
+    const isCurrent = captureRequest()
     if (open) {
       getCopyMonthPreview(previousMonth, currentMonth).then((result) => {
+        if (!active || !isCurrent()) return
         if (!result.success || !result.data) {
           toast.error(result.error ?? 'プレビューの取得に失敗しました')
           return
         }
         setPreview(result.data)
         initializeSelection(result.data.items)
+      }).catch(() => {
+        if (active && isCurrent()) toast.error('プレビューの取得に失敗しました')
       })
     }
-  }, [open, previousMonth, currentMonth, initializeSelection])
+    return () => { active = false }
+  }, [captureRequest, open, previousMonth, currentMonth, initializeSelection])
 
   async function handleCopy() {
     if (!preview) return
@@ -91,38 +104,45 @@ export function CopyMonthDialog({
       return
     }
 
+    const isCurrent = captureRequest()
     setIsPending(true)
 
-    const result = await copyMonthData({
-      sourceMonth: previousMonth,
-      carryoverFingerprint: preview?.carryoverFingerprint,
-      targetMonth: currentMonth,
-      mode,
-      selectedItems,
-      includeCarryover,
-    })
+    try {
+      const result = await copyMonthData({
+        sourceMonth: previousMonth,
+        carryoverFingerprint: preview?.carryoverFingerprint,
+        targetMonth: currentMonth,
+        mode,
+        selectedItems,
+        includeCarryover,
+      })
 
-    setIsPending(false)
+      if (!isCurrent()) return
 
-    if (result.success && result.data) {
-      const copyResult = result.data
-      const total =
-        copyResult.copied.incomes +
-        copyResult.copied.expenses +
-        copyResult.copied.carryovers
-      const skippedTotal =
-        copyResult.skipped.incomes +
-        copyResult.skipped.expenses +
-        copyResult.skipped.carryovers
-      if (skippedTotal > 0) {
-        toast.success(`${total}件コピー、${skippedTotal}件スキップしました`)
+      if (result.success && result.data) {
+        const copyResult = result.data
+        const total =
+          copyResult.copied.incomes +
+          copyResult.copied.expenses +
+          copyResult.copied.carryovers
+        const skippedTotal =
+          copyResult.skipped.incomes +
+          copyResult.skipped.expenses +
+          copyResult.skipped.carryovers
+        if (skippedTotal > 0) {
+          toast.success(`${total}件コピー、${skippedTotal}件スキップしました`)
+        } else {
+          toast.success(`${total}件のデータをコピーしました`)
+        }
+        setOpen(false)
+        router.refresh()
       } else {
-        toast.success(`${total}件のデータをコピーしました`)
+        toast.error(result.error ?? 'コピーに失敗しました')
       }
-      setOpen(false)
-      router.refresh()
-    } else {
-      toast.error(result.error ?? 'コピーに失敗しました')
+    } catch {
+      if (isCurrent()) toast.error('コピーに失敗しました')
+    } finally {
+      if (isCurrent()) setIsPending(false)
     }
   }
 

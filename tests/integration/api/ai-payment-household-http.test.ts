@@ -34,6 +34,8 @@ for (const backend of ['D1','MSW']) describe(`${backend} AI/paymentのDB session
       }
       const inputA=await makeInput(tokenA), inputB=await makeInput(tokenB)
       const pa=await (await request('/months/202609/payments','POST',inputA)).json()
+      // Aだけに存在する操作番号はBの結果照会で取得できない。
+      expect(await (await request('/months/202609/payment-operations/'+id,'GET',undefined,tokenB)).json()).toEqual({ data: null })
       const pb=await (await request('/months/202609/payments','POST',inputB,tokenB)).json()
       expect(pa.data.paymentId).not.toBe(pb.data.paymentId)
       expect(await (await request('/months/202609/payments','POST',inputA)).json()).toEqual(pa)

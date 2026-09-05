@@ -73,6 +73,33 @@ try {
   execute("INSERT INTO incomes(id,month,label,amount,person,created_at,updated_at) VALUES('legacy-new','202610','旧版  --  SQL',100,'wife','now','now');")
   assert.deepEqual(execute("SELECT household_id,label FROM incomes WHERE id='legacy-new';"), [[{ household_id: null, label: '旧版  --  SQL' }]])
   assert.throws(() => execute("UPDATE incomes SET household_id='unknown' WHERE id='legacy-new';"), /FOREIGN KEY constraint failed/)
+  // 旧処理が正常終了してから停止後snapshotを採取する。migration自身はtokenを消去しない。
+  execute("UPDATE ai_diagnoses SET run_token=NULL WHERE id='diagnosis';")
+  const stopped = snapshot()
+  const scopedName = '0011_scope_household_data.sql'
+  const scoped = readFileSync(join(source, scopedName), 'utf8')
+  for (const point of ['DROP TABLE payment_voids;', 'DROP TABLE payment_operations;', 'ALTER TABLE payment_records_new RENAME TO payment_records;', 'CREATE TRIGGER release_ai_execution_guard']) {
+    assert.ok(scoped.includes(point))
+    writeFileSync(join(migrations, scopedName), scoped.replace(point, 'INSERT INTO _household_migration_assert VALUES(0);\n' + point))
+    assert.throws(apply, /CHECK constraint failed/)
+    assert.deepEqual(snapshot(), stopped)
+  }
+  stage(scopedName)
+  apply()
+  const scopedAfter = snapshot()
+  for (let index = 0; index < tables.length; index++) {
+    const stripHousehold = rows => rows.map(row => Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'household_id')))
+    assert.deepEqual(stripHousehold(scopedAfter[index + 1]), stripHousehold(stopped[index + 1]))
+  }
+  assert.equal(scopedAfter.at(-1).at(-1).name, scopedName)
+  assert.deepEqual(execute('PRAGMA foreign_key_check;'), [[]])
+  assert.deepEqual(execute("SELECT household_id,label FROM incomes WHERE id='legacy-new';"), [[{ household_id: householdId, label: '旧版  --  SQL' }]])
+  for (const table of ['payment_operations', 'payment_records', 'payment_voids']) {
+    assert.throws(() => execute(`UPDATE ${table} SET created_at='changed';`), /PAYMENT_IMMUTABLE/)
+    assert.throws(() => execute(`DELETE FROM ${table};`), /PAYMENT_IMMUTABLE/)
+  }
+  assert.throws(() => execute("INSERT INTO incomes(id,month,label,amount,person,created_at,updated_at) VALUES('forbidden','202610','NULL',100,'wife','now','now');"), /HOUSEHOLD_REQUIRED/)
+  console.log('0011: 最終NULL補完・全保持列/JSON/quota/revision・コピー後/旧DROP後/rename途中/trigger復元前のDDL rollbackと再試行を確認')
   console.log('世帯migration D1検証成功: 15表保持・13表所属・認証challenge無所属・DDL/data/trigger/適用台帳rollback・再適用・旧SQL互換・immutable/FK')
 } finally {
   rmSync(temp, { recursive: true, force: true })

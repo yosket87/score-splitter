@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import '../../../tests/mocks/next'
+import { mockCookies } from '../../../tests/mocks/next'
+vi.mock('server-only', () => ({}))
+const householdMocks = vi.hoisted(() => ({ assertExistingLoginHousehold: vi.fn() }))
+vi.mock('@/lib/api/households', () => householdMocks)
+const context = { householdId: 'A', person: null, authMethod: 'password' }
+const household = { householdId: 'A' }
 import {
   clearApiMocks,
   mockPasskeysApi,
@@ -14,7 +19,7 @@ const simpleWebAuthnMocks = vi.hoisted(() => ({
 
 const sessionMocks = vi.hoisted(() => ({
   createSession: vi.fn(),
-  isAuthenticated: vi.fn(),
+  getSession: vi.fn(),
 }))
 
 vi.mock('@simplewebauthn/server', () => simpleWebAuthnMocks)
@@ -60,7 +65,10 @@ describe('passkey actions', () => {
     vi.stubEnv('WEBAUTHN_RP_ID', 'localhost')
     vi.stubEnv('WEBAUTHN_RP_ORIGIN', 'http://localhost:3000')
     vi.stubEnv('WEBAUTHN_RP_NAME', 'ヤマワケ')
-    sessionMocks.isAuthenticated.mockResolvedValue(true)
+    sessionMocks.getSession.mockResolvedValue(context)
+    mockCookies.get.mockReturnValue({ value: 'challenge-1' })
+    mockPasskeysApi.createChallenge.mockResolvedValue({ id: 'challenge-1' })
+    householdMocks.assertExistingLoginHousehold.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -87,18 +95,19 @@ describe('passkey actions', () => {
     const result = await generateRegistrationOptions('husband')
 
     expect(result.success).toBe(true)
-    expect(mockPasskeysApi.listPasskeys).toHaveBeenCalledWith('husband')
+    expect(mockPasskeysApi.listPasskeys).toHaveBeenCalledWith(context, 'husband')
     expect(mockPasskeysApi.createChallenge).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'registration', context }),
       expect.objectContaining({
         challenge: 'registration-challenge',
-        type: 'registration',
         person: 'husband',
       })
     )
   })
 
   it('認証検証時にbase64公開鍵を検証へ渡しセッションを作成する', async () => {
-    mockPasskeysApi.getPasskey.mockResolvedValueOnce({
+    mockPasskeysApi.findAuthenticationCredential.mockResolvedValueOnce({
+      householdId: 'A',
       id: 'credential-1',
       person: 'wife',
       publicKeyBase64: Buffer.from([1, 2, 3]).toString('base64'),
@@ -107,7 +116,7 @@ describe('passkey actions', () => {
       transports: ['internal'],
       createdAt: '2026-01-01T00:00:00Z',
     })
-    mockPasskeysApi.getLatestChallenge.mockResolvedValueOnce({
+    mockPasskeysApi.consumeChallenge.mockResolvedValueOnce({
       id: 'challenge-1',
       challenge: 'auth-challenge',
       type: 'authentication',
@@ -142,16 +151,13 @@ describe('passkey actions', () => {
         }),
       })
     )
-    expect(mockPasskeysApi.updatePasskeyCounter).toHaveBeenCalledWith('credential-1', 2)
-    expect(mockPasskeysApi.deleteChallenges).toHaveBeenCalledWith({
-      type: 'authentication',
-      person: null,
-    })
-    expect(sessionMocks.createSession).toHaveBeenCalledWith('wife', 'passkey')
+    expect(mockPasskeysApi.updatePasskeyCounter).toHaveBeenCalledWith(household, 'credential-1', 2)
+    expect(mockPasskeysApi.consumeChallenge).toHaveBeenCalledWith({ type: 'authentication' }, 'challenge-1', null)
+    expect(sessionMocks.createSession).toHaveBeenCalledWith(household, 'wife', 'passkey')
   })
 
   it('登録検証時にoriginとRP IDを検証へ渡してパスキーを保存する', async () => {
-    mockPasskeysApi.getLatestChallenge.mockResolvedValueOnce({
+    mockPasskeysApi.consumeChallenge.mockResolvedValueOnce({
       id: 'challenge-1',
       challenge: 'registration-challenge',
       type: 'registration',
@@ -198,7 +204,7 @@ describe('passkey actions', () => {
         expectedRPID: 'localhost',
       })
     )
-    expect(mockPasskeysApi.createPasskey).toHaveBeenCalledWith({
+    expect(mockPasskeysApi.createPasskey).toHaveBeenCalledWith(context, {
       id: 'credential-new',
       person: 'husband',
       publicKeyBase64: Buffer.from([1, 2, 3]).toString('base64'),
@@ -206,14 +212,11 @@ describe('passkey actions', () => {
       deviceName: 'MacBook',
       transports: ['internal'],
     })
-    expect(mockPasskeysApi.deleteChallenges).toHaveBeenCalledWith({
-      type: 'registration',
-      person: 'husband',
-    })
+    expect(mockPasskeysApi.consumeChallenge).toHaveBeenCalledWith({ type: 'registration', context }, 'challenge-1', 'husband')
   })
 
   it('登録チャレンジ期限切れ時は検証せずエラーを返す', async () => {
-    mockPasskeysApi.getLatestChallenge.mockResolvedValueOnce({
+    mockPasskeysApi.consumeChallenge.mockResolvedValueOnce({
       id: 'challenge-1',
       challenge: 'registration-challenge',
       type: 'registration',
@@ -241,7 +244,7 @@ describe('passkey actions', () => {
   })
 
   it('登録検証でoriginまたはRP IDが不一致ならエラーを返す', async () => {
-    mockPasskeysApi.getLatestChallenge.mockResolvedValueOnce({
+    mockPasskeysApi.consumeChallenge.mockResolvedValueOnce({
       id: 'challenge-1',
       challenge: 'registration-challenge',
       type: 'registration',
@@ -300,7 +303,7 @@ describe('passkey actions', () => {
   })
 
   it('未認証ではパスキー一覧を取得しない', async () => {
-    sessionMocks.isAuthenticated.mockResolvedValueOnce(false)
+    sessionMocks.getSession.mockResolvedValueOnce(null)
 
     const result = await listPasskeys()
 
@@ -309,7 +312,7 @@ describe('passkey actions', () => {
   })
 
   it('未認証ではパスキーを削除しない', async () => {
-    sessionMocks.isAuthenticated.mockResolvedValueOnce(false)
+    sessionMocks.getSession.mockResolvedValueOnce(null)
 
     const result = await deletePasskey('credential-1')
 
@@ -318,7 +321,7 @@ describe('passkey actions', () => {
   })
 
   it('未認証では登録オプションを生成しない', async () => {
-    sessionMocks.isAuthenticated.mockResolvedValueOnce(false)
+    sessionMocks.getSession.mockResolvedValueOnce(null)
 
     const result = await generateRegistrationOptions('wife')
 
@@ -379,9 +382,9 @@ describe('passkey actions', () => {
       data: { challenge: 'authentication-challenge' },
     })
     expect(mockPasskeysApi.createChallenge).toHaveBeenCalledWith(
+      { type: 'authentication' },
       expect.objectContaining({
         challenge: 'authentication-challenge',
-        type: 'authentication',
         person: null,
       })
     )
@@ -401,16 +404,16 @@ describe('passkey actions', () => {
   )
 
   it('未認証では登録検証を行わない', async () => {
-    sessionMocks.isAuthenticated.mockResolvedValueOnce(false)
+    sessionMocks.getSession.mockResolvedValueOnce(null)
 
     const result = await verifyRegistration('husband', registrationCredential)
 
     expect(result).toEqual({ success: false, error: '認証が必要です' })
-    expect(mockPasskeysApi.getLatestChallenge).not.toHaveBeenCalled()
+    expect(mockPasskeysApi.consumeChallenge).not.toHaveBeenCalled()
   })
 
   it('登録チャレンジがなければ再試行を案内する', async () => {
-    mockPasskeysApi.getLatestChallenge.mockResolvedValueOnce(null)
+    mockPasskeysApi.consumeChallenge.mockResolvedValueOnce(null)
 
     const result = await verifyRegistration('husband', registrationCredential)
 
@@ -424,7 +427,7 @@ describe('passkey actions', () => {
     [{ verified: false }, 'verifiedがfalse'],
     [{ verified: true }, '登録情報がない'],
   ])('登録検証結果が不十分なら保存しない: %s', async (verification) => {
-    mockPasskeysApi.getLatestChallenge.mockResolvedValueOnce({
+    mockPasskeysApi.consumeChallenge.mockResolvedValueOnce({
       id: 'challenge-1',
       challenge: 'registration-challenge',
       type: 'registration',
@@ -444,7 +447,7 @@ describe('passkey actions', () => {
     [true, 'クラウド同期'],
     [false, 'デバイス'],
   ])('端末名とtransport未指定時は同期状態に応じた既定値を保存する', async (backedUp, deviceName) => {
-    mockPasskeysApi.getLatestChallenge.mockResolvedValueOnce({
+    mockPasskeysApi.consumeChallenge.mockResolvedValueOnce({
       id: 'challenge-1',
       challenge: 'registration-challenge',
       type: 'registration',
@@ -468,12 +471,12 @@ describe('passkey actions', () => {
 
     expect(result.success).toBe(true)
     expect(mockPasskeysApi.createPasskey).toHaveBeenCalledWith(
-      expect.objectContaining({ deviceName, transports: [] })
+      context, expect.objectContaining({ deviceName, transports: [] })
     )
   })
 
   it('登録検証で非Error例外が発生した場合は既定エラーを返す', async () => {
-    mockPasskeysApi.getLatestChallenge.mockRejectedValueOnce('unknown')
+    mockPasskeysApi.consumeChallenge.mockRejectedValueOnce('unknown')
 
     await expect(verifyRegistration('wife', registrationCredential)).resolves.toEqual({
       success: false,
@@ -482,7 +485,7 @@ describe('passkey actions', () => {
   })
 
   it('未登録credentialの認証を拒否する', async () => {
-    mockPasskeysApi.getPasskey.mockResolvedValueOnce(null)
+    mockPasskeysApi.findAuthenticationCredential.mockResolvedValueOnce(null)
 
     const result = await verifyAuthentication(authenticationCredential)
 
@@ -490,7 +493,8 @@ describe('passkey actions', () => {
   })
 
   it('認証チャレンジがなければ再試行を案内する', async () => {
-    mockPasskeysApi.getPasskey.mockResolvedValueOnce({
+    mockPasskeysApi.findAuthenticationCredential.mockResolvedValueOnce({
+      householdId: 'A',
       id: 'credential-1',
       person: 'husband',
       publicKeyBase64: 'AQID',
@@ -499,7 +503,7 @@ describe('passkey actions', () => {
       transports: [],
       createdAt: '2026-01-01T00:00:00Z',
     })
-    mockPasskeysApi.getLatestChallenge.mockResolvedValueOnce(null)
+    mockPasskeysApi.consumeChallenge.mockResolvedValueOnce(null)
 
     const result = await verifyAuthentication(authenticationCredential)
 
@@ -510,7 +514,8 @@ describe('passkey actions', () => {
   })
 
   it('期限切れ認証チャレンジを拒否する', async () => {
-    mockPasskeysApi.getPasskey.mockResolvedValueOnce({
+    mockPasskeysApi.findAuthenticationCredential.mockResolvedValueOnce({
+      householdId: 'A',
       id: 'credential-1',
       person: 'husband',
       publicKeyBase64: 'AQID',
@@ -519,7 +524,7 @@ describe('passkey actions', () => {
       transports: [],
       createdAt: '2026-01-01T00:00:00Z',
     })
-    mockPasskeysApi.getLatestChallenge.mockResolvedValueOnce({
+    mockPasskeysApi.consumeChallenge.mockResolvedValueOnce({
       id: 'challenge-1',
       challenge: 'authentication-challenge',
       type: 'authentication',
@@ -537,7 +542,8 @@ describe('passkey actions', () => {
   })
 
   it('WebAuthn認証が未検証ならセッションを作成しない', async () => {
-    mockPasskeysApi.getPasskey.mockResolvedValueOnce({
+    mockPasskeysApi.findAuthenticationCredential.mockResolvedValueOnce({
+      householdId: 'A',
       id: 'credential-1',
       person: 'husband',
       publicKeyBase64: 'AQID',
@@ -546,7 +552,7 @@ describe('passkey actions', () => {
       transports: [],
       createdAt: '2026-01-01T00:00:00Z',
     })
-    mockPasskeysApi.getLatestChallenge.mockResolvedValueOnce({
+    mockPasskeysApi.consumeChallenge.mockResolvedValueOnce({
       id: 'challenge-1',
       challenge: 'authentication-challenge',
       type: 'authentication',
@@ -565,7 +571,7 @@ describe('passkey actions', () => {
   it.each([new Error('認証検証エラー'), 'unknown'])(
     '認証検証例外を固定文言のActionResultへ変換する',
     async (error) => {
-    mockPasskeysApi.getPasskey.mockRejectedValueOnce(error)
+    mockPasskeysApi.findAuthenticationCredential.mockRejectedValueOnce(error)
 
     await expect(verifyAuthentication(authenticationCredential)).resolves.toEqual({
       success: false,
@@ -590,7 +596,7 @@ describe('passkey actions', () => {
     const result = await deletePasskey('credential-1')
 
     expect(result).toEqual({ success: true })
-    expect(mockPasskeysApi.deletePasskey).toHaveBeenCalledWith('credential-1')
+    expect(mockPasskeysApi.deletePasskey).toHaveBeenCalledWith(context, 'credential-1')
   })
 
   it.each([new Error('削除エラー'), 'unknown'])(
@@ -604,4 +610,61 @@ describe('passkey actions', () => {
     })
     }
   )
+  it('登録のuserIDは世帯とpersonを含み、cookieはhttpOnlyで試行IDを持つ', async () => {
+    mockPasskeysApi.listPasskeys.mockResolvedValue([])
+    simpleWebAuthnMocks.generateRegistrationOptions.mockResolvedValue({ challenge: 'test' })
+    await generateRegistrationOptions('wife')
+    expect(simpleWebAuthnMocks.generateRegistrationOptions).toHaveBeenCalledWith(expect.objectContaining({ userID: new TextEncoder().encode('A:wife') }))
+    expect(mockCookies.set).toHaveBeenCalledWith('webauthn_registration', 'challenge-1', expect.objectContaining({ httpOnly: true, sameSite: 'lax', maxAge: 300, path: '/' }))
+  })
+
+  it('認証前cookieがなければ別ブラウザのchallengeを検索しない', async () => {
+    mockPasskeysApi.findAuthenticationCredential.mockResolvedValue({ id: 'credential-1', householdId: 'A' })
+    mockCookies.get.mockReturnValue(undefined)
+    expect((await verifyAuthentication(authenticationCredential)).success).toBe(false)
+    expect(mockPasskeysApi.consumeChallenge).not.toHaveBeenCalled()
+    expect(simpleWebAuthnMocks.verifyAuthenticationResponse).not.toHaveBeenCalled()
+    expect(sessionMocks.createSession).not.toHaveBeenCalled()
+  })
+
+  it('同じ試行の並行検証は一回の署名検証とsession発行に限定される', async () => {
+    mockPasskeysApi.findAuthenticationCredential.mockResolvedValue({ id: 'credential-1', householdId: 'A', person: 'wife', publicKeyBase64: 'AQID', counter: 0, transports: [] })
+    mockPasskeysApi.consumeChallenge.mockResolvedValueOnce({ challenge: 'one', expiresAt: new Date(Date.now() + 300000).toISOString() }).mockResolvedValue(null)
+    simpleWebAuthnMocks.verifyAuthenticationResponse.mockResolvedValue({ verified: true, authenticationInfo: { newCounter: 1 } })
+    const results = await Promise.all([verifyAuthentication(authenticationCredential), verifyAuthentication(authenticationCredential)])
+    expect(results.filter(({ success }) => success)).toHaveLength(1)
+    expect(simpleWebAuthnMocks.verifyAuthenticationResponse).toHaveBeenCalledTimes(1)
+    expect(sessionMocks.createSession).toHaveBeenCalledTimes(1)
+    expect(mockCookies.delete).toHaveBeenCalledWith('webauthn_authentication')
+  })
+
+  it('Bのcredentialは署名成功後も新規sessionを発行しない', async () => {
+    mockPasskeysApi.findAuthenticationCredential.mockResolvedValue({ id: 'credential-1', householdId: 'B', person: 'wife', publicKeyBase64: 'AQID', counter: 0, transports: [] })
+    mockPasskeysApi.consumeChallenge.mockResolvedValue({ challenge: 'one', expiresAt: new Date(Date.now() + 300000).toISOString() })
+    simpleWebAuthnMocks.verifyAuthenticationResponse.mockResolvedValue({ verified: true, authenticationInfo: { newCounter: 1 } })
+    householdMocks.assertExistingLoginHousehold.mockRejectedValueOnce(new Error('この世帯ではログインできません'))
+    expect((await verifyAuthentication(authenticationCredential)).success).toBe(false)
+    expect(householdMocks.assertExistingLoginHousehold).toHaveBeenCalledWith({ householdId: 'B' })
+    expect(sessionMocks.createSession).not.toHaveBeenCalled()
+    expect(mockPasskeysApi.updatePasskeyCounter).not.toHaveBeenCalled()
+  })
+
+  it('同期パスキーの署名検証済み0→0でもsessionを発行できる', async () => {
+    mockPasskeysApi.findAuthenticationCredential.mockResolvedValue({ id: 'credential-1', householdId: 'A', person: 'wife', publicKeyBase64: 'AQID', counter: 0, transports: [] })
+    mockPasskeysApi.consumeChallenge.mockResolvedValue({ challenge: 'one', expiresAt: new Date(Date.now() + 300000).toISOString() })
+    simpleWebAuthnMocks.verifyAuthenticationResponse.mockResolvedValue({ verified: true, authenticationInfo: { newCounter: 0 } })
+    expect((await verifyAuthentication(authenticationCredential)).success).toBe(true)
+    expect(mockPasskeysApi.updatePasskeyCounter).toHaveBeenCalledWith(household, 'credential-1', 0)
+    expect(sessionMocks.createSession).toHaveBeenCalledWith(household, 'wife', 'passkey')
+  })
+
+  it('署名検証中にcounterが進んだ競合試行はsessionを発行しない', async () => {
+    mockPasskeysApi.findAuthenticationCredential.mockResolvedValue({ id: 'credential-1', householdId: 'A', person: 'wife', publicKeyBase64: 'AQID', counter: 1, transports: [] })
+    mockPasskeysApi.consumeChallenge.mockResolvedValue({ challenge: 'one', expiresAt: new Date(Date.now() + 300000).toISOString() })
+    simpleWebAuthnMocks.verifyAuthenticationResponse.mockResolvedValue({ verified: true, authenticationInfo: { newCounter: 2 } })
+    mockPasskeysApi.updatePasskeyCounter.mockRejectedValueOnce(new Error('パスキーの状態が変わりました'))
+    expect((await verifyAuthentication(authenticationCredential)).success).toBe(false)
+    expect(sessionMocks.createSession).not.toHaveBeenCalled()
+  })
+
 })

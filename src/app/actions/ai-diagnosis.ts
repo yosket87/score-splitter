@@ -10,7 +10,7 @@ import {
 } from '@/lib/api/ai-diagnosis'
 import { ApiError } from '@/lib/api/client'
 import { isValidMonth } from '@/lib/utils/format'
-import { requireAuth } from '@/lib/webauthn/session'
+import { requireHouseholdContext, type HouseholdContext } from '@/lib/household-context'
 import type {
   AiDiagnosisView,
   DiagnosisSnapshot,
@@ -37,13 +37,13 @@ type GenerateAiDiagnosisResult = ActionResult<AiDiagnosisView> & {
 export async function loadAiDiagnosis(
   month: string
 ): Promise<ActionResult<DiagnosisSnapshot>> {
-  await requireAuth()
+  const context = await requireHouseholdContext()
   if (!isValidMonth(month)) {
     return { success: false, error: '月の形式が不正です' }
   }
 
   try {
-    const diagnosis = await observeDiagnosisStep('load', () => createRequestService().load(month))
+    const diagnosis = await observeDiagnosisStep('load', () => createRequestService(context).load(month))
     return { success: true, data: diagnosis }
   } catch {
     console.error('AI診断取得エラー')
@@ -54,13 +54,13 @@ export async function loadAiDiagnosis(
 export async function generateAiDiagnosis(
   month: string
 ): Promise<GenerateAiDiagnosisResult> {
-  await requireAuth()
+  const context = await requireHouseholdContext()
   if (!isValidMonth(month)) {
     return { success: false, error: '月の形式が不正です' }
   }
 
   try {
-    const diagnosis = await observeDiagnosisStep('generate', () => createRequestService().run(month))
+    const diagnosis = await observeDiagnosisStep('generate', () => createRequestService(context).run(month))
     return { success: true, data: diagnosis }
   } catch (error) {
     console.error('AI診断生成エラー')
@@ -95,9 +95,9 @@ export async function generateAiDiagnosis(
   }
 }
 
-function createRequestService(): AiDiagnosisService {
+function createRequestService(context: HouseholdContext): AiDiagnosisService {
   return createAiDiagnosisService({
-    repository: createRepository(),
+    repository: createRepository(context),
     provider: createLazyProvider(),
     randomUUID: () => crypto.randomUUID(),
     logReleaseError: () => {
@@ -119,13 +119,13 @@ function createLazyProvider(): AiDiagnosisProvider {
   }
 }
 
-function createRepository(): AiDiagnosisRepository {
+function createRepository(context: HouseholdContext): AiDiagnosisRepository {
   return {
-    getContext: (month) => observeDiagnosisStep('context', () => getDiagnosisContext(month)),
-    getSavedDiagnosis: (month) => observeDiagnosisStep('saved_result', () => getSavedDiagnosis(month)),
-    acquireLease: (month, token) => observeDiagnosisStep('acquire_lease', () => acquireDiagnosisLease(month, token)),
-    saveCategories: (month, token, assignments) => observeDiagnosisStep('save_categories', () => saveExpenseCategories(month, token, assignments)),
-    saveDiagnosis: (month, input) => observeDiagnosisStep('save_result', () => saveDiagnosis(month, input)),
-    releaseLease: (month, token) => observeDiagnosisStep('release_lease', () => releaseDiagnosisLease(month, token)),
+    getContext: (month) => observeDiagnosisStep('context', () => getDiagnosisContext(context, month)),
+    getSavedDiagnosis: (month) => observeDiagnosisStep('saved_result', () => getSavedDiagnosis(context, month)),
+    acquireLease: (month, token) => observeDiagnosisStep('acquire_lease', () => acquireDiagnosisLease(context, month, token)),
+    saveCategories: (month, token, assignments) => observeDiagnosisStep('save_categories', () => saveExpenseCategories(context, month, token, assignments)),
+    saveDiagnosis: (month, input) => observeDiagnosisStep('save_result', () => saveDiagnosis(context, month, input)),
+    releaseLease: (month, token) => observeDiagnosisStep('release_lease', () => releaseDiagnosisLease(context, month, token)),
   }
 }

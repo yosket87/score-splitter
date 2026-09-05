@@ -7,7 +7,7 @@ import {
   AI_DIAGNOSIS_MAX_CATEGORY_EXPENSES,
 } from '../../../src/features/ai-diagnosis/limits'
 
-const GLOBAL_GUARD_ID = 1
+import { assertHouseholdContext, type HouseholdContext } from './households'
 export const SOURCE_REVISION_CONFLICT_MESSAGE =
   '診断対象データが更新されたため保存できません'
 
@@ -87,23 +87,25 @@ export type DiagnosisLeaseAcquireResult =
 
 export async function getDiagnosisContext(
   db: D1DatabaseLike,
+  context: HouseholdContext,
   targetMonth: string
 ): Promise<DiagnosisContextRow> {
+  assertHouseholdContext(context)
   const months = getDiagnosisMonths(targetMonth)
   const placeholders = months.map(() => '?').join(', ')
   const [incomes, expenses, carryovers, revision] = await db.batch([
     db
-      .prepare(`SELECT month, amount FROM incomes WHERE month IN (${placeholders})`)
-      .bind(...months),
+      .prepare(`SELECT month, amount FROM incomes WHERE household_id = ? AND month IN (${placeholders})`)
+      .bind(context.householdId, ...months),
     db
       .prepare(
-        `SELECT id, month, label, amount, is_carryover, ai_category FROM expenses WHERE month IN (${placeholders})`
+        `SELECT id, month, label, amount, is_carryover, ai_category FROM expenses WHERE household_id = ? AND month IN (${placeholders})`
       )
-      .bind(...months),
+      .bind(context.householdId, ...months),
     db
-      .prepare(`SELECT month, amount, is_cleared FROM carryovers WHERE month IN (${placeholders})`)
-      .bind(...months),
-    db.prepare('SELECT revision FROM ai_diagnosis_source_revision WHERE id = 1'),
+      .prepare(`SELECT month, amount, is_cleared FROM carryovers WHERE household_id = ? AND month IN (${placeholders})`)
+      .bind(context.householdId, ...months),
+    db.prepare('SELECT revision FROM ai_diagnosis_source_revision WHERE household_id = ?').bind(context.householdId),
   ])
   const revisionRow = revision.results?.[0] as { revision?: unknown } | undefined
   const sourceRevision = revisionRow?.revision
@@ -134,9 +136,11 @@ export async function getDiagnosisContext(
 export async function acquireDiagnosisLease(
   db: D1DatabaseLike,
   runtime: Runtime,
+  context: HouseholdContext,
   month: string,
   token: string
 ): Promise<DiagnosisLeaseAcquireResult> {
+  assertHouseholdContext(context)
   const now = runtime.now()
   const nowIso = now.toISOString()
   const expiresAt = new Date(now.getTime() + AI_DIAGNOSIS_LEASE_DURATION_MS).toISOString()
@@ -148,10 +152,10 @@ export async function acquireDiagnosisLease(
   await db
     .prepare(
       `INSERT OR IGNORE INTO ai_diagnoses
-(id, month, result_json, input_hash, analysis_version, run_token, run_expires_at, created_at, updated_at)
-VALUES (?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?)`
+(household_id, id, month, result_json, input_hash, analysis_version, run_token, run_expires_at, created_at, updated_at)
+VALUES (?, ?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?)`
     )
-    .bind(runtime.randomUUID(), month, nowIso, nowIso)
+    .bind(context.householdId, runtime.randomUUID(), month, nowIso, nowIso)
     .run()
 
   const [guardResult, monthResult] = await db.batch([
@@ -161,13 +165,13 @@ VALUES (?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?)`
 SET run_token = ?, run_expires_at = ?, last_started_at = ?, usage_date = ?,
     daily_count = CASE WHEN usage_date = ? THEN daily_count + 1 ELSE 1 END,
     updated_at = ?
-WHERE id = ?
+WHERE household_id = ?
   AND (run_token IS NULL OR run_expires_at < ?)
   AND (last_started_at IS NULL OR last_started_at <= ?)
   AND (usage_date <> ? OR daily_count < ?)
   AND EXISTS (
     SELECT 1 FROM ai_diagnoses
-    WHERE month = ? AND (run_token IS NULL OR run_expires_at < ?)
+    WHERE household_id = ? AND month = ? AND (run_token IS NULL OR run_expires_at < ?)
   )`
       )
       .bind(
@@ -177,11 +181,12 @@ WHERE id = ?
         usageDate,
         usageDate,
         nowIso,
-        GLOBAL_GUARD_ID,
+        context.householdId,
         nowIso,
         cooldownCutoff,
         usageDate,
         AI_DIAGNOSIS_DAILY_LIMIT,
+        context.householdId,
         month,
         nowIso
       ),
@@ -189,43 +194,46 @@ WHERE id = ?
       .prepare(
         `UPDATE ai_diagnoses
 SET run_token = ?, run_expires_at = ?, updated_at = ?
-WHERE month = ?
+WHERE household_id = ? AND month = ?
   AND (run_token IS NULL OR run_expires_at < ?)
   AND EXISTS (
     SELECT 1 FROM ai_execution_guard
-    WHERE id = ? AND run_token = ? AND run_expires_at = ?
+    WHERE household_id = ? AND run_token = ? AND run_expires_at = ?
   )`
       )
       .bind(
         token,
         expiresAt,
         nowIso,
+        context.householdId,
         month,
         nowIso,
-        GLOBAL_GUARD_ID,
+        context.householdId,
         token,
         expiresAt
       ),
   ])
 
-  if (guardResult.meta?.changes === 1 && monthResult.meta?.changes === 1) {
+  if (guardResult.success && (guardResult.meta?.changes ?? 0) > 0 && monthResult.success && (monthResult.meta?.changes ?? 0) > 0) {
     return { acquired: true }
   }
 
-  if (guardResult.meta?.changes === 1) {
-    await releaseGlobalGuard(db, token)
+  if (guardResult.success && (guardResult.meta?.changes ?? 0) > 0) {
+    await releaseGlobalGuard(db, context, token)
   }
 
-  return getLeaseRejection(db, now, month)
+  return getLeaseRejection(db, context, now, month)
 }
 
 export async function saveExpenseCategories(
   db: D1DatabaseLike,
   runtime: Runtime,
+  context: HouseholdContext,
   month: string,
   runToken: string,
   assignments: StoreCategoryAssignment[]
 ): Promise<void> {
+  assertHouseholdContext(context)
   const expenseCount = assignments.reduce(
     (count, assignment) => count + assignment.expenseIds.length,
     0
@@ -273,8 +281,8 @@ export async function saveExpenseCategories(
   SELECT 1
   FROM ai_diagnoses AS diagnosis
   JOIN ai_execution_guard AS guard
-    ON guard.id = ? AND guard.run_token = diagnosis.run_token
-  WHERE diagnosis.month = ?
+    ON guard.household_id = ? AND guard.household_id = diagnosis.household_id AND guard.run_token = diagnosis.run_token
+  WHERE diagnosis.household_id = ? AND diagnosis.month = ?
     AND diagnosis.run_token = ?
     AND diagnosis.run_expires_at >= ?
     AND guard.run_expires_at >= ?
@@ -282,7 +290,7 @@ export async function saveExpenseCategories(
   SELECT COUNT(*) AS count
   FROM requested
   JOIN expenses
-    ON expenses.id = requested.expense_id
+    ON expenses.household_id = ? AND expenses.id = requested.expense_id
    AND expenses.label = requested.expected_label
    AND expenses.ai_category IS NULL
 )
@@ -293,28 +301,33 @@ SET ai_category = (
     ai_category_source = 'ai',
     ai_categorized_at = ?,
     updated_at = ?
-WHERE id IN (SELECT expense_id FROM requested)
+WHERE household_id = ? AND id IN (SELECT expense_id FROM requested)
   AND EXISTS (SELECT 1 FROM ownership)
-  AND (SELECT count FROM eligible) = (SELECT COUNT(*) FROM requested)`
+  AND (SELECT count FROM eligible) = (SELECT COUNT(*) FROM requested)
+RETURNING id`
     )
     .bind(
       requestedJson,
-      GLOBAL_GUARD_ID,
+      context.householdId,
+      context.householdId,
       month,
       runToken,
       now,
       now,
+      context.householdId,
       now,
-      now
+      now,
+      context.householdId
     )
-    .run()
-  if (result.meta?.changes !== expenseCount) {
+    .all()
+  if (result.results.length !== expenseCount) {
     throw new Error('分類中に支出が変更されました')
   }
 }
 
 async function getLeaseRejection(
   db: D1DatabaseLike,
+  context: HouseholdContext,
   now: Date,
   month: string
 ): Promise<Exclude<DiagnosisLeaseAcquireResult, { acquired: true }>> {
@@ -322,9 +335,9 @@ async function getLeaseRejection(
   const guard = await db
     .prepare(
       `SELECT run_token, run_expires_at, last_started_at, usage_date, daily_count
-FROM ai_execution_guard WHERE id = ?`
+FROM ai_execution_guard WHERE household_id = ?`
     )
-    .bind(GLOBAL_GUARD_ID)
+    .bind(context.householdId)
     .first<ExecutionGuardD1Row>()
 
   if (
@@ -372,9 +385,9 @@ FROM ai_execution_guard WHERE id = ?`
 
   const monthLease = await db
     .prepare(
-      `SELECT run_token, run_expires_at FROM ai_diagnoses WHERE month = ?`
+      `SELECT run_token, run_expires_at FROM ai_diagnoses WHERE household_id = ? AND month = ?`
     )
-    .bind(month)
+    .bind(context.householdId, month)
     .first<{ run_token: string | null; run_expires_at: string | null }>()
   return {
     acquired: false,
@@ -390,27 +403,29 @@ function secondsUntil(isoDate: string, now: Date): number {
   return Math.max(1, Math.ceil((new Date(isoDate).getTime() - now.getTime()) / 1000))
 }
 
-async function releaseGlobalGuard(db: D1DatabaseLike, token: string): Promise<void> {
+async function releaseGlobalGuard(db: D1DatabaseLike, context: HouseholdContext, token: string): Promise<void> {
   await db
     .prepare(
       `UPDATE ai_execution_guard
 SET run_token = NULL, run_expires_at = NULL
-WHERE id = ? AND run_token = ?`
+WHERE household_id = ? AND run_token = ?`
     )
-    .bind(GLOBAL_GUARD_ID, token)
+    .bind(context.householdId, token)
     .run()
 }
 
 export async function getSavedDiagnosis(
   db: D1DatabaseLike,
+  context: HouseholdContext,
   month: string
 ): Promise<SavedDiagnosisRow | null> {
+  assertHouseholdContext(context)
   const row = await db
     .prepare(
       `SELECT result_json, input_hash, analysis_version, updated_at
-FROM ai_diagnoses WHERE month = ?`
+FROM ai_diagnoses WHERE household_id = ? AND month = ?`
     )
-    .bind(month)
+    .bind(context.householdId, month)
     .first<SavedDiagnosisD1Row>()
   if (!row || row.result_json === null) return null
   if (row.input_hash === null || row.analysis_version === null) {
@@ -428,23 +443,25 @@ FROM ai_diagnoses WHERE month = ?`
 export async function saveDiagnosis(
   db: D1DatabaseLike,
   runtime: Runtime,
+  context: HouseholdContext,
   month: string,
   input: StoreDiagnosisInput
 ): Promise<void> {
+  assertHouseholdContext(context)
   const now = runtime.now().toISOString()
   const result = await db
     .prepare(
       `UPDATE ai_diagnoses
 SET result_json = ?, input_hash = ?, analysis_version = ?,
     run_token = NULL, run_expires_at = NULL, updated_at = ?
-WHERE month = ? AND run_token = ? AND run_expires_at >= ?
+WHERE household_id = ? AND month = ? AND run_token = ? AND run_expires_at >= ?
   AND EXISTS (
     SELECT 1 FROM ai_execution_guard
-    WHERE id = ? AND run_token = ? AND run_expires_at >= ?
+    WHERE household_id = ? AND run_token = ? AND run_expires_at >= ?
   )
   AND EXISTS (
     SELECT 1 FROM ai_diagnosis_source_revision
-    WHERE id = ? AND revision = ?
+    WHERE household_id = ? AND revision = ?
   )`
     )
     .bind(
@@ -452,21 +469,22 @@ WHERE month = ? AND run_token = ? AND run_expires_at >= ?
       input.inputHash,
       input.analysisVersion,
       now,
+      context.householdId,
       month,
       input.runToken,
       now,
-      GLOBAL_GUARD_ID,
+      context.householdId,
       input.runToken,
       now,
-      GLOBAL_GUARD_ID,
+      context.householdId,
       input.expectedSourceRevision
     )
     .run()
   // D1のchangesには、トリガーによる全体ロックの解除も含まれる。
   if (!result.success || !((result.meta?.changes ?? 0) > 0)) {
     const revision = await db
-      .prepare('SELECT revision FROM ai_diagnosis_source_revision WHERE id = ?')
-      .bind(GLOBAL_GUARD_ID)
+      .prepare('SELECT revision FROM ai_diagnosis_source_revision WHERE household_id = ?')
+      .bind(context.householdId)
       .first<{ revision: number }>()
     if (revision && revision.revision !== input.expectedSourceRevision) {
       throw new Error(SOURCE_REVISION_CONFLICT_MESSAGE)
@@ -477,16 +495,18 @@ WHERE month = ? AND run_token = ? AND run_expires_at >= ?
 
 export async function releaseDiagnosisLease(
   db: D1DatabaseLike,
+  context: HouseholdContext,
   month: string,
   token: string
 ): Promise<void> {
+  assertHouseholdContext(context)
   const result = await db
     .prepare(
       `UPDATE ai_diagnoses
 SET run_token = NULL, run_expires_at = NULL
-WHERE month = ? AND run_token = ?`
+WHERE household_id = ? AND month = ? AND run_token = ?`
     )
-    .bind(month, token)
+    .bind(context.householdId, month, token)
     .run()
   // 月次ロックと連動する全体ロックが更新されるとchangesは2件になる。
   if (!result.success || !((result.meta?.changes ?? 0) > 0)) {

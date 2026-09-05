@@ -8,14 +8,19 @@ import { DiagnosisDialogContent, DiagnosisStatus } from './components/diagnosis-
 import { useAiDiagnosis } from './use-ai-diagnosis'
 
 interface AiDiagnosisDialogProps {
+  householdId: string
   month: string
   hasActualExpenses: boolean
 }
 
-export function AiDiagnosisDialog({ month, hasActualExpenses }: AiDiagnosisDialogProps) {
+export function AiDiagnosisDialog(props: AiDiagnosisDialogProps) {
+  return <ScopedAiDiagnosisDialog key={props.householdId} {...props} />
+}
+
+function ScopedAiDiagnosisDialog({ month, householdId, hasActualExpenses }: AiDiagnosisDialogProps) {
   const unavailableReasonId = useId()
   const [open, setOpen] = useState(false)
-  const { state, ensureLoaded, retryLoad, run } = useAiDiagnosis(month)
+  const { state, ensureLoaded, retryLoad, run } = useAiDiagnosis(month, householdId)
 
   useEffect(() => {
     if (open) void ensureLoaded()

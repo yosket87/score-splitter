@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { toast } from 'sonner'
 import { CopyMonthDialog } from '@/features/copy-month'
@@ -65,13 +65,14 @@ describe('CopyMonthDialog', () => {
         sourceMonth: '202603',
         targetMonth: '202604',
         existingCount: 0,
+        carryoverFingerprint: "fingerprint",
         carryoverCount: 0,
         items: [],
       },
     })
 
     render(
-      <CopyMonthDialog
+      <CopyMonthDialog householdId="A"
         currentMonth="202604"
         previousMonth="202603"
       />
@@ -103,6 +104,7 @@ describe('CopyMonthDialog', () => {
         sourceMonth: '202603',
         targetMonth: '202604',
         existingCount: 0,
+        carryoverFingerprint: "fingerprint",
         carryoverCount: 1,
         items: [
           {
@@ -124,7 +126,7 @@ describe('CopyMonthDialog', () => {
     })
 
     render(
-      <CopyMonthDialog
+      <CopyMonthDialog householdId="A"
         currentMonth="202604"
         previousMonth="202603"
       />
@@ -148,6 +150,7 @@ describe('CopyMonthDialog', () => {
         sourceMonth: '202603',
         targetMonth: '202604',
         existingCount: 0,
+        carryoverFingerprint: "fingerprint",
         carryoverCount: 1,
         items: [
           {
@@ -169,7 +172,7 @@ describe('CopyMonthDialog', () => {
     })
 
     render(
-      <CopyMonthDialog
+      <CopyMonthDialog householdId="A"
         currentMonth="202604"
         previousMonth="202603"
       />
@@ -193,6 +196,7 @@ describe('CopyMonthDialog', () => {
         sourceMonth: '202603',
         targetMonth: '202604',
         existingCount: 0,
+        carryoverFingerprint: "fingerprint",
         carryoverCount: 0,
         items: [
           {
@@ -222,7 +226,7 @@ describe('CopyMonthDialog', () => {
     })
 
     render(
-      <CopyMonthDialog
+      <CopyMonthDialog householdId="A"
         currentMonth="202604"
         previousMonth="202603"
       />
@@ -239,6 +243,7 @@ describe('CopyMonthDialog', () => {
 
     await waitFor(() => {
       expect(copyMonthData).toHaveBeenCalledWith({
+        carryoverFingerprint: "fingerprint",
         sourceMonth: '202603',
         targetMonth: '202604',
         mode: 'add',
@@ -273,13 +278,14 @@ describe('CopyMonthDialog', () => {
         sourceMonth: '202603',
         targetMonth: '202604',
         existingCount: 0,
+        carryoverFingerprint: "fingerprint",
         carryoverCount: 0,
         items: [],
       },
     })
 
     render(
-      <CopyMonthDialog
+      <CopyMonthDialog householdId="A"
         currentMonth="202604"
         previousMonth="202603"
       />
@@ -299,6 +305,7 @@ describe('CopyMonthDialog', () => {
         sourceMonth: '202603',
         targetMonth: '202604',
         existingCount: 0,
+        carryoverFingerprint: "fingerprint",
         carryoverCount: 1,
         items: [
           {
@@ -321,7 +328,7 @@ describe('CopyMonthDialog', () => {
     })
 
     render(
-      <CopyMonthDialog
+      <CopyMonthDialog householdId="A"
         currentMonth="202604"
         previousMonth="202603"
       />
@@ -349,6 +356,7 @@ describe('CopyMonthDialog', () => {
         sourceMonth: '202603',
         targetMonth: '202604',
         existingCount: 2,
+        carryoverFingerprint: "fingerprint",
         carryoverCount: 0,
         items: [
           {
@@ -371,7 +379,7 @@ describe('CopyMonthDialog', () => {
     })
 
     render(
-      <CopyMonthDialog
+      <CopyMonthDialog householdId="A"
         currentMonth="202604"
         previousMonth="202603"
       />
@@ -406,4 +414,45 @@ describe('CopyMonthDialog', () => {
     })
     expect(navigationMocks.refresh).toHaveBeenCalled()
   })
+})
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((done) => { resolve = done })
+  return { promise, resolve }
+}
+const householdPreview = (label: string) => ({
+  sourceMonth: '202603', targetMonth: '202604', existingCount: 0,
+  carryoverFingerprint: 'fingerprint', carryoverCount: 0,
+  items: [{ id: label, label, amount: 1, person: 'husband' as const, type: 'income' as const }],
+})
+
+it('Aの遅いpreviewはB同月の選択肢を上書きしない', async () => {
+  const response = deferred<Awaited<ReturnType<typeof getCopyMonthPreview>>>()
+  vi.mocked(getCopyMonthPreview).mockReturnValueOnce(response.promise).mockResolvedValueOnce({ success: true, data: householdPreview('B項目') })
+  const view = render(<CopyMonthDialog householdId="A" currentMonth="202604" previousMonth="202603" />)
+  await userEvent.click(screen.getByRole('button', { name: '前月からコピー' }))
+  view.rerender(<CopyMonthDialog householdId="B" currentMonth="202604" previousMonth="202603" />)
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: '前月からコピー' }))
+  expect(await screen.findByLabelText('B項目を選択')).toBeChecked()
+  await act(async () => response.resolve({ success: true, data: householdPreview('A項目') }))
+  expect(screen.queryByLabelText('A項目を選択')).not.toBeInTheDocument()
+  expect(screen.getByLabelText('B項目を選択')).toBeChecked()
+})
+
+it('Aのコピー完了はB同月のダイアログを閉じず通知と再取得を行わない', async () => {
+  const response = deferred<Awaited<ReturnType<typeof copyMonthData>>>()
+  vi.mocked(getCopyMonthPreview).mockResolvedValue({ success: true, data: householdPreview('対象項目') })
+  vi.mocked(copyMonthData).mockReturnValue(response.promise)
+  const view = render(<CopyMonthDialog householdId="A" currentMonth="202604" previousMonth="202603" />)
+  await userEvent.click(screen.getByRole('button', { name: '前月からコピー' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'コピーする (1件)' }))
+  view.rerender(<CopyMonthDialog householdId="B" currentMonth="202604" previousMonth="202603" />)
+  await userEvent.click(screen.getByRole('button', { name: '前月からコピー' }))
+  await act(async () => response.resolve({ success: true, data: { success: true, copied: { incomes: 1, expenses: 0, carryovers: 0 }, skipped: { incomes: 0, expenses: 0, carryovers: 0 } } }))
+  expect(screen.getByRole('dialog')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'コピーする (1件)' })).toBeEnabled()
+  expect(toast.success).not.toHaveBeenCalled()
+  expect(navigationMocks.refresh).not.toHaveBeenCalled()
 })

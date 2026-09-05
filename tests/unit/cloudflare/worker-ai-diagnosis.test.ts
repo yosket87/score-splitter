@@ -290,7 +290,7 @@ describe('Cloudflare Worker AI診断API', () => {
       query.startsWith('WITH requested AS')
     )
     expect(categoryUpdate?.query).toContain('expenses.ai_category IS NULL')
-    expect(categoryUpdate?.params.slice(1, 4)).toEqual([1, '202601', 'run-1'])
+    expect(categoryUpdate?.params.slice(1, 5)).toEqual(['A', 'A', '202601', 'run-1'])
   })
 
   it('支出カテゴリ分類101件をWorker境界で400にしbatchを実行しない', async () => {
@@ -404,7 +404,7 @@ describe('Cloudflare Worker AI診断API', () => {
       query.startsWith('UPDATE ai_diagnoses')
     )
     expect(diagnosisUpdates).toHaveLength(1)
-    expect(diagnosisUpdates[0].params.slice(4, 6)).toEqual(['202601', 'run-1'])
+    expect(diagnosisUpdates[0].params.slice(4, 7)).toEqual(['A', '202601', 'run-1'])
   })
 
   it('source revision不一致の古い診断保存を専用409にする', async () => {
@@ -445,6 +445,7 @@ describe('Cloudflare Worker AI診断API', () => {
         method: 'POST',
         headers: {
           authorization: 'Bearer secret-token',
+          'x-household-session':'a'.repeat(64),
           'content-type': 'application/json',
         },
         body: JSON.stringify({
@@ -549,8 +550,8 @@ describe('Cloudflare Worker AI診断API', () => {
     expect(db.executed.at(-1)).toEqual({
       query: `UPDATE ai_diagnoses
 SET run_token = NULL, run_expires_at = NULL
-WHERE month = ? AND run_token = ?`,
-      params: ['202601', 'run-1'],
+WHERE household_id = ? AND month = ? AND run_token = ?`,
+      params: ['A', '202601', 'run-1'],
     })
   })
 
@@ -680,7 +681,7 @@ WHERE month = ? AND run_token = ?`,
     )
 
     expect(response.status).toBe(400)
-    expect(db.executed).toHaveLength(0)
+    expect(db.executed.filter(item => !item.query.includes('FROM sessions'))).toHaveLength(0)
   })
 
   it.each([
@@ -762,7 +763,7 @@ WHERE month = ? AND run_token = ?`,
     )
 
     expect(response.status).toBe(400)
-    expect(db.executed).toHaveLength(0)
+    expect(db.executed.filter(item => !item.query.includes('FROM sessions'))).toHaveLength(0)
   })
 
 

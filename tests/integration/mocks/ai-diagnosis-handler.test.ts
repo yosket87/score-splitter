@@ -8,17 +8,18 @@ const API_URL = 'http://mock-worker.local'
 const AUTHORIZATION = 'Bearer mock-worker-token'
 const jsonHeaders = {
   authorization: AUTHORIZATION,
+  'x-household-session':'a'.repeat(64),
   'content-type': 'application/json',
 }
 
 describe('AI家計診断のモックAPI', () => {
   beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
-  beforeEach(() => initStore())
+  beforeEach(() => { initStore();getTable('sessions').push({token:'a'.repeat(64),household_id:'3975b870-bbfa-49fd-ae3d-d273c9f6e107',person:null,auth_method:'password',expires_at:'2099-01-01'}) })
   afterAll(() => server.close())
 
   it('対象月と直前3か月の診断contextを内部カテゴリ付き・担当者なしで返す', async () => {
     const response = await fetch(`${API_URL}/ai-diagnoses/202602/context`, {
-      headers: { authorization: AUTHORIZATION },
+      headers: { authorization: AUTHORIZATION, 'x-household-session':'a'.repeat(64) },
     })
 
     expect(response.status).toBe(200)
@@ -46,7 +47,7 @@ describe('AI家計診断のモックAPI', () => {
     })
 
     const response = await fetch(`${API_URL}/expenses?month=202511`, {
-      headers: { authorization: AUTHORIZATION },
+      headers: { authorization: AUTHORIZATION, 'x-household-session':'a'.repeat(64) },
     })
     const payload = await response.json()
 
@@ -63,7 +64,7 @@ describe('AI家計診断のモックAPI', () => {
     expectedStatus,
     expectedBody,
   }) => {
-    getTable('ai_diagnoses').push({
+    getTable('ai_diagnoses').push({ household_id: '3975b870-bbfa-49fd-ae3d-d273c9f6e107',
       month: seedMonth,
       result_json: diagnosis,
       input_hash: inputHash,
@@ -72,7 +73,7 @@ describe('AI家計診断のモックAPI', () => {
     })
 
     const response = await fetch(`${API_URL}${path}`, {
-      headers: { authorization: AUTHORIZATION },
+      headers: { authorization: AUTHORIZATION, 'x-household-session':'a'.repeat(64) },
     })
 
     expect(response.status).toBe(expectedStatus)
@@ -150,6 +151,7 @@ describe('AI家計診断のモックAPI', () => {
     expect(Number(cooldown.headers.get('Retry-After'))).toBeGreaterThan(0)
 
     initStore()
+    getTable('sessions').push({token:'a'.repeat(64),household_id:'3975b870-bbfa-49fd-ae3d-d273c9f6e107',person:null,auth_method:'password',expires_at:'2099-01-01'})
     const guard = getTable('ai_execution_guard')[0]
     Object.assign(guard, {
       usage_date: new Date().toISOString().slice(0, 10),
@@ -160,6 +162,7 @@ describe('AI家計診断のモックAPI', () => {
     expect(daily.status).toBe(429)
 
     initStore()
+    getTable('sessions').push({token:'a'.repeat(64),household_id:'3975b870-bbfa-49fd-ae3d-d273c9f6e107',person:null,auth_method:'password',expires_at:'2099-01-01'})
     expect((await acquire('run-4')).status).toBe(200)
   })
 
@@ -171,7 +174,7 @@ describe('AI家計診断のモックAPI', () => {
   }) => {
     const response = await fetch(`${API_URL}${path}`, {
       method,
-      headers: method === 'GET' ? { authorization: AUTHORIZATION } : jsonHeaders,
+      headers: method === 'GET' ? { authorization: AUTHORIZATION, 'x-household-session': 'a'.repeat(64) } : jsonHeaders,
       body: method === 'GET' ? undefined : (rawBody ?? JSON.stringify(body)),
     })
 
@@ -222,7 +225,7 @@ describe('AI家計診断のモックAPI', () => {
 
     const initialContext = await fetch(
       `${API_URL}/ai-diagnoses/202602/context`,
-      { headers: { authorization: AUTHORIZATION } }
+      { headers: { authorization: AUTHORIZATION, 'x-household-session':'a'.repeat(64) } }
     )
     const initialPayload = (await initialContext.json()) as {
       data: { sourceRevision: number }
@@ -263,7 +266,7 @@ describe('AI家計診断のモックAPI', () => {
 
     const refetchedContext = await fetch(
       `${API_URL}/ai-diagnoses/202602/context`,
-      { headers: { authorization: AUTHORIZATION } }
+      { headers: { authorization: AUTHORIZATION, 'x-household-session':'a'.repeat(64) } }
     )
     const refetchedPayload = (await refetchedContext.json()) as {
       data: {

@@ -112,7 +112,7 @@ describe('AI家計診断Action', () => {
       aiDiagnosisApiMock.getDiagnosisContext.mockResolvedValue(classifiedContext)
     })
     aiDiagnosisApiMock.saveDiagnosis.mockImplementation(
-      async (_month, input) => input.diagnosis
+      async (_context, _month, input) => input.diagnosis
     )
     aiDiagnosisApiMock.releaseDiagnosisLease.mockResolvedValue(undefined)
     providerFactoryMock.mockReturnValue({
@@ -174,7 +174,7 @@ describe('AI家計診断Action', () => {
     })
 
     expect(providerFactoryMock).not.toHaveBeenCalled()
-    expect(aiDiagnosisApiMock.getDiagnosisContext).toHaveBeenCalledWith('202604')
+    expect(aiDiagnosisApiMock.getDiagnosisContext).toHaveBeenCalledWith(expect.objectContaining({ householdId: 'A' }), '202604')
     expect(aiDiagnosisApiMock.acquireDiagnosisLease).not.toHaveBeenCalled()
   })
 
@@ -254,7 +254,7 @@ describe('AI家計診断Action', () => {
     expect(provider.generateNarrative).not.toHaveBeenCalled()
     expect(aiDiagnosisApiMock.getSavedDiagnosis).not.toHaveBeenCalled()
     expect(aiDiagnosisApiMock.saveDiagnosis).not.toHaveBeenCalled()
-    expect(aiDiagnosisApiMock.releaseDiagnosisLease).toHaveBeenCalledWith(
+    expect(aiDiagnosisApiMock.releaseDiagnosisLease).toHaveBeenCalledWith(expect.objectContaining({ householdId: 'A' }),
       '202604',
       expect.any(String)
     )
@@ -279,7 +279,7 @@ describe('AI家計診断Action', () => {
       success: true,
       data: savedDiagnosis,
     })
-    expect(aiDiagnosisApiMock.saveDiagnosis).toHaveBeenCalledWith(
+    expect(aiDiagnosisApiMock.saveDiagnosis).toHaveBeenCalledWith(expect.objectContaining({ householdId: 'A' }),
       '202604',
       expect.objectContaining({
         diagnosis: savedDiagnosis,

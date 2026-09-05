@@ -4,12 +4,12 @@ import { createPaymentHandlers } from '@/mocks/payment-handlers'
 import { initStore, insertRows } from '@/mocks/db'
 const base = 'http://payment-mock.local'
 const server = setupServer(...createPaymentHandlers(base, 'internal'))
-const headers = { authorization: 'Bearer internal', 'x-household-session': 'session', 'content-type': 'application/json' }
+const headers = { authorization: 'Bearer internal', 'x-household-session': 'a'.repeat(64), 'content-type': 'application/json' }
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterAll(() => server.close())
 beforeEach(() => {
   initStore()
-  insertRows('sessions', [{ token: 'session', person: null, auth_method: 'password', expires_at: '2099-01-01T00:00:00Z' }])
+  insertRows('sessions', [{ household_id: '3975b870-bbfa-49fd-ae3d-d273c9f6e107', token: 'a'.repeat(64), person: null, auth_method: 'password', expires_at: '2099-01-01T00:00:00Z' }])
 })
 describe('振込モックHTTP', () => {
   it('状態の3区間パスと結果照会の4区間パスを処理', async () => {

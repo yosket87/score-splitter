@@ -113,7 +113,9 @@ type Person = 'husband' | 'wife'
 
 ## データベース
 
-8つのテーブル: `incomes`, `expenses`, `carryovers`, `sessions`, `passkey_credentials`, `webauthn_challenges`, `login_attempts`, `waitlist_entries`
+16の業務テーブル（0009以降）: `households`、明細3表（`incomes`, `expenses`, `carryovers`）、認証3表（`sessions`, `passkey_credentials`, `webauthn_challenges`）、AI3表（`ai_diagnoses`, `ai_execution_guard`, `ai_diagnosis_source_revision`）、振込4表（`month_payment_revisions`, `payment_operations`, `payment_records`, `payment_voids`）、`login_attempts`, `waitlist_entries`。
+
+世帯分離の段階リリースと適用済み状態は [docs/household-release-runbook.md](docs/household-release-runbook.md) と [docs/household-verification.md](docs/household-verification.md) を参照する。migrationファイルの存在を本番適用済みの根拠にしない。
 
 詳細: [docs/database.md](docs/database.md)
 

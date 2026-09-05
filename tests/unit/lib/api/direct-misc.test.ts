@@ -1,3 +1,4 @@
+const household = { householdId: 'A' }
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { D1DatabaseLike, Runtime } from '../../../../cloudflare/worker/src/d1'
 
@@ -56,7 +57,7 @@ describe('月次・コピー・waitlistのD1直接アクセス', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     vi.mocked(listMonthlyAmounts).mockRejectedValue(error)
 
-    await expect(getMonthlyAmounts()).rejects.toEqual(new ApiError('内部エラーが発生しました', 500))
+    await expect(getMonthlyAmounts(household)).rejects.toEqual(new ApiError('内部エラーが発生しました', 500))
     expect(consoleError).toHaveBeenCalledWith('D1操作中に予期しないエラーが発生しました', error)
   })
 
@@ -68,9 +69,9 @@ describe('月次・コピー・waitlistのD1直接アクセス', () => {
     }
     vi.mocked(listMonthlyAmounts).mockResolvedValue(amounts)
 
-    await expect(getMonthlyAmounts()).resolves.toEqual(amounts)
+    await expect(getMonthlyAmounts(household)).resolves.toEqual(amounts)
 
-    expect(listMonthlyAmounts).toHaveBeenCalledWith(fakeDb)
+    expect(listMonthlyAmounts).toHaveBeenCalledWith(fakeDb, household)
     expect(getRuntime).not.toHaveBeenCalled()
     expect(apiRequest).not.toHaveBeenCalled()
   })
@@ -81,14 +82,15 @@ describe('月次・コピー・waitlistのD1直接アクセス', () => {
       sourceMonth: '202608',
       targetMonth: '202609',
       items: [],
+      carryoverFingerprint: "fingerprint",
       carryoverCount: 0,
       existingCount: 0,
     }
     vi.mocked(getCopyMonthPreviewFromD1).mockResolvedValue(preview)
 
-    await expect(getCopyMonthPreview('202608', '202609')).resolves.toEqual(preview)
+    await expect(getCopyMonthPreview(household, '202608', '202609')).resolves.toEqual(preview)
 
-    expect(getCopyMonthPreviewFromD1).toHaveBeenCalledWith(fakeDb, '202608', '202609')
+    expect(getCopyMonthPreviewFromD1).toHaveBeenCalledWith(fakeDb, household, '202608', '202609')
     expect(getRuntime).not.toHaveBeenCalled()
     expect(apiRequest).not.toHaveBeenCalled()
   })
@@ -99,7 +101,7 @@ describe('月次・コピー・waitlistのD1直接アクセス', () => {
   ])('月コピープレビューは不正な%s月をD1へ渡さない', async (_, sourceMonth, targetMonth) => {
     useDirectDatabase()
 
-    await expect(getCopyMonthPreview(sourceMonth, targetMonth)).rejects.toMatchObject({
+    await expect(getCopyMonthPreview(household, sourceMonth, targetMonth)).rejects.toMatchObject({
       message: 'monthが不正です',
       status: 400,
     })
@@ -124,9 +126,9 @@ describe('月次・コピー・waitlistのD1直接アクセス', () => {
     }
     vi.mocked(copyMonthDataInD1).mockResolvedValue(result)
 
-    await expect(copyMonthData(options)).resolves.toEqual(result)
+    await expect(copyMonthData(household, options)).resolves.toEqual(result)
 
-    expect(copyMonthDataInD1).toHaveBeenCalledWith(fakeDb, fakeRuntime, options)
+    expect(copyMonthDataInD1).toHaveBeenCalledWith(fakeDb, fakeRuntime, household, options)
     expect(apiRequest).not.toHaveBeenCalled()
   })
 

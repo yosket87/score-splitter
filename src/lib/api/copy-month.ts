@@ -1,3 +1,6 @@
+import 'server-only'
+import { assertHouseholdContext, type HouseholdContext } from '../../../cloudflare/worker/src/households'
+import { householdSessionToken } from './household-session'
 import { z } from 'zod'
 import { getDatabase, getRuntime, isWorkerApiMockEnabled, runD1Operation } from './backend'
 import { apiRequest } from './client'
@@ -22,6 +25,7 @@ const copyMonthPreviewSchema: z.ZodType<CopyMonthPreview> = z.object({
   targetMonth: z.string(),
   items: z.array(copyItemSchema),
   carryoverCount: z.number(),
+  carryoverFingerprint: z.string(),
   existingCount: z.number(),
 })
 
@@ -41,13 +45,16 @@ const copyMonthResultSchema: z.ZodType<CopyMonthResult> = z.object({
 const copyMonthPreviewEnvelopeSchema = apiEnvelopeSchema(copyMonthPreviewSchema)
 
 export async function getCopyMonthPreview(
+  context: HouseholdContext,
   sourceMonth: string,
   targetMonth: string
 ): Promise<CopyMonthPreview> {
+  assertHouseholdContext(context)
   if (!isWorkerApiMockEnabled()) {
     return runD1Operation(() =>
       getCopyMonthPreviewFromD1(
         getDatabase(),
+        context,
         parseMonth(sourceMonth),
         parseMonth(targetMonth)
       )
@@ -57,17 +64,20 @@ export async function getCopyMonthPreview(
   const params = new URLSearchParams({ sourceMonth, targetMonth })
   const response = await apiRequest<ApiEnvelope<CopyMonthPreview>>(`/copy-month/preview?${params}`, {
     responseSchema: copyMonthPreviewEnvelopeSchema,
+    sessionToken: await householdSessionToken(context),
   })
   return response.data
 }
 
-export async function copyMonthData(options: CopyMonthOptions): Promise<CopyMonthResult> {
+export async function copyMonthData(context: HouseholdContext, options: CopyMonthOptions): Promise<CopyMonthResult> {
+  assertHouseholdContext(context)
   if (!isWorkerApiMockEnabled()) {
-    return runD1Operation(() => copyMonthDataInD1(getDatabase(), getRuntime(), options))
+    return runD1Operation(() => copyMonthDataInD1(getDatabase(), getRuntime(), context, options))
   }
 
   return apiRequest<CopyMonthResult>('/copy-month', {
     method: 'POST',
+    sessionToken: await householdSessionToken(context),
     body: options,
     responseSchema: copyMonthResultSchema,
   })

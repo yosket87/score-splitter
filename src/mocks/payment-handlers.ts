@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw'
 import { z } from 'zod'
 import { isValidMonth } from '@/lib/utils/format'
 import type { Session } from '@/types'
-import { getTable } from './db'
+import { validSession } from './auth-handlers'
 import { correctMockPayment, getMockPaymentOperation, getMockPaymentStatus, recordMockPayment } from './payment-status'
 import { HttpError } from '../../cloudflare/worker/src/http'
 
@@ -11,20 +11,20 @@ export function createPaymentHandlers(baseUrl: string, internalToken: string) {
     try {
       if (request.headers.get('authorization') !== `Bearer ${internalToken}`) throw new HttpError('認証に失敗しました。', 401)
       const token = request.headers.get('x-household-session')
-      const session = getTable('sessions').find((row) => row.token === token)
+      const session = validSession(token ?? '')
       if (!session || !(Date.parse(String(session.expires_at)) > Date.now())) throw new HttpError('ログインし直してください。', 401)
       const month = String(params.month)
       if (!isValidMonth(month)) throw new HttpError('月が不正です。', 400)
-      const actor: Session = { person: session.person as Session['person'], authMethod: session.auth_method as Session['authMethod'] }
-      if (request.method === 'GET' && params.action === 'payment-status') return HttpResponse.json({ data: getMockPaymentStatus(month) })
+      const actor: Session & { householdId: string } = { householdId: String(session.household_id), person: session.person as Session['person'], authMethod: session.auth_method as Session['authMethod'] }
+      if (request.method === 'GET' && params.action === 'payment-status') return HttpResponse.json({ data: getMockPaymentStatus(actor, month) })
       if (request.method === 'GET' && params.action === 'payment-operations') {
         const id = z.string().uuid().parse(params.id)
-        return HttpResponse.json({ data: getMockPaymentOperation(month, id) })
+        return HttpResponse.json({ data: getMockPaymentOperation(actor, month, id) })
       }
       if (request.method === 'POST' && ['payments', 'payment-corrections'].includes(String(params.action))) {
         const body = await request.json() as { month?: unknown }
         if (!body || body.month !== month) throw new HttpError('対象の月が一致しません。', 400)
-        return HttpResponse.json({ data: params.action === 'payments' ? recordMockPayment(body, actor) : correctMockPayment(body, actor) })
+        return HttpResponse.json({ data: params.action === 'payments' ? recordMockPayment(actor, body) : correctMockPayment(actor, body) })
       }
       return HttpResponse.json({ error: '見つかりません。' }, { status: 404 })
     } catch (error) {

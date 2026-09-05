@@ -1,5 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '../../../../tests/mocks/next'
+vi.mock('server-only', () => ({}))
+const context = { householdId: 'A' }
 import {
   clearApiMocks,
   mockSessionsApi,
@@ -15,7 +17,7 @@ import {
 describe('session module', () => {
   beforeEach(() => {
     clearApiMocks()
-    mockCookies.get.mockClear()
+    mockCookies.get.mockReset()
     mockCookies.set.mockClear()
     mockCookies.delete.mockClear()
     vi.clearAllMocks()
@@ -24,16 +26,18 @@ describe('session module', () => {
   describe('createSession', () => {
     it('セッションをAPIで作成してcookieを設定する', async () => {
       mockSessionsApi.createSession.mockResolvedValueOnce({
+        householdId: 'A',
         token: 'a'.repeat(64),
         person: 'husband',
         authMethod: 'passkey',
         expiresAt: new Date(Date.now() + 86400000).toISOString(),
       })
 
-      const token = await createSession('husband', 'passkey')
+      const token = await createSession(context, 'husband', 'passkey')
 
       expect(token).toHaveLength(64)
       expect(mockSessionsApi.createSession).toHaveBeenCalledWith(
+        context,
         expect.objectContaining({
           token,
           person: 'husband',
@@ -54,7 +58,7 @@ describe('session module', () => {
     it('API作成失敗時にエラーをスローする', async () => {
       mockSessionsApi.createSession.mockRejectedValueOnce(new Error('API error'))
 
-      await expect(createSession('wife', 'passkey')).rejects.toThrow(
+      await expect(createSession(context, 'wife', 'passkey')).rejects.toThrow(
         'セッション作成に失敗しました'
       )
     })
@@ -64,6 +68,7 @@ describe('session module', () => {
     it('有効なセッションを返す', async () => {
       mockCookies.get.mockReturnValueOnce({ value: 'valid-token' })
       mockSessionsApi.getSession.mockResolvedValueOnce({
+        householdId: 'A',
         token: 'valid-token',
         person: 'husband',
         authMethod: 'passkey',
@@ -74,6 +79,7 @@ describe('session module', () => {
 
       expect(mockSessionsApi.getSession).toHaveBeenCalledWith('valid-token')
       expect(session).toEqual({
+        householdId: 'A',
         person: 'husband',
         authMethod: 'passkey',
       })
@@ -88,9 +94,10 @@ describe('session module', () => {
       expect(mockSessionsApi.getSession).not.toHaveBeenCalled()
     })
 
-    it('期限切れセッションの場合nullを返しセッションを削除する', async () => {
+    it('期限切れセッションの場合読み取りだけでnullを返す', async () => {
       mockCookies.get.mockReturnValueOnce({ value: 'expired-token' })
       mockSessionsApi.getSession.mockResolvedValueOnce({
+        householdId: 'A',
         token: 'expired-token',
         person: 'wife',
         authMethod: 'password',
@@ -101,8 +108,8 @@ describe('session module', () => {
       const session = await getSession()
 
       expect(session).toBeNull()
-      expect(mockSessionsApi.deleteSession).toHaveBeenCalledWith('expired-token')
-      expect(mockCookies.delete).toHaveBeenCalledWith('household_session')
+      expect(mockSessionsApi.deleteSession).not.toHaveBeenCalled()
+      expect(mockCookies.delete).not.toHaveBeenCalled()
     })
   })
 
@@ -130,6 +137,7 @@ describe('session module', () => {
     it('有効なセッションがあればtrueを返す', async () => {
       mockCookies.get.mockReturnValueOnce({ value: 'valid-token' })
       mockSessionsApi.getSession.mockResolvedValueOnce({
+        householdId: 'A',
         token: 'valid-token',
         person: null,
         authMethod: 'password',
@@ -144,6 +152,7 @@ describe('session module', () => {
     it('期限切れセッションはfalseを返す', async () => {
       mockCookies.get.mockReturnValueOnce({ value: 'token' })
       mockSessionsApi.getSession.mockResolvedValueOnce({
+        householdId: 'A',
         token: 'token',
         person: null,
         authMethod: 'password',
@@ -154,5 +163,39 @@ describe('session module', () => {
 
       expect(result).toBe(false)
     })
+  })
+})
+
+describe('セッション境界の世帯認可', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-05T00:00:00.000Z'))
+    mockCookies.get.mockReset().mockReturnValue({ value: 'a'.repeat(64) })
+    mockSessionsApi.getSession.mockReset()
+  })
+  afterEach(() => vi.useRealTimers())
+  it.each([
+    { householdId: null }, { householdId: '' }, { authMethod: 'magic-link' },
+    { expiresAt: 'bad-date' }, { expiresAt: '2026-09-05T00:00:00.000Z' },
+  ])('不正所属・方式・期限を拒否する: %j', async (override) => {
+    mockSessionsApi.getSession.mockResolvedValue({ token: 'a'.repeat(64), householdId: 'A', person: null, authMethod: 'password', expiresAt: '2026-09-05T01:00:00.000Z', ...override })
+    expect(await getSession()).toBeNull()
+    expect(await isAuthenticated()).toBe(false)
+  })
+  it('requireHouseholdContextは同じ認証snapshotの所属・担当者・認証方式を不変で返す', async () => {
+    mockSessionsApi.getSession.mockResolvedValue({ token: 'a'.repeat(64), householdId: 'B', person: 'wife', authMethod: 'passkey', expiresAt: '2026-09-05T01:00:00.000Z' })
+    const { requireAuth } = await import('@/lib/webauthn/session')
+    const { requireHouseholdContext } = await import('@/lib/household-context')
+    expect(await requireAuth()).toEqual({ householdId: 'B', person: 'wife', authMethod: 'passkey' })
+    mockSessionsApi.getSession.mockClear()
+    const context = await requireHouseholdContext()
+    expect(mockSessionsApi.getSession).toHaveBeenCalledTimes(1)
+    expect(context).toEqual({ householdId: 'B', person: 'wife', authMethod: 'passkey' })
+    expect(Object.isFrozen(context)).toBe(true)
+  })
+  it('requireAuthは所属のないsessionをログインへ戻す', async () => {
+    mockSessionsApi.getSession.mockResolvedValue(null)
+    const { requireAuth } = await import('@/lib/webauthn/session')
+    await expect(requireAuth()).rejects.toThrow('NEXT_REDIRECT:/login')
   })
 })

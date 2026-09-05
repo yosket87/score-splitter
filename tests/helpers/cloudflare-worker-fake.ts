@@ -1,3 +1,4 @@
+import { createRecordsSqlite } from './records-sqlite'
 import { expect, vi } from 'vitest'
 import { handleRequest } from '../../cloudflare/worker/src/index'
 import type {
@@ -31,6 +32,7 @@ class FakeStatement implements D1PreparedStatementLike {
 }
 
 type FakeIncomeRow = {
+  household_id?: string
   id: string
   month: string
   label: string
@@ -126,6 +128,8 @@ export class FakeD1Database implements D1DatabaseLike {
     dailyCount: 0,
   }
 
+  readonly recordSqlite = createRecordsSqlite()
+
   constructor(rows: {
     incomes?: FakeIncomeRow[]
     expenses?: FakeExpenseRow[]
@@ -140,6 +144,24 @@ export class FakeD1Database implements D1DatabaseLike {
     this.loginAttemptRows = rows.loginAttempts ?? this.loginAttemptRows
     this.diagnosisRows = rows.diagnoses ?? this.diagnosisRows
     this.sourceRevision = rows.sourceRevision ?? this.sourceRevision
+    this.recordSqlite.sqlite.prepare('INSERT INTO sessions VALUES(?,?,?,?,?,?)').run('a'.repeat(64),null,'password','2099-01-01','2026-01-01','A')
+    this.syncRecordsToSqlite()
+  }
+
+  private syncRecordsToSqlite() {
+    for (const [table,rows] of [['incomes',this.incomeRows],['expenses',this.expenseRows],['carryovers',this.carryoverRows]] as const) {
+      this.recordSqlite.sqlite.exec(`DELETE FROM ${table}`)
+      for (const row of rows) {
+        const record = {...row,household_id:row.household_id ?? 'A'}
+        const keys = Object.keys(record)
+        this.recordSqlite.sqlite.prepare(`INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map(()=>'?').join(',')})`).run(...Object.values(record))
+      }
+    }
+  }
+  private syncRecordsFromSqlite() {
+    this.incomeRows = this.recordSqlite.sqlite.prepare('SELECT * FROM incomes').all() as FakeIncomeRow[]
+    this.expenseRows = this.recordSqlite.sqlite.prepare('SELECT * FROM expenses').all() as FakeExpenseRow[]
+    this.carryoverRows = this.recordSqlite.sqlite.prepare('SELECT * FROM carryovers').all() as FakeCarryoverRow[]
   }
 
   prepare(query: string): D1PreparedStatementLike {
@@ -155,6 +177,14 @@ export class FakeD1Database implements D1DatabaseLike {
       }
     })
     this.batched.push(batch)
+    if (batch[0]?.query.startsWith('WITH selected')) {
+      this.syncRecordsToSqlite()
+      this.executed.push(...batch)
+      const results = await this.recordSqlite.db.batch(batch.map(item => this.recordSqlite.db.prepare(item.query).bind(...item.params)))
+      this.syncRecordsFromSqlite()
+      this.sourceRevision += results.reduce((sum,row)=>sum+(row.meta?.changes ?? 0),0)
+      return results
+    }
     const results: D1ResultLike[] = []
     for (const item of batch) {
       if (item.query.startsWith('SELECT')) {
@@ -168,6 +198,12 @@ export class FakeD1Database implements D1DatabaseLike {
 
   async first<T>(query: string, params: unknown[]): Promise<T | null> {
     this.executed.push({ query, params })
+    if (query.includes('household_id') && !query.includes('ai_diagnos') && !query.includes('ai_execution')) {
+      this.syncRecordsToSqlite()
+      const result = await this.recordSqlite.db.prepare(query).bind(...params).first<T>()
+      return result
+    }
+
     if (query.includes('FROM ai_diagnosis_source_revision')) {
       return { revision: this.sourceRevision } as T
     }
@@ -199,6 +235,12 @@ export class FakeD1Database implements D1DatabaseLike {
 
   async all<T>(query: string, params: unknown[]): Promise<{ results: T[] }> {
     this.executed.push({ query, params })
+    if (query.includes('household_id') && !query.includes('ai_diagnos') && !query.includes('ai_execution')) {
+      this.syncRecordsToSqlite()
+      const result = await this.recordSqlite.db.prepare(query).bind(...params).all<T>()
+      return result
+    }
+
     if (query.includes('FROM ai_diagnosis_source_revision')) {
       return { results: [{ revision: this.sourceRevision }] as T[] }
     }
@@ -237,6 +279,14 @@ export class FakeD1Database implements D1DatabaseLike {
 
   async run(query: string, params: unknown[]): Promise<D1ResultLike> {
     this.executed.push({ query, params })
+    if (query.includes('household_id') && !query.includes('ai_diagnos') && !query.includes('ai_execution')) {
+      this.syncRecordsToSqlite()
+      const result = await this.recordSqlite.db.prepare(query).bind(...params).run()
+      this.syncRecordsFromSqlite()
+      this.sourceRevision += result.meta?.changes ?? 0
+      return result
+    }
+
     if (query.startsWith('UPDATE ai_execution_guard\nSET run_token = ?')) {
       const token = params[0] as string
       const expiresAt = params[1] as string

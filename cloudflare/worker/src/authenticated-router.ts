@@ -1,3 +1,5 @@
+import { getSession } from './sessions'
+import { HttpError } from './http'
 import { routePaymentStatus } from './payment-router'
 import { copyMonthData, getCopyMonthPreview } from './copy-month'
 import type { WorkerRouteContext } from './ai-diagnosis-router'
@@ -32,13 +34,14 @@ export async function routeAuthenticated(
 
 async function routeRecordCollection({ request, env, runtime, url, parts }: WorkerRouteContext) {
   if (parts.length !== 1 || !isRecordPath(parts[0])) return null
+  const household = await recordContext(request, env, runtime)
   const type = recordTypeFromPath(parts[0])
   if (request.method === 'GET') {
     const month = parseMonth(url.searchParams.get('month'))
-    return json({ data: await listRecordsByMonth(env.DB, type, month) })
+    return json({ data: await listRecordsByMonth(env.DB, household, type, month) })
   }
   if (request.method === 'POST') {
-    const data = await createRecord(env.DB, runtime, type, await readJson(request))
+    const data = await createRecord(env.DB, runtime, household, type, await readJson(request))
     return json({ data }, { status: 201 })
   }
   return null
@@ -46,14 +49,15 @@ async function routeRecordCollection({ request, env, runtime, url, parts }: Work
 
 async function routeRecordItem({ request, env, runtime, parts }: WorkerRouteContext) {
   if (parts.length !== 2 || !isRecordPath(parts[0])) return null
+  const household = await recordContext(request, env, runtime)
   const type = recordTypeFromPath(parts[0])
   const id = decodeURIComponent(parts[1])
   if (request.method === 'PATCH') {
-    const data = await updateRecord(env.DB, runtime, type, id, await readJson(request))
+    const data = await updateRecord(env.DB, runtime, household, type, id, await readJson(request))
     return json({ data })
   }
   if (request.method === 'DELETE') {
-    await deleteRecord(env.DB, type, id)
+    await deleteRecord(env.DB, household, type, id)
     return json({ success: true })
   }
   return null
@@ -64,9 +68,11 @@ async function routeRecordExtras(context: WorkerRouteContext) {
   if (parts.length === 3 && request.method === 'PATCH') {
     const flagType = getFlagType(parts)
     if (flagType) {
+      const household = await recordContext(request,env,runtime)
       await patchRecordFlag(
         env.DB,
         runtime,
+        household,
         flagType,
         decodeURIComponent(parts[1]),
         await readJson(request)
@@ -75,7 +81,7 @@ async function routeRecordExtras(context: WorkerRouteContext) {
     }
   }
   if (parts.length === 1 && parts[0] === 'monthly-amounts' && request.method === 'GET') {
-    return json({ data: await listMonthlyAmounts(env.DB) })
+    return json({ data: await listMonthlyAmounts(env.DB, await recordContext(request,env,runtime)) })
   }
   return null
 }
@@ -88,13 +94,14 @@ function getFlagType(parts: string[]): 'expense' | 'carryover' | null {
 
 async function routeCopyMonth({ request, env, runtime, url, parts }: WorkerRouteContext) {
   if (parts[0] !== 'copy-month') return null
+  const household = await recordContext(request,env,runtime)
   if (parts.length === 2 && parts[1] === 'preview' && request.method === 'GET') {
     const sourceMonth = parseMonth(url.searchParams.get('sourceMonth'))
     const targetMonth = parseMonth(url.searchParams.get('targetMonth'))
-    return json({ data: await getCopyMonthPreview(env.DB, sourceMonth, targetMonth) })
+    return json({ data: await getCopyMonthPreview(env.DB, household, sourceMonth, targetMonth) })
   }
   if (parts.length === 1 && request.method === 'POST') {
-    return json(await copyMonthData(env.DB, runtime, await readJson(request)))
+    return json(await copyMonthData(env.DB, runtime, household, await readJson(request)))
   }
   return null
 }
@@ -125,4 +132,10 @@ function recordTypeFromPath(path: 'incomes' | 'expenses' | 'carryovers') {
   if (path === 'expenses') return 'expense'
   if (path === 'carryovers') return 'carryover'
   return 'income'
+}
+
+async function recordContext(request: Request, env: WorkerRouteContext['env'], runtime: WorkerRouteContext['runtime']) {
+  const session = await getSession(env.DB, request.headers.get('x-household-session') ?? '', runtime.now())
+  if (!session) throw new HttpError('認証が必要です',401)
+  return Object.freeze({householdId:session.householdId})
 }

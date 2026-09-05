@@ -1,3 +1,4 @@
+const household = { householdId: 'A' }
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { D1DatabaseLike, Runtime } from '../../../../cloudflare/worker/src/d1'
 
@@ -92,7 +93,7 @@ describe('recordsのD1直接アクセス', () => {
     useDirectDatabase()
     vi.mocked(listRecordsByMonth).mockRejectedValue(new HttpError('monthが不正です', 400))
 
-    await expect(getIncomesByMonth('202609')).rejects.toEqual(
+    await expect(getIncomesByMonth(household, '202609')).rejects.toEqual(
       new ApiError('monthが不正です', 400)
     )
   })
@@ -100,7 +101,7 @@ describe('recordsのD1直接アクセス', () => {
   it('一覧取得は不正な月をD1へ渡さない', async () => {
     useDirectDatabase()
 
-    await expect(getIncomesByMonth('2026-09')).rejects.toMatchObject({
+    await expect(getIncomesByMonth(household, '2026-09')).rejects.toMatchObject({
       message: 'monthが不正です',
       status: 400,
     })
@@ -117,9 +118,9 @@ describe('recordsのD1直接アクセス', () => {
     useDirectDatabase()
     vi.mocked(listRecordsByMonth).mockResolvedValue([record])
 
-    await expect(getByMonth('202609')).resolves.toEqual([record])
+    await expect(getByMonth(household, '202609')).resolves.toEqual([record])
 
-    expect(listRecordsByMonth).toHaveBeenCalledWith(fakeDb, type, '202609')
+    expect(listRecordsByMonth).toHaveBeenCalledWith(fakeDb, household, type, '202609')
     expect(getRuntime).not.toHaveBeenCalled()
     expect(apiRequest).not.toHaveBeenCalled()
   })
@@ -133,9 +134,9 @@ describe('recordsのD1直接アクセス', () => {
     vi.mocked(createRecord).mockResolvedValue(record)
     const input = withoutGeneratedFields(record)
 
-    await expect(create(input as never)).resolves.toEqual(record)
+    await expect(create(household, input as never)).resolves.toEqual(record)
 
-    expect(createRecord).toHaveBeenCalledWith(fakeDb, fakeRuntime, type, input)
+    expect(createRecord).toHaveBeenCalledWith(fakeDb, fakeRuntime, household, type, input)
     expect(apiRequest).not.toHaveBeenCalled()
   })
 
@@ -148,9 +149,9 @@ describe('recordsのD1直接アクセス', () => {
     vi.mocked(updateRecord).mockResolvedValue(record)
     const input = withoutGeneratedFields(record)
 
-    await expect(update(record.id, input as never)).resolves.toEqual(record)
+    await expect(update(household, record.id, input as never)).resolves.toEqual(record)
 
-    expect(updateRecord).toHaveBeenCalledWith(fakeDb, fakeRuntime, type, record.id, input)
+    expect(updateRecord).toHaveBeenCalledWith(fakeDb, fakeRuntime, household, type, record.id, input)
     expect(apiRequest).not.toHaveBeenCalled()
   })
 
@@ -160,19 +161,19 @@ describe('recordsのD1直接アクセス', () => {
     vi.mocked(updateRecord).mockResolvedValue(expense)
     const input = withoutGeneratedFields(expense)
 
-    await createExpense(input)
-    await updateExpense(expense.id, input)
+    await createExpense(household, input)
+    await updateExpense(household, expense.id, input)
 
     expect(createRecord).toHaveBeenCalledWith(
       fakeDb,
       fakeRuntime,
-      'expense',
+      household,      'expense',
       expect.objectContaining({ amount: -120_000 })
     )
     expect(updateRecord).toHaveBeenCalledWith(
       fakeDb,
       fakeRuntime,
-      'expense',
+      household,      'expense',
       expense.id,
       expect.objectContaining({ amount: -120_000 })
     )
@@ -184,19 +185,19 @@ describe('recordsのD1直接アクセス', () => {
     vi.mocked(updateRecord).mockResolvedValue(carryover)
     const input = withoutGeneratedFields(carryover)
 
-    await createCarryover(input)
-    await updateCarryover(carryover.id, input)
+    await createCarryover(household, input)
+    await updateCarryover(household, carryover.id, input)
 
     expect(createRecord).toHaveBeenCalledWith(
       fakeDb,
       fakeRuntime,
-      'carryover',
+      household,      'carryover',
       expect.objectContaining({ amount: -5_000 })
     )
     expect(updateRecord).toHaveBeenCalledWith(
       fakeDb,
       fakeRuntime,
-      'carryover',
+      household,      'carryover',
       carryover.id,
       expect.objectContaining({ amount: -5_000 })
     )
@@ -205,9 +206,9 @@ describe('recordsのD1直接アクセス', () => {
   it('支出の繰越フラグ更新はDBとRuntimeを渡す', async () => {
     useDirectDatabase()
 
-    await expect(toggleExpenseCarryover('expense-1', true)).resolves.toBeUndefined()
+    await expect(toggleExpenseCarryover(household, 'expense-1', true)).resolves.toBeUndefined()
 
-    expect(patchRecordFlag).toHaveBeenCalledWith(fakeDb, fakeRuntime, 'expense', 'expense-1', {
+    expect(patchRecordFlag).toHaveBeenCalledWith(fakeDb, fakeRuntime, household, 'expense', 'expense-1', {
       isCarryover: true,
     })
     expect(apiRequest).not.toHaveBeenCalled()
@@ -216,12 +217,12 @@ describe('recordsのD1直接アクセス', () => {
   it('繰越の清算フラグ更新はDBとRuntimeを渡す', async () => {
     useDirectDatabase()
 
-    await expect(toggleCarryoverCleared('carryover-1', true)).resolves.toBeUndefined()
+    await expect(toggleCarryoverCleared(household, 'carryover-1', true)).resolves.toBeUndefined()
 
     expect(patchRecordFlag).toHaveBeenCalledWith(
       fakeDb,
       fakeRuntime,
-      'carryover',
+      household,      'carryover',
       'carryover-1',
       { isCleared: true }
     )
@@ -235,9 +236,9 @@ describe('recordsのD1直接アクセス', () => {
   ] as const)('通常環境の%s削除はRuntimeなしでD1操作を呼ぶ', async (_, remove, type, id) => {
     useDirectDatabase()
 
-    await expect(remove(id)).resolves.toBeUndefined()
+    await expect(remove(household, id)).resolves.toBeUndefined()
 
-    expect(deleteRecord).toHaveBeenCalledWith(fakeDb, type, id)
+    expect(deleteRecord).toHaveBeenCalledWith(fakeDb, household, type, id)
     expect(getRuntime).not.toHaveBeenCalled()
     expect(apiRequest).not.toHaveBeenCalled()
   })

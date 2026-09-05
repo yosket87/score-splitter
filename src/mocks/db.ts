@@ -29,9 +29,9 @@ function getStore(): Store {
 /** ストアをシードデータで初期化 */
 export function initStore(): void {
   mockGlobal.__scoreSplitterMockStore = {
-    incomes: structuredClone(seedData.incomes),
-    expenses: structuredClone(seedData.expenses),
-    carryovers: structuredClone(seedData.carryovers),
+    incomes: structuredClone(seedData.incomes).map(row => ({...row, household_id:'3975b870-bbfa-49fd-ae3d-d273c9f6e107'})),
+    expenses: structuredClone(seedData.expenses).map(row => ({...row, household_id:'3975b870-bbfa-49fd-ae3d-d273c9f6e107'})),
+    carryovers: structuredClone(seedData.carryovers).map(row => ({...row, household_id:'3975b870-bbfa-49fd-ae3d-d273c9f6e107'})),
     households: [{ id: '3975b870-bbfa-49fd-ae3d-d273c9f6e107', legacy_auth_key: 'legacy', created_at: '2026-09-05T00:00:00.000Z' }],
     sessions: [],
     passkey_credentials: structuredClone(seedData.passkey_credentials),

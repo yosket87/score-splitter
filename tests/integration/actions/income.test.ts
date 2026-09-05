@@ -40,7 +40,7 @@ describe('income actions', () => {
 
     const result = await getIncomesByMonth('202601')
 
-    expect(mockRecordsApi.getIncomesByMonth).toHaveBeenCalledWith('202601')
+    expect(mockRecordsApi.getIncomesByMonth).toHaveBeenCalledWith({householdId:'A',person:null,authMethod:'password'}, '202601')
     expect(result).toEqual({ success: true, data: incomes })
   })
 
@@ -86,7 +86,7 @@ describe('income actions', () => {
       })
     )
 
-    expect(mockRecordsApi.createIncome).toHaveBeenCalledWith({
+    expect(mockRecordsApi.createIncome).toHaveBeenCalledWith({householdId:'A',person:null,authMethod:'password'}, {
       month: '202601',
       label: '給料',
       amount: 300000,
@@ -133,7 +133,7 @@ describe('income actions', () => {
       })
     )
 
-    expect(mockRecordsApi.updateIncome).toHaveBeenCalledWith('income-1', {
+    expect(mockRecordsApi.updateIncome).toHaveBeenCalledWith({householdId:'A',person:null,authMethod:'password'}, 'income-1', {
       month: '202601',
       label: '更新後',
       amount: 250000,
@@ -149,7 +149,7 @@ describe('income actions', () => {
 
     const result = await deleteIncome('income-1', '202601')
 
-    expect(mockRecordsApi.deleteIncome).toHaveBeenCalledWith('income-1')
+    expect(mockRecordsApi.deleteIncome).toHaveBeenCalledWith({householdId:'A',person:null,authMethod:'password'}, 'income-1')
     expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/01')
     expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
     expect(result).toEqual({ success: true })

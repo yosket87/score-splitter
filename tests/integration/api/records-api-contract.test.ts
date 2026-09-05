@@ -1,3 +1,5 @@
+vi.mock('@/lib/api/household-session', () => ({householdSessionToken:vi.fn().mockResolvedValue('a'.repeat(64))}))
+const household = { householdId: 'A' }
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -115,9 +117,9 @@ describe('lib/api records contract', () => {
     )
 
     const [incomes, expenses, carryovers] = await Promise.all([
-      getIncomesByMonth('202602'),
-      getExpensesByMonth('202602'),
-      getCarryoversByMonth('202602'),
+      getIncomesByMonth(household, '202602'),
+      getExpensesByMonth(household, '202602'),
+      getCarryoversByMonth(household, '202602'),
     ])
 
     expect(incomes).toEqual([
@@ -200,19 +202,19 @@ describe('lib/api records contract', () => {
       })
     )
 
-    const created = await createIncome({
+    const created = await createIncome(household, {
       month: '202603',
       label: '給料',
       amount: 320000,
       person: 'husband',
     })
-    const updated = await updateIncome('income/1', {
+    const updated = await updateIncome(household, 'income/1', {
       month: '202603',
       label: '給料更新',
       amount: 330000,
       person: 'wife',
     })
-    await deleteIncome('income/1')
+    await deleteIncome(household, 'income/1')
 
     expect(created.id).toBe('income-1')
     expect(updated).toEqual(expect.objectContaining({ id: 'income/1', label: '給料更新' }))
@@ -286,22 +288,22 @@ describe('lib/api records contract', () => {
       })
     )
 
-    const created = await createExpense({
+    const created = await createExpense(household, {
       month: '202603',
       label: '家賃',
       amount: -120000,
       person: 'husband',
       isCarryover: false,
     })
-    const updated = await updateExpense('expense-1', {
+    const updated = await updateExpense(household, 'expense-1', {
       month: '202603',
       label: '家賃更新',
       amount: -121000,
       person: 'wife',
       isCarryover: true,
     })
-    await toggleExpenseCarryover('expense-1', true)
-    await deleteExpense('expense-1')
+    await toggleExpenseCarryover(household, 'expense-1', true)
+    await deleteExpense(household, 'expense-1')
 
     expect(created.id).toBe('expense-1')
     expect(updated.isCarryover).toBe(true)
@@ -371,22 +373,22 @@ describe('lib/api records contract', () => {
       })
     )
 
-    const created = await createCarryover({
+    const created = await createCarryover(household, {
       month: '202603',
       label: '前月繰越',
       amount: -5000,
       person: 'husband',
       isCleared: false,
     })
-    const updated = await updateCarryover('carryover-1', {
+    const updated = await updateCarryover(household, 'carryover-1', {
       month: '202603',
       label: '前月繰越更新',
       amount: -6000,
       person: 'wife',
       isCleared: true,
     })
-    await toggleCarryoverCleared('carryover-1', true)
-    await deleteCarryover('carryover-1')
+    await toggleCarryoverCleared(household, 'carryover-1', true)
+    await deleteCarryover(household, 'carryover-1')
 
     expect(created.id).toBe('carryover-1')
     expect(updated.isCleared).toBe(true)

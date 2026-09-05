@@ -1,3 +1,6 @@
+import 'server-only'
+import { assertHouseholdContext, type HouseholdContext } from '../../../cloudflare/worker/src/households'
+import { householdSessionToken } from './household-session'
 import { z } from 'zod'
 import { getDatabase, getRuntime, isWorkerApiMockEnabled, runD1Operation } from './backend'
 import { apiRequest } from './client'
@@ -44,53 +47,59 @@ function createEntryApi<T>(
   const listEnvelopeSchema = apiEnvelopeSchema(z.array(schema))
 
   return {
-    async getByMonth(month: string): Promise<T[]> {
+    async getByMonth(context: HouseholdContext, month: string): Promise<T[]> {
+      assertHouseholdContext(context)
       if (!isWorkerApiMockEnabled()) {
         return runD1Operation(
-          () => listRecordsByMonth(getDatabase(), type, parseMonth(month)) as Promise<T[]>
+          () => listRecordsByMonth(getDatabase(), context, type, parseMonth(month)) as Promise<T[]>
         )
       }
 
       const response = await apiRequest<ApiEnvelope<T[]>>(
         `${basePath}?month=${encodeURIComponent(month)}`,
-        { responseSchema: listEnvelopeSchema }
+        { responseSchema: listEnvelopeSchema, sessionToken: await householdSessionToken(context) }
       )
       return response.data
     },
-    async create(input: Omit<T, 'id' | 'createdAt'>): Promise<T> {
+    async create(context: HouseholdContext, input: Omit<T, 'id' | 'createdAt'>): Promise<T> {
+      assertHouseholdContext(context)
       if (!isWorkerApiMockEnabled()) {
         return runD1Operation(
-          () => createRecord(getDatabase(), getRuntime(), type, input) as Promise<T>
+          () => createRecord(getDatabase(), getRuntime(), context, type, input) as Promise<T>
         )
       }
 
       const response = await apiRequest<ApiEnvelope<T>>(basePath, {
         method: 'POST',
+        sessionToken: await householdSessionToken(context),
         body: input,
         responseSchema: envelopeSchema,
       })
       return response.data
     },
-    async update(id: string, input: Omit<T, 'id' | 'createdAt'>): Promise<T> {
+    async update(context: HouseholdContext, id: string, input: Omit<T, 'id' | 'createdAt'>): Promise<T> {
+      assertHouseholdContext(context)
       if (!isWorkerApiMockEnabled()) {
         return runD1Operation(
-          () => updateRecord(getDatabase(), getRuntime(), type, id, input) as Promise<T>
+          () => updateRecord(getDatabase(), getRuntime(), context, type, id, input) as Promise<T>
         )
       }
 
       const response = await apiRequest<ApiEnvelope<T>>(`${basePath}/${encodeURIComponent(id)}`, {
         method: 'PATCH',
+        sessionToken: await householdSessionToken(context),
         body: input,
         responseSchema: envelopeSchema,
       })
       return response.data
     },
-    async remove(id: string): Promise<void> {
+    async remove(context: HouseholdContext, id: string): Promise<void> {
+      assertHouseholdContext(context)
       if (!isWorkerApiMockEnabled()) {
-        return runD1Operation(() => deleteRecord(getDatabase(), type, id))
+        return runD1Operation(() => deleteRecord(getDatabase(), context, type, id))
       }
 
-      await apiRequest(`${basePath}/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      await apiRequest(`${basePath}/${encodeURIComponent(id)}`, { method: 'DELETE', sessionToken: await householdSessionToken(context) })
     },
   }
 }
@@ -108,15 +117,17 @@ export const getExpensesByMonth = expenseApi.getByMonth
 export const createExpense = expenseApi.create
 export const updateExpense = expenseApi.update
 
-export async function toggleExpenseCarryover(id: string, isCarryover: boolean): Promise<void> {
+export async function toggleExpenseCarryover(context: HouseholdContext, id: string, isCarryover: boolean): Promise<void> {
+  assertHouseholdContext(context)
   if (!isWorkerApiMockEnabled()) {
     return runD1Operation(() =>
-      patchRecordFlag(getDatabase(), getRuntime(), 'expense', id, { isCarryover })
+      patchRecordFlag(getDatabase(), getRuntime(), context, 'expense', id, { isCarryover })
     )
   }
 
   await apiRequest(`/expenses/${encodeURIComponent(id)}/carryover`, {
     method: 'PATCH',
+    sessionToken: await householdSessionToken(context),
     body: { isCarryover },
   })
 }
@@ -127,15 +138,17 @@ export const getCarryoversByMonth = carryoverApi.getByMonth
 export const createCarryover = carryoverApi.create
 export const updateCarryover = carryoverApi.update
 
-export async function toggleCarryoverCleared(id: string, isCleared: boolean): Promise<void> {
+export async function toggleCarryoverCleared(context: HouseholdContext, id: string, isCleared: boolean): Promise<void> {
+  assertHouseholdContext(context)
   if (!isWorkerApiMockEnabled()) {
     return runD1Operation(() =>
-      patchRecordFlag(getDatabase(), getRuntime(), 'carryover', id, { isCleared })
+      patchRecordFlag(getDatabase(), getRuntime(), context, 'carryover', id, { isCleared })
     )
   }
 
   await apiRequest(`/carryovers/${encodeURIComponent(id)}/cleared`, {
     method: 'PATCH',
+    sessionToken: await householdSessionToken(context),
     body: { isCleared },
   })
 }

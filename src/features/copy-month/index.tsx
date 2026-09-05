@@ -95,6 +95,7 @@ export function CopyMonthDialog({
 
     const result = await copyMonthData({
       sourceMonth: previousMonth,
+      carryoverFingerprint: preview?.carryoverFingerprint,
       targetMonth: currentMonth,
       mode,
       selectedItems,

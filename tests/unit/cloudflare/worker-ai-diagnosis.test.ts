@@ -445,6 +445,7 @@ describe('Cloudflare Worker AI診断API', () => {
         method: 'POST',
         headers: {
           authorization: 'Bearer secret-token',
+          'x-household-session':'a'.repeat(64),
           'content-type': 'application/json',
         },
         body: JSON.stringify({

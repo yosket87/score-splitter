@@ -16,7 +16,7 @@ function householdExists(id: unknown) {
 function legacyHousehold() {
   return getTable('households').find((row) => row.legacy_auth_key === 'legacy')
 }
-function validSession(token: string) {
+export function validSession(token: string) {
   if (!/^[a-f0-9]{64}$/.test(token)) return null
   const row = getTable('sessions').find((item) => item.token === token)
   if (!row || !householdExists(row.household_id) || !['password', 'passkey'].includes(String(row.auth_method)) ||

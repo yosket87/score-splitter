@@ -65,6 +65,7 @@ describe('CopyMonthDialog', () => {
         sourceMonth: '202603',
         targetMonth: '202604',
         existingCount: 0,
+        carryoverFingerprint: "fingerprint",
         carryoverCount: 0,
         items: [],
       },
@@ -103,6 +104,7 @@ describe('CopyMonthDialog', () => {
         sourceMonth: '202603',
         targetMonth: '202604',
         existingCount: 0,
+        carryoverFingerprint: "fingerprint",
         carryoverCount: 1,
         items: [
           {
@@ -148,6 +150,7 @@ describe('CopyMonthDialog', () => {
         sourceMonth: '202603',
         targetMonth: '202604',
         existingCount: 0,
+        carryoverFingerprint: "fingerprint",
         carryoverCount: 1,
         items: [
           {
@@ -193,6 +196,7 @@ describe('CopyMonthDialog', () => {
         sourceMonth: '202603',
         targetMonth: '202604',
         existingCount: 0,
+        carryoverFingerprint: "fingerprint",
         carryoverCount: 0,
         items: [
           {
@@ -239,6 +243,7 @@ describe('CopyMonthDialog', () => {
 
     await waitFor(() => {
       expect(copyMonthData).toHaveBeenCalledWith({
+        carryoverFingerprint: "fingerprint",
         sourceMonth: '202603',
         targetMonth: '202604',
         mode: 'add',
@@ -273,6 +278,7 @@ describe('CopyMonthDialog', () => {
         sourceMonth: '202603',
         targetMonth: '202604',
         existingCount: 0,
+        carryoverFingerprint: "fingerprint",
         carryoverCount: 0,
         items: [],
       },
@@ -299,6 +305,7 @@ describe('CopyMonthDialog', () => {
         sourceMonth: '202603',
         targetMonth: '202604',
         existingCount: 0,
+        carryoverFingerprint: "fingerprint",
         carryoverCount: 1,
         items: [
           {
@@ -349,6 +356,7 @@ describe('CopyMonthDialog', () => {
         sourceMonth: '202603',
         targetMonth: '202604',
         existingCount: 2,
+        carryoverFingerprint: "fingerprint",
         carryoverCount: 0,
         items: [
           {

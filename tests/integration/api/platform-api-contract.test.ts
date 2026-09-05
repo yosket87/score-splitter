@@ -1,3 +1,4 @@
+vi.mock('@/lib/api/household-session', () => ({householdSessionToken:vi.fn().mockResolvedValue('a'.repeat(64))}))
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -81,6 +82,7 @@ describe('lib/api copy-month contract', () => {
                 type: 'income',
               },
             ],
+            carryoverFingerprint: "fingerprint",
             carryoverCount: 1,
             existingCount: 0,
           },
@@ -88,7 +90,7 @@ describe('lib/api copy-month contract', () => {
       })
     )
 
-    const preview = await getCopyMonthPreview('202602', '202603')
+    const preview = await getCopyMonthPreview(household, '202602', '202603')
 
     expect(preview).toEqual({
       sourceMonth: '202602',
@@ -102,6 +104,7 @@ describe('lib/api copy-month contract', () => {
           type: 'income',
         },
       ],
+      carryoverFingerprint: "fingerprint",
       carryoverCount: 1,
       existingCount: 0,
     })
@@ -152,7 +155,7 @@ describe('lib/api copy-month contract', () => {
       ],
     }
 
-    const result = await copyMonthData(options)
+    const result = await copyMonthData(household, options)
 
     expect(result).toEqual({
       success: true,
@@ -178,7 +181,7 @@ describe('lib/api copy-month contract', () => {
     )
 
     await expect(
-      copyMonthData({
+      copyMonthData(household, {
         sourceMonth: '202602',
         targetMonth: '202603',
         mode: 'add',
@@ -318,7 +321,7 @@ describe('lib/api monthly-summary contract', () => {
       )
     )
 
-    await expect(getMonthlyAmounts()).resolves.toEqual({
+    await expect(getMonthlyAmounts(household)).resolves.toEqual({
       incomes: [{ month: '202603', amount: 300000 }],
       expenses: [{ month: '202603', amount: -120000 }],
     })
@@ -331,7 +334,7 @@ describe('lib/api monthly-summary contract', () => {
       )
     )
 
-    await expect(getMonthlyAmounts()).rejects.toEqual(
+    await expect(getMonthlyAmounts(household)).rejects.toEqual(
       new ApiError('Worker APIレスポンスの形式が不正です', 502)
     )
   })

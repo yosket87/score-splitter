@@ -11,6 +11,7 @@ export class ApiError extends Error {
 
 interface ApiRequestOptions<TResponse = unknown> {
   method?: string
+  sessionToken?: string
   body?: unknown
   responseSchema?: ZodType<TResponse>
 }
@@ -29,6 +30,7 @@ export async function apiRequest<T = unknown>(
   const headers: Record<string, string> = {
     authorization: `Bearer ${token}`,
   }
+  if (options.sessionToken) headers['x-household-session'] = options.sessionToken
   const init: RequestInit = {
     method: options.method,
     cache: 'no-store',

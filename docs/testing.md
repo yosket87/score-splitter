@@ -189,3 +189,10 @@ Playwrightによるブラウザテスト。
 - Worker APIクライアントのモック
 - 認証関数のモック
 - テストデータ（フィクスチャ）
+
+## 振込状況
+
+- `npm run test:run -- tests/unit/payment-status.test.ts tests/unit/cloudflare/payment-store.test.ts tests/unit/cloudflare/payment-status-domain.test.ts tests/integration/actions/payment-status.test.ts tests/components/features/payment-status.test.tsx`: 計算・履歴・認証・操作UI。
+- `npm run test:d1:payment`: 全migrationを一時Miniflare D1に適用し、実共有関数の再送・競合・履歴不変・途中rollback・編集継続を検証。外部DBへ接続せず通常Unitから分離。
+- `npx playwright test tests/e2e/payment-status.spec.ts`: 振込→編集→差額登録→取消／訂正。375px/1280px、ライト/ダークの状態別スクリーンショット。
+- `.github/workflows/payment-d1.yml`: 関連ファイル変更時とnightlyに専用D1 Jobを実行。

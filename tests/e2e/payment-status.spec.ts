@@ -1,0 +1,80 @@
+import { expect, test, type Page } from '@playwright/test'
+import { login, resetMockData } from './helpers'
+
+const panel = (page: Page) => page.getByRole('region', { name: '振込状況' })
+async function record(page: Page, difference = false) {
+  await panel(page).getByRole('button', { name: difference ? '差額を振込済みにする' : '振込済みにする', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '振込内容の確認' })
+  await expect(dialog).toBeVisible()
+  await dialog.getByLabel('支払日').fill('2026-02-28')
+  await dialog.getByRole('button', { name: '振込済みとして記録' }).click()
+  await expect(dialog).not.toBeVisible()
+  await expect(panel(page).getByText('振込済み', { exact: true })).toBeVisible()
+}
+async function addIncome(page: Page, mobile = false) {
+  if (mobile) await page.getByRole('button', { name: '項目を追加', exact: true }).click()
+  else await page.locator('[data-section="income"]').getByRole('button', { name: '項目を追加' }).click()
+  const dialog = page.getByRole('dialog')
+  if (mobile) await dialog.getByRole('radio', { name: '収入', exact: true }).click()
+  await dialog.getByLabel('項目名', { exact: true }).fill('振込後の追加収入')
+  await dialog.getByLabel('金額', { exact: true }).fill('9000')
+  await dialog.getByRole('radio', { name: '夫', exact: true }).click()
+  await dialog.getByRole('button', { name: mobile ? '保存' : /収入.*追加/ }).click()
+  await expect(dialog).not.toBeVisible()
+  await expect(panel(page).getByText('差額あり', { exact: true })).toBeVisible()
+  await expect(panel(page)).toContainText('4,500円')
+}
+
+test.beforeEach(async ({ request }) => { await resetMockData(request) })
+test('振込後も編集でき、差額の記録・取消・訂正と当時の明細を確認できる', async ({ page }) => {
+  await login(page); await page.goto('/2026/02')
+  await expect(panel(page)).toContainText('振込前')
+  await record(page)
+  await page.reload()
+  await expect(panel(page)).toContainText('振込済み額：夫 → 妻 15,500円')
+  await addIncome(page)
+  await record(page, true)
+  await expect(panel(page).getByText('差額あり', { exact: true })).toHaveCount(0)
+  await panel(page).getByRole('button', { name: '記録を見る' }).click()
+  const history = page.getByRole('dialog', { name: '振込記録', exact: true })
+  const first = history.locator('li').filter({ has: page.getByText('夫 → 妻 15,500円', { exact: true }) }).first()
+  await first.getByText('記録時の内訳を見る').click()
+  await expect(first).not.toContainText('振込後の追加収入')
+  const extra = history.locator('li').filter({ has: page.getByText('夫 → 妻 4,500円', { exact: true }) }).first()
+  await extra.getByRole('button', { name: '振込済みの記録を取り消す' }).click()
+  const cancel = page.getByRole('dialog', { name: '振込記録を取り消す' })
+  await cancel.getByLabel('取消理由').fill('未送金のため')
+  await cancel.getByRole('button', { name: '記録を取り消す', exact: true }).click()
+  await expect(cancel).not.toBeVisible()
+  await expect(panel(page)).toContainText('4,500円')
+  await panel(page).getByRole('button', { name: '記録を見る' }).click()
+  await expect(history).toContainText('取消理由：未送金のため')
+  await first.getByRole('button', { name: '記録を訂正', exact: true }).click()
+  const correct = page.getByRole('dialog', { name: '振込記録を訂正する' })
+  await correct.getByLabel('実際の振込額（円）').fill('15000')
+  await correct.getByLabel('訂正理由').fill('実額に修正')
+  await correct.getByRole('button', { name: '訂正を記録する' }).click()
+  await expect(correct).not.toBeVisible()
+  await expect(panel(page)).toContainText('5,000円')
+})
+
+for (const width of [375, 1280]) for (const theme of ['ライト', 'ダーク'] as const) {
+  test(`${width}px ${theme}で振込前・済み・差額・空月を確認`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 1000 })
+    await login(page); await page.goto('/2026/02')
+    await page.getByRole('button', { name: 'テーマを切り替え' }).click()
+    await page.getByRole('menuitem', { name: theme, exact: true }).click()
+    async function capture(name: string) {
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0)
+      await page.screenshot({ path: testInfo.outputPath(`${name}.png`), fullPage: true, animations: 'disabled', style: 'nextjs-portal { display: none !important; }' })
+    }
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('¥15,500')
+    await expect(panel(page)).toContainText('振込前'); await capture('unpaid')
+    await record(page); await capture('paid')
+    await addIncome(page, width < 768)
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('¥20,000'); await capture('difference')
+    await page.goto('/2026/03'); await expect(panel(page)).toContainText('振込不要')
+    await expect(panel(page).getByRole('button', { name: '振込済みにする' })).toHaveCount(0)
+    await capture('empty')
+  })
+}

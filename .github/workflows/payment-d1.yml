@@ -1,0 +1,45 @@
+name: Payment D1 consistency
+
+on:
+  pull_request:
+    paths:
+      - 'cloudflare/worker/migrations/**'
+      - 'cloudflare/worker/src/**'
+      - 'src/lib/utils/calculation.ts'
+      - 'src/lib/utils/payment-status.ts'
+      - 'src/lib/validations/payment-status.ts'
+      - 'src/types/payment-status.ts'
+      - 'scripts/test-payment-d1.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/payment-d1.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'cloudflare/worker/**'
+      - 'src/lib/utils/**'
+      - 'src/lib/validations/payment-status.ts'
+      - 'src/types/payment-status.ts'
+      - 'scripts/test-payment-d1.mjs'
+      - 'package*.json'
+      - '.github/workflows/payment-d1.yml'
+  schedule:
+    - cron: '20 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  payment-d1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: ローカルD1で振込記録の整合性を検証
+        run: npm run test:d1:payment

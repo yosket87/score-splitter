@@ -2,6 +2,7 @@
  * MSWハンドラー: Cloudflare Worker APIをインターセプト
  */
 
+import { createPaymentHandlers } from './payment-handlers'
 import { http, HttpResponse } from 'msw'
 import {
   AiDiagnosisWireError,
@@ -33,6 +34,7 @@ const WORKER_API_TOKEN = process.env.CLOUDFLARE_WORKER_API_TOKEN || 'mock-worker
 type Row = Record<string, unknown>
 
 export const handlers = [
+  ...createPaymentHandlers(WORKER_API_URL, WORKER_API_TOKEN),
   http.post(`${WORKER_API_URL}/waitlist`, async ({ request }) => {
     const body = (await request.json()) as {
       email?: string

@@ -1,3 +1,4 @@
+import { routePaymentStatus } from './payment-router'
 import { copyMonthData, getCopyMonthPreview } from './copy-month'
 import type { WorkerRouteContext } from './ai-diagnosis-router'
 import { json, readJson } from './http'
@@ -35,6 +36,7 @@ export async function routeAuthenticated(
   context: WorkerRouteContext
 ): Promise<Response | null> {
   return (
+    (await routePaymentStatus(context)) ??
     (await routeRecordCollection(context)) ??
     (await routeRecordItem(context)) ??
     (await routeRecordExtras(context)) ??

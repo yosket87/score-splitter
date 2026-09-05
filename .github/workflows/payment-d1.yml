@@ -1,4 +1,4 @@
-name: Payment D1 consistency
+name: Household and payment D1 consistency
 
 on:
   pull_request:
@@ -9,7 +9,11 @@ on:
       - 'src/lib/utils/payment-status.ts'
       - 'src/lib/validations/payment-status.ts'
       - 'src/types/payment-status.ts'
-      - 'scripts/test-payment-d1.mjs'
+      - 'scripts/test-*-d1.mjs'
+      - 'scripts/test-household-migrations.mjs'
+      - 'scripts/household-d1-*.mjs'
+      - 'scripts/backup-*.mjs'
+      - 'tests/fixtures/household-migration.sql'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/payment-d1.yml'
@@ -20,7 +24,11 @@ on:
       - 'src/lib/utils/**'
       - 'src/lib/validations/payment-status.ts'
       - 'src/types/payment-status.ts'
-      - 'scripts/test-payment-d1.mjs'
+      - 'scripts/test-*-d1.mjs'
+      - 'scripts/test-household-migrations.mjs'
+      - 'scripts/household-d1-*.mjs'
+      - 'scripts/backup-*.mjs'
+      - 'tests/fixtures/household-migration.sql'
       - 'package*.json'
       - '.github/workflows/payment-d1.yml'
   schedule:
@@ -32,6 +40,11 @@ permissions:
 
 jobs:
   payment-d1:
+    name: D1 ${{ matrix.suite }}
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [payment, records, ai-payment, household-migrations]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -41,5 +54,5 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: ローカルD1で振込記録の整合性を検証
-        run: npm run test:d1:payment
+      - name: 隔離ローカルD1で整合性を検証
+        run: npm run test:d1:${{ matrix.suite }}

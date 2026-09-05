@@ -3,6 +3,8 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { verifyHouseholdFunctions } from './household-d1-boundaries.mjs'
+import { readBackupSchema } from './backup-schema.mjs'
 
 // 設定・DB・migrationを毎回隔離し、本番や開発のremote DBへ接続しない。
 const temp = mkdtempSync(join(tmpdir(), 'household-migrations-'))
@@ -18,8 +20,9 @@ writeFileSync(config, JSON.stringify({
   name: 'household-migration-test', compatibility_date: '2026-09-05',
   d1_databases: [{ binding: 'DB', database_name: 'household-test', database_id: '00000000-0000-0000-0000-000000000001', migrations_dir: migrations }],
 }))
+let state = join(temp, '.wrangler/state')
 const run = args => {
-  try { return execFileSync(process.execPath, [wrangler, 'd1', ...args, '--local', '--config', config, '--persist-to', join(temp, 'state')], {
+  try { return execFileSync(process.execPath, [wrangler, 'd1', ...args, '--local', '--config', config, ...(args[0] === 'export' ? [] : ['--persist-to', state])], {
   cwd: temp, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
   env: { ...process.env, CI: 'true', WRANGLER_SEND_METRICS: 'false', WRANGLER_LOG_PATH: join(temp, 'logs') },
 }) } catch (error) {
@@ -99,6 +102,51 @@ try {
     assert.throws(() => execute(`DELETE FROM ${table};`), /PAYMENT_IMMUTABLE/)
   }
   assert.throws(() => execute("INSERT INTO incomes(id,month,label,amount,person,created_at,updated_at) VALUES('forbidden','202610','NULL',100,'wife','now','now');"), /HOUSEHOLD_REQUIRED/)
+  const finalName = '0012_enforce_household_constraints.sql'
+  const finalSql = readFileSync(join(source, finalName), 'utf8')
+  const point = 'DROP TABLE expenses;'
+  assert.ok(finalSql.includes(point))
+  writeFileSync(join(migrations, finalName), finalSql.replace(point, 'INSERT INTO _household_migration_assert VALUES(0);\n' + point))
+  assert.throws(apply, /CHECK constraint failed/)
+  assert.deepEqual(snapshot(), scopedAfter)
+  await verifyHouseholdFunctions(temp, state)
+  assert.deepEqual(snapshot(), scopedAfter)
+  stage(finalName)
+  apply()
+  const finalAfter = snapshot()
+  assert.deepEqual(finalAfter.slice(1, -1), scopedAfter.slice(1, -1))
+  assert.equal(finalAfter.at(-1).at(-1).name, finalName)
+  for (const table of ['incomes', 'expenses', 'carryovers', 'sessions', 'passkey_credentials']) {
+    assert.equal(execute(`PRAGMA table_info(${table});`)[0].find(row => row.name === 'household_id').notnull, 1)
+  }
+  assert.deepEqual(execute('PRAGMA foreign_key_check;'), [[]])
+  // 両世帯の同月・同額・同業務キーを最終fixtureに含めたままexportする。
+  execute("INSERT INTO households(id,created_at) VALUES('B','now'); INSERT INTO ai_execution_guard(household_id,id,usage_date,daily_count,updated_at) VALUES('B',1,'1970-01-01',0,'now'); INSERT INTO ai_diagnosis_source_revision(household_id,id,revision,updated_at) VALUES('B',1,0,'now');")
+  for (const table of ['incomes', 'expenses', 'carryovers']) {
+    const columns = execute(`PRAGMA table_info(${table});`)[0].map(row => row.name)
+    const select = columns.map(column => column === 'id' ? "'B-' || id" : column === 'household_id' ? "'B'" : column)
+    execute(`INSERT INTO ${table} (${columns.join(',')}) SELECT ${select.join(',')} FROM ${table} WHERE household_id='${householdId}';`)
+  }
+  const exported = snapshot()
+  const exportFile = join(temp, 'final.sql')
+  run(['export', 'household-test', '--output', exportFile])
+  // 別の隔離stateへSQLバックアップそのものを復元する。
+  state = join(temp, 'restored-state')
+  run(['execute', 'household-test', '--file', exportFile])
+  assert.deepEqual(snapshot(), exported)
+  // 固定Miniflareが持つ既知のローカル内部表だけを検証アダプターで除外する。
+  // 本番backup registryの未知表拒否契約は変更しない。
+  const evidence = readBackupSchema(sql => execute(sql)[0].filter(row => row.name !== '_cf_METADATA'))
+  assert.equal(evidence.stage, '0012')
+  assert.equal(evidence.tables.length, 16)
+  assert.deepEqual(execute('PRAGMA foreign_key_check;'), [[]])
+  for (const table of ['payment_operations', 'payment_records', 'payment_voids']) {
+    assert.throws(() => execute(`UPDATE ${table} SET created_at='changed';`), /PAYMENT_IMMUTABLE/)
+    assert.throws(() => execute(`DELETE FROM ${table};`), /PAYMENT_IMMUTABLE/)
+  }
+  await verifyHouseholdFunctions(temp, state, true)
+  console.log('0012: 6表の最終制約・全保持値・DROP後rollback・0011実関数起動・再試行を確認')
+  console.log('最終fixture export→別隔離D1 restore: 16表・全列/JSON/revision/quota・FK/trigger・実共有関数の世帯境界を確認')
   console.log('0011: 最終NULL補完・全保持列/JSON/quota/revision・コピー後/旧DROP後/rename途中/trigger復元前のDDL rollbackと再試行を確認')
   console.log('世帯migration D1検証成功: 15表保持・13表所属・認証challenge無所属・DDL/data/trigger/適用台帳rollback・再適用・旧SQL互換・immutable/FK')
 } finally {

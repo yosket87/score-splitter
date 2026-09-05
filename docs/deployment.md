@@ -97,9 +97,11 @@ npm run preview        # フロントエンドをworkerd上でローカル実行
 
 ### 本番バックアップとPRゲート
 
-本番D1 `score-splitter` には失ってはいけないデータがあるため、本番binding変更や本番デプロイの前に必ずバックアップを取得する。scriptは本番D1 UUIDを照合し、Time Travel bookmark、全量SQL、SHA-256、SQLiteへの一時復元、integrity_check、全8テーブルの件数一致を確認して、Git管理外の `~/Documents/Backups/score-splitter/d1/` にPASS manifestを保存する。
+本番D1 `score-splitter` には失ってはいけないデータがあるため、本番binding変更や本番デプロイの前に必ずバックアップを取得する。scriptは本番D1 UUIDを照合し、Time Travel bookmark、全量SQL、SHA-256、SQLiteへの一時復元、integrity_check、foreign_key_check、適用済みmigrationに対応する全業務テーブルの集合・件数一致を確認して、Git管理外の `~/Documents/Backups/score-splitter/d1/` にPASS manifestを保存する。
 
-本番切替の直前には、バックアップ時に表示された絶対パスを使って次を実行する。Git HEADと30分以内の条件に加え、SQL実体の存在・サイズ・SHA-256、Time Travel情報のbookmark、保存rootとバックアップdirの0700、SQL・Time Travel・manifestの0600を再検証する。相対パス、固定保存root外、規定より深いパスは拒否され、このモードはCloudflareへ接続しない。
+PASS manifestはschemaVersion 3で、適用済みmigration名と照合対象表を記録する。0008時点は15業務表、households追加後は16業務表を対象にする。未知の表・migration、欠番、対象表の欠落、外部キー違反はPASSにしない。旧v2 manifestは再取得が必要。
+
+本番切替の直前には、バックアップ時に表示された絶対パスを使って次を実行する。Git HEADと30分以内の条件に加え、SQL実体の存在・サイズ・SHA-256、Time Travel情報のbookmark、保存rootとバックアップdirの0700、SQL・Time Travel・manifestの0600を再検証する。再検証でもSQLをローカルSQLiteに実復元し、schema・件数・整合性・外部キーを再照合する。相対パス、固定保存root外、規定より深いパスは拒否され、このモードはCloudflareへ接続しない。
 
 ```bash
 npm run verify:d1:production-backup -- ~/Documents/Backups/score-splitter/d1/<UTC日時>/manifest.json
@@ -138,7 +140,7 @@ PR HEADのPASSを含む検証結果と、次の変更順序・停止条件・切
 1. **状態を記録する。** 対象IDのWorker名・tag、稼働Versionと配分、そのVersionのbindings（本番D1 UUIDとSecret名）、両Custom Domainの割当、Git連携先・本番ブランチ・Build/Deploy command・非本番ビルド無効を再取得する。Workerの最新設定だけでなく、実際に100%配信中のVersionを確認する。開発WorkerのVersion・DB・PR Previewも記録し、切替中は対象外のmain更新を止める。
 2. **本番自動デプロイを保留する。** Dashboardの対象本番Worker → Settings → Buildで現在のDeploy command全体を保存する。通常は `npx opennextjs-cloudflare deploy`。Deploy command全体を `node -e 'console.error("本番Worker改名作業中のためデプロイを保留"); process.exit(1)'` へ一時置換する。Build commandの `npx opennextjs-cloudflare build` は維持し、開発側は変更しない。保存後に再読込して確認し、変更前から進行中・待機中のBuildを終端状態まで待つ。現mainのBuildをRetryし、OpenNext build後に保留コマンドで意図どおり失敗すること、稼働Versionが変わらないことを確認する。保留設定を確認できない場合はマージしない。
 3. **PRをマージする。** マージで起動した本番Buildも保留コマンドで停止し、進行中・待機中の本番Buildが残っていないことを確認する。最終マージSHAを記録し、ローカルのGit HEADをそのSHAへ合わせる。mainが別SHAへ進んだ場合は切替を止めて対象を再確認する。
-4. **最終SHAで全量バックアップを取り直す。** 上記の同じ取得コマンドで新規に取得し、Time Travel情報・全量SQL・ローカル復元・8テーブル件数照合をPASSにする。改名直前に新しいmanifestを指定して再検証し、Git HEAD一致、バックアップ完了から30分以内、SQLのサイズとSHA-256、ディレクトリ0700・各ファイル0600を確認する。不一致・期限超過時は新規取得からやり直す。
+4. **最終SHAで全量バックアップを取り直す。** 上記の同じ取得コマンドで新規に取得し、Time Travel情報・全量SQL・ローカル復元・適用済みschema全業務テーブルの件数照合をPASSにする。改名直前に新しいmanifestを指定して再検証し、Git HEAD一致、バックアップ完了から30分以内、SQLのサイズとSHA-256、ディレクトリ0700・各ファイル0600を確認する。不一致・期限超過時は新規取得からやり直す。
 5. **同一Workerの名前だけを更新する。** [Edit Worker API](https://developers.cloudflare.com/api/resources/workers/subresources/beta/subresources/workers/methods/edit/) にBluespecの認証を使い、次のPATCHを送る。認証ヘッダーの値を出力・保存しない。PUTや新名へのdeployでWorkerを作成しない。省略した属性は変更されない部分更新を使う。
 
 ```http

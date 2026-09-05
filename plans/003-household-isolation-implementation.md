@@ -233,3 +233,18 @@ Issue完了は、全経路の2世帯分離、既存認証・金額・精算・AI
 - SQLiteの短いテストと実Wrangler/Miniflareの検証を区別し、実D1は `npm run test:d1:household-migrations` で通常Unitから独立させる。テスト用DB・設定はtmpに作り、remoteフラグや本番DBへは接続しない。SQL文字列内の空白やコメント記号を破壊する正規表現正規化を使わない。
 - 親の補足設計メモ `.superpowers/sdd/003-household-isolation-implementation/migration-design.md` の0009/0010とD1原子性節を参照してよいが、既存世帯は0009で作るこのbriefを優先する。その他の後段提案は実装しない。
 - 日本語Conventional Commitsで担当のみコミットし、実行コマンド/RED/GREEN/制約と懸念をタスクレポートへ。サブエージェントは起動しない。
+
+### Task 3: 認証済み世帯コンテキストと認証データ経路
+
+所有: 新規 `cloudflare/worker/src/households.ts`、`src/lib/api/households.ts`、既存のsessions/passkeys/challenges共有D1モジュールとAPIアダプター、`src/lib/webauthn/session.ts`、`src/app/actions/auth.ts`/`passkeys.ts`、認証ルート（必要ならauthenticated-routerから分離）、認証関連MSW/FakeD1/fixtures/テスト。家計明細・AI・振込SQLとmigrationは変更しない。必要な型呼出修正は認証境界に限定し、他の家計経路へのscope伝播は後続タスク。
+
+- 不変 `HouseholdContext = Readonly<{ householdId: string }>` を共有し、D1家計関数へ渡す基礎とする。context欠落/空値はruntimeでも拒否。セッションtokenを検証し、期限・実在household JOIN・既知auth_methodを確認してcontextを作る。NULL/不明所属から既存世帯へのfallback禁止。HTTPも同じ解決関数を利用する。
+- 既存パスワードログインはbcrypt成功後のみlegacy_auth_key='legacy'でhouseholdを解決し、明示的にその世帯のsessionを作る。パスキー認証は署名検証済みcredentialの所属からsessionを作り、別途既存世帯として許可されていることを確認する（他世帯の新規ログイン解禁は後続Issue）。person husband/wifeは担当者として維持する。
+- SessionInfo/ApiSessionにhouseholdId追加。requireAuthは認証済みSessionInfo（householdIdを含む）を返せるようにし、既存の戻り値未使用呼出元を壊さない。セッション期限境界は <= now を無効に統一。無効日時/未知認証方式/所属なしも認証失敗にする。Cookieの属性と有効期間を維持。
+- passkey一覧/登録/管理取得/削除、登録challenge作成/検索/消費はcontext必須で世帯条件。認証前credential検索は内部用途を名前で区別し、所属をJOIN検証し返却結果をブラウザに公開しない。署名成功後のcounter更新も検証済み世帯+credential ID。外部payloadのhouseholdIdを認可根拠にしない。
+- challengeは登録=世帯、認証前=NULLの別契約。最新challengeを全ユーザーで共有する現状を避け、生成したchallenge IDをhttpOnly短期cookieで当該ブラウザ試行と結び、type/期限/世帯/IDで取得、一回だけ消費する。消費はDELETE RETURNING等の原子的操作で行い、二重検証がsessionを二回発行できないことを検証。登録時も世帯+challenge IDで対応づける。WebAuthn userIDは新規登録ではhousehold+personから生成し、既存credentialのバイト列は変更しない。
+- HTTPの認証管理ルートを明確に分ける。管理passkey/登録challengeはBearerに加えDB sessionからcontext。認証前credential/challenge/session発行はサーバー内部control-planeとして区別し、通常家計HTTPへBearerだけで入れる根拠にしない。無認証の外部ブラウザにcredential/public key/session発行APIを開放しない。MSWでは同じリクエスト/レスポンス契約を実装。
+- TDD: 有効/期限切れ/期限一致/NULL/不明所属session、password成功時だけlegacy解決、credential所属解決、他世帯パスキー管理拒否、別世帯同person登録challengeの独立、異なるブラウザ試行と一回消費、認証前challenge NULL、署名失敗/未知credentialからsession不発行。A/B既存session fixtureで境界を確認するが、新規Bログインは解禁しない。
+- 必要な既存認証テスト/FakeD1/MSWを実契約に合わせて更新し、型検査と関連テストを通す。SQL条件が本当に作用する検証は実SQLiteか既存の隔離D1テスト基盤で行う。型だけのブランドをセキュリティ境界とは主張しない。
+- 家計経路全体がまだ未対応の中間commit。リリース可能/世帯分離完成とは主張しない。既存APIをoptional household引数で互換化しない。
+- 担当のみ日本語Conventional Commit、RED/GREEN/検証/制約をタスクレポートへ。サブエージェントは起動しない。

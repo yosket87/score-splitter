@@ -240,7 +240,7 @@ Issue完了は、全経路の2世帯分離、既存認証・金額・精算・AI
 
 - 不変 `HouseholdContext = Readonly<{ householdId: string }>` を共有し、D1家計関数へ渡す基礎とする。context欠落/空値はruntimeでも拒否。セッションtokenを検証し、期限・実在household JOIN・既知auth_methodを確認してcontextを作る。NULL/不明所属から既存世帯へのfallback禁止。HTTPも同じ解決関数を利用する。
 - 既存パスワードログインはbcrypt成功後のみlegacy_auth_key='legacy'でhouseholdを解決し、明示的にその世帯のsessionを作る。パスキー認証は署名検証済みcredentialの所属からsessionを作り、別途既存世帯として許可されていることを確認する（他世帯の新規ログイン解禁は後続Issue）。person husband/wifeは担当者として維持する。
-- SessionInfo/ApiSessionにhouseholdId追加。server-onlyのrequireHouseholdContext()を共通境界として提供する。requireAuthは認証済みSessionInfo（householdIdを含む）を返せるようにし、既存の戻り値未使用呼出元を壊さない。セッション期限境界は <= now を無効に統一。無効日時/未知認証方式/所属なしも認証失敗にする。Cookieの属性と有効期間を維持。
+- SessionInfo/ApiSessionにhouseholdId追加。server-onlyのrequireHouseholdContext()を共通境界として提供し、householdId/person/authMethodを持つ同一SessionInfoの不変snapshotを返す（D1用HouseholdContextは最小のhouseholdIdのみでよい）。requireAuthは認証済みSessionInfo（householdIdを含む）を返せるようにし、既存の戻り値未使用呼出元を壊さない。セッション期限境界は <= now を無効に統一。無効日時/未知認証方式/所属なしも認証失敗にする。Cookieの属性と有効期間を維持。
 - passkey一覧/登録/管理取得/削除、登録challenge作成/検索/消費はcontext必須で世帯条件。認証前credential検索は内部用途を名前で区別し、所属をJOIN検証し返却結果をブラウザに公開しない。署名成功後のcounter更新も検証済み世帯+credential ID。外部payloadのhouseholdIdを認可根拠にしない。
 - challengeは登録=世帯、認証前=NULLの別契約。最新challengeを全ユーザーで共有する現状を避け、生成したchallenge IDをhttpOnly短期cookieで当該ブラウザ試行と結び、type/期限/世帯/IDで取得、一回だけ消費する。消費はDELETE RETURNING等の原子的操作で行い、二重検証がsessionを二回発行できないことを検証。登録時も世帯+challenge IDで対応づける。WebAuthn userIDは新規登録ではhousehold+personから生成し、既存credentialのバイト列は変更しない。
 - HTTPの認証管理ルートを明確に分ける。管理passkey/登録challengeはBearerに加えDB sessionからcontext。認証前credential/challenge/session発行はサーバー内部control-planeとして区別し、通常家計HTTPへBearerだけで入れる根拠にしない。無認証の外部ブラウザにcredential/public key/session発行APIを開放しない。MSWでは同じリクエスト/レスポンス契約を実装。
@@ -256,6 +256,7 @@ Issue完了は、全経路の2世帯分離、既存認証・金額・精算・AI
 - 共有D1関数はcontext必須、全SELECT/INSERT/UPDATE/DELETEに認証済み世帯を明示。月一覧/全月集計/フラグ/更新後再取得/コピー内INSERTの内部関数も省略・既定値なし。他世帯IDと不存在は同じ404。
 - Action/RSC入口から認証済みcontextをAPIへ渡し、HTTPはセッショントークンで解決したcontextを使用する。body/query/headerの任意householdIdは使わない。認証失敗を正常な空データに変換しない。一般登録は追加しない。
 - コピーはsourceMonth+household+選択IDから元データを再取得する。元のラベル/担当/コピー対象金額が確認時と異なる場合409とし、改ざん入力で明細を作らない。labelOnlyは既存どおり金額をコピーしない。不正な選択ID混入は全処理を拒否。replace削除・重複キー判定・繰越生成・先月支出/未清算繰越も世帯内。全書込は既存batch原子性を維持し、コピーに振込履歴を含めない。
+- 事前SELECTとbatch間のsource変更レースを防ぐ。同一sourceMonthへのコピーは書込前400。batch先頭SELECTで選択ID存在/確認値を判定し、全DELETE/INSERTに同じsource行だけを参照するvalid CTE条件を付ける。invalidなら全mutation0件にし、先頭判定から404/409を返す。target書込で変わるAI/月revisionをguardに使わない。生成繰越のsource/重複照会もbatch内へ移すか同じ不変性を保証する。現previewの繰越件数だけでは値変更を検知できないため、includeCarryover時のpreview→実行へ元繰越集合のfingerprint等を引き継ぐ契約を追加し、値/集合変更を409にする。コピーclientのこの契約伝播に必要な最小変更も担当内。新しいガード表は追加しない。詳細copy-atomicity-design.mdを参照。
 - 正負の金額・ソート・CSV/精算計算・コピーmodeの既存仕様を維持する。世帯を変更する更新APIは作らない。
 - A/B同月・同担当・同ラベルを持つfixtureで、一覧/集計/全mutation/preview/skip/replace/carryoverの分離とforeign ID拒否・入力改ざん・preview後変更409・batch失敗rollbackを検証。共有Fakeだけでなく実SQLite/D1のSQL実行で条件が作用することを確認する。後段の一意制約変更が必要な同額同キー共存は最終migrationタスクでも再検証する。
 - 各API/Actionのテストと型検査を通す。新たなcontext必須signatureの影響でAI/振込の呼出修正が必要な場合、既に認証されたcontextを渡す機械的修正まで行ってよいが、独立した仕様変更はしない。テストが未対応の中間状態を成功扱いしない。

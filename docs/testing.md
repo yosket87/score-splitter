@@ -196,3 +196,11 @@ Playwrightによるブラウザテスト。
 - `npm run test:d1:payment`: 全migrationを一時Miniflare D1に適用し、実共有関数の再送・競合・履歴不変・途中rollback・編集継続を検証。外部DBへ接続せず通常Unitから分離。
 - `npx playwright test tests/e2e/payment-status.spec.ts`: 振込→編集→差額登録→取消／訂正。375px/1280px、ライト/ダークの状態別スクリーンショット。
 - `.github/workflows/payment-d1.yml`: 関連ファイル変更時とnightlyに専用D1 Jobを実行。
+
+
+## 世帯の互換移行
+
+- `npm run test:run -- tests/unit/cloudflare/household-migrations.test.ts tests/unit/scripts/backup-schema.test.ts`: SQLiteで0009の旧SQL互換、0010の全保持列/JSON・revision・quota不変、不正所属の拒否を検証。
+- `npm run test:d1:household-migrations`: 一時設定とローカルWrangler D1で、0010の途中失敗によるデータ・DDL・trigger・適用台帳のrollback、正規SQL再適用、immutable/FK保護を確認。remoteへ接続しない。
+- 実D1検証は通常Unitから独立。Node 22のSQLite標準モジュールがExperimentalWarningを出す場合がある。失敗を無視する設定は使わない。
+- 最終0011/0012と全経路の2世帯検証は後続タスク。互換移行の成功だけを世帯分離完成の証拠にしない。

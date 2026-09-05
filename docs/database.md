@@ -4,6 +4,12 @@
 
 Cloudflare D1（SQLite）を使用したデータベース設計です。本番・開発とも、Next.js/OpenNextのWorkerが `DB` bindingでD1へ直接アクセスします。D1ドメイン関数は `cloudflare/worker/src/` と共有し、同ディレクトリの `index.ts`（HTTP入口）経由のアクセスは `USE_MOCKS=true` のモックテストまたは切り戻し用に限定します。
 
+## 世帯列の互換移行（0009/0010）
+
+0009で `households`（id主キー、nullable一意のlegacy_auth_key、created_at）と、明細3表・認証3表・AI3表・振込4表の `household_id TEXT REFERENCES households(id)` を追加する。互換期間はNULLを許容し、DEFAULTは設けない。login_attemptsとwaitlist_entriesは認証前/公開処理のため対象外。以下の既存列定義にこの共通列が加わる。
+
+0010は既存世帯の唯一性・識別子と既知所属/認証状態を検査してNULLを補完する。authentication challengeだけはNULLを維持する。既存ID・token・公開鍵・counter・JSON文字列・AI利用回数・revisionを保持し、振込の更新禁止トリガーを同じmigration内で復元する。旧版が新たに書くNULLは後続の切替停止中に追補する。この段階ではキーやアプリがまだ世帯分離を完了していない。[段階リリース手順](household-release-runbook.md)
+
 ## テーブル構造
 
 ### incomes（収入テーブル）
@@ -172,9 +178,9 @@ D1マイグレーションは `cloudflare/worker/migrations/` に配置してい
 
 - 本番Worker `score-splitter` は本番D1 `score-splitter` に接続する
 - 開発Worker `score-splitter-dev` は開発D1 `score-splitter-db-dev` に接続する
-- PR Previewは共有の開発D1を使用し、本番D1のデータを開発環境へコピーしない
+- rootアプリのPR Previewは共有の開発D1を使用し、本番D1のデータを開発環境へコピーしない。旧APIの自動Previewには本番D1接続が残るため、世帯対応版をpushする前に停止/隔離を確認する
 - 本番D1へbindingを変更・デプロイする前に、必ず `npm run backup:d1:production -- --confirm-production-d1 <本番D1 UUID>` を実行する
-- バックアップscriptはTime Travel bookmark、全量SQL、SHA-256、SQLite復元の整合性・全8テーブルの件数照合を検証し、`PASS` manifestを作成する。PASSがない状態で本番PRをReadyに変更・merge・本番デプロイしてはならない
+- バックアップscriptはTime Travel bookmark、全量SQL、SHA-256、SQLite復元の整合性・外部キー・適用済みmigrationに対応する全業務表の集合/件数照合を検証し、`PASS` manifestを作成する。PASSがない状態で本番PRをReadyに変更・merge・本番デプロイしてはならない
 - バックアップはGit管理外の `~/Documents/Backups/score-splitter/d1/` に保存する。Time Travelのrestoreはデータ破損時にユーザーが明示承認した場合だけ実行する
 
 ### 振込記録（0008_add_payment_records.sql）

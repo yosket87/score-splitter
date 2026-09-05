@@ -10,6 +10,7 @@ Issue #102の段階別証跡。2026-09-05時点、実装は進行中で本番リ
 | 0009/0010互換追加と初回補完 | ec09c41 | 対象34件、全体1093件、型・ESLint成功。SQLite/隔離Wranglerで保持値・rollback・再適用・FK・immutable検証。独立レビューApproved |
 | 認証と試行分離 | 5355f56 | 全体1141件、型検査成功。認証対象行98.33%、分岐90.53%。ローカルChromium E2E3件成功 |
 | 同一認証snapshot | ac0fe0a | 戻り値欠落をREDで確認後、対象16件・型検査成功。認証差分全体の独立レビューApproved |
+| 明細・集計・コピー | 05df935 | 全体1181件、型・lint error 0。実SQLite34ケース、実D1 race/rollback、Chromium6件成功。独立レビュー中 |
 
 認証E2Eでは、パスワードの成功/失敗と、仮想認証器の実署名による登録→再ログインを確認した。世帯付きuserHandle、challenge cookie消費も検証した。実環境のパスキー登録を行った証跡ではない。
 
@@ -20,13 +21,15 @@ Issue #102の段階別証跡。2026-09-05時点、実装は進行中で本番リ
 | #119 | 01947d8 | unit/type/lint、E2E、開発Workers Builds成功。E2E 4分32秒、test 2分2秒 |
 | #120 | ec09c41 | payment-d1 33秒成功、開発/旧API Workers Builds成功。baseがmainではないため既存test/e2eは未起動。全体テストはローカルで成功 |
 
+#119（fa564796-670d-4890-8027-d15533f1cafc）と#120（8d76a526-0d03-444a-8778-39b28696ad93）のrootアプリPreviewは、実Versionのbindingが開発D1 `51457bd5-8e0e-4645-ad34-86634285af2c` であることを確認した。
+
 #119の実Branch Previewで未認証の`/login`への遷移とログイン画面を確認した。Keychainの開発用資格情報を使うログイン確認は明示承認待ち。資格情報を表示・記録していない。
 
 #120では旧APIの自動Previewも生成され、本番D1のbindingを確認した。本番migrationは未適用、旧APIの本番配分は不変だった。後続pushには旧APIの非本番自動upload停止/隔離が必要。[切替手順と実環境差異](household-release-runbook.md)
 
 ## 残る必須検証
 
-- 明細・全月集計・フラグ・コピーのA/B分離、foreign ID拒否、コピー元の変更競合、全書込の原子性。
+- 0011後の明細・コピーにおける同額同キー共存の再検証（Task4独立レビューはApproved）。
 - AIのcontext/lease/分類/結果/revisionと、振込のsnapshot/再送/訂正/取消の世帯分離。
 - 0011/0012による世帯キー・FK・NOT NULL・trigger切替と、全既存値保持・途中rollback。
 - 同月同額同担当同label/operation IDが共存する2世帯の実D1試験。

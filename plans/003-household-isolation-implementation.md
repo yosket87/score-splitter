@@ -270,6 +270,7 @@ Issue完了は、全経路の2世帯分離、既存認証・金額・精算・AI
 - AI repository生成時にcontextを固定し、4か月context・保存済み結果・lease取得・分類保存・結果保存・補償releaseの全経路へ伝播する。SQL中のJOIN/EXISTS/UPDATEの各対象をhouseholdで絞る。保存対象のexpense IDは同じ世帯に存在するものだけ。
 - 月leaseは世帯+month、guardとsource revisionは世帯。日次利用回数とcooldownは世帯内で月を跨いで共有。lease期限/実行token/revisionによる既存の排他・stale拒否を保ち、別世帯の変更で拒否しない。古いtokenや別世帯tokenでrelease不可。失敗補償の照会・更新にもhouseholdが必要。
 - 振込の月revision/operation再送/明細snapshot/履歴JOIN/訂正・取消/保存batchの全経路をhouseholdで限定。actorは同一認証context由来。外部operation IDが別世帯にある場合は自世帯の新規操作として扱い、同じIDの結果を混同しない。対象paymentのforeign IDは404相当。過去JSONを改変せず、世帯を後付けしない。
+- D1のmeta.changesはtrigger書込も含むため、対象行件数との厳密一致を仮定しない。単一対象の成功判定と業務上の件数を区別し、必要な返却行はRETURNINGを使う。既存insight `~/.ai-shared/insights/kb/zero-mvp/2026-09-03-cloudflare-d1.md` も参照。
 - runtime必須context・全SQL条件・HTTPのDB session検証を揃える。AIとpaymentのモックも同じ契約。グローバルfallbackや初回リクエスト時の暗黙legacy行作成は禁止。fixtureで各世帯guard/revisionを明示初期化する。
 - TDD: 同月2世帯で診断結果独立、guard/cooldown/日次回数独立、他世帯expense分類拒否、別世帯編集でstaleにならない、自世帯編集でstale、古いtoken補償の無害性。振込は同月同額同operation IDの再送分離、訂正/取消の越境拒否、snapshot漏洩なし、batch途中失敗rollback、revision独立。
 - 0011までの実migrationと実共有関数を使ったSQLite/Miniflare検証を用意し、後続0012の実migration適用後にも再実行可能にする。Fake parserだけを根拠にしない。既存振込整合性テスト・AI競合テストを落とさない。実D1検証はUnitから独立。

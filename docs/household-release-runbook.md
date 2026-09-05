@@ -19,7 +19,7 @@
 
 このため、段階3のpushは旧APIの非本番ブランチupload停止または独立検証DBへの隔離を先に確認してから行う。既存Previewの到達停止も切替ゲートに含める。本番設定の変更は別途承認を得る。
 
-Dashboardの読取確認では、旧APIの「設定 → ビルド → 非本番ブランチのビルド」が有効だった。非本番コマンドは `npx wrangler versions upload --config cloudflare/worker/wrangler.jsonc`。このチェックを無効にする操作は承認待ちで、設定は変更していない。既存Previewのrouting停止とは別操作として扱う。
+Dashboardの読取確認では、旧APIの「設定 → ビルド → 非本番ブランチのビルド」が有効だった。非本番コマンドは `npx wrangler versions upload --config cloudflare/worker/wrangler.jsonc`。その後、ユーザーが旧APIは未使用で配布不要と確認したため、旧API WorkerのGit接続を解除した。Dashboardのビルド欄が「Git リポジトリ → 接続」になったことを確認済み。以後のpushによる旧APIの本番自動デプロイ・非本番Preview生成は停止。アプリ側のGit連携、既存Worker/Previewのrouting、DBは変更していない。既存Previewのrouting停止とは別操作として扱う。
 
 ## 検証環境
 
@@ -42,7 +42,7 @@ Dashboardの読取確認では、旧APIの「設定 → ビルド → 非本番�
 4. AIの新規実行を止め、稼働中リクエストの終了とlease期限を確認する。期限切れだけを遅延書込が不可能な証拠にしない。古い処理からDBへ書込できない状態を確定する。
 5. 停止中の最新バックアップを取得し、切替直前にHEAD一致・30分以内・全復元検証を再確認する。古いPR HEADのPASSを流用しない。
 6. 0011の最終NULL補完・キー/trigger切替を適用し、schema・保持値・FK・immutable保護を検証する。失敗時は停止を維持する。世帯非対応コードを再開しない。
-7. 同じ対象SHAの世帯対応root/旧APIを配備する。対応しない入口はDBへ到達できない状態を維持する。旧Previewへの到達を実URLで再確認する。
+7. 同じ対象SHAの世帯対応rootを配備する。旧API Workerは未使用のため配備対象にせず、DBへ到達できない状態を維持する。旧Previewへの到達を実URLで再確認する。
 8. 配備後も全入口の停止を維持する。0011完了時点では再開せず、そのまま段階4へ進む。
 
 ## 段階4と切り戻し

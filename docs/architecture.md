@@ -138,6 +138,10 @@ Google認証のドメインは`cloudflare/worker/src/oauth-attempts.ts`、`googl
 
 未知の主体には家計sessionを作らず、短期の申請だけを返す。承認済みの移行は個人・主体・所属・sessionを同じbatchで確定する。本人の全端末失効はepochとOAuth試行の下限を進め、復旧は同じuserと過去の振込actorを維持して旧主体を失効する。Google tokensを家計sessionに使わない。詳細は[Google認証ADR](adr/0002-google-authentication.md)を参照する。
 
+ブラウザの入口は`/api/auth/google/start`と`/api/auth/google/callback`。固定originと短期HttpOnly Cookieを照合し、試行claim、OIDC検証、D1の認可確定後に家計Cookieを発行する。未知の主体には`/auth/migration`で照合コードを表示し、家計Cookieは発行しない。設定画面の全端末ログアウトは、Cookieから取得した本人のsessionをServer Actionで失効する。
+
+UI検証の疑似Googleはdevelopment・Node runtime・USE_MOCKSの全条件が揃うlocalhostだけで利用する。実際の署名/PKCE検証を通す疑似providerと既存のインメモリStoreを使い、SQL認可の検証は隔離D1で行う。本番成果物では環境変数にモック指定を与えても疑似認証を有効にしない。
+
 認証前の内部HTTPは `/internal/auth/*`、パスキー管理と登録challengeはDB session必須の管理ルートへ分ける。認証challengeはNULL所属で、登録challengeは認証済み世帯に属する。短期httpOnly cookieで試行IDをブラウザへ紐づけ、期限・type・世帯/personと照合して原子的に消費する。署名検証失敗後はoptionsを取り直す。
 
 全家計経路へのcontext伝播と0011は実装済み。月・年・設定画面はサーバー由来の世帯keyで状態を分け、非同期処理は画面の寿命を確認してからstorage・toast・再取得を更新する。振込pendingは世帯＋月のsessionStorageへ保存する。旧月キーは移管・再送せず、DBから解決した既存世帯との一致をサーバーが確認した画面だけで結果照会・解消する。

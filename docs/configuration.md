@@ -273,3 +273,15 @@ OPENAI_DIAGNOSIS_MODEL=gpt-5-mini
 - 保持の既定、対象endpoint、承認条件、設定画面の最新情報は [OpenAI公式 Data Controls](https://developers.openai.com/api/docs/guides/your-data) を参照する。
 - 障害時は既存の家計データを変更せず、保存済み診断があれば表示を維持する。新規実行・再診断だけを安全な固定メッセージで失敗させる。
 - モデル設定は非秘密だが、APIキー、認証Cookie、Worker共有トークン、担当者、収入ラベル、レコードIDをプロバイダーpayloadやログへ含めない。
+
+## Googleログイン
+
+| 設定 | 保存先 | 用途 |
+|---|---|---|
+| `GOOGLE_OAUTH_CLIENT_ID` | 環境ごとのWorker vars | Google OAuth WebクライアントID |
+| `GOOGLE_OAUTH_ORIGIN` | 環境ごとのWorker vars | 登録済みの固定origin。末尾スラッシュやpathを付けない |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Workers Secret | 対象クライアントのSecret |
+
+本番と固定開発は別クライアントを利用し、callbackは固定originの`/api/auth/google/callback`とする。設定不足ではGoogleログインを有効にせず、移行期間の旧方式を継続する。動的PR Previewから実Googleログインは開始できない。
+
+`npm run dev:mock`はlocalhostの疑似providerを使用する。実Google設定の不足をモックへの自動切替条件にしない。実クライアントの登録・運営承認・切替条件は[段階リリース手順](google-auth-release-runbook.md)を参照。

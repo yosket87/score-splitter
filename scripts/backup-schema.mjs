@@ -234,7 +234,8 @@ export function createExpectedBackupSchema(migrations, databasePath, commandRunn
       throw new Error(`適用済みmigrationがリポジトリにありません: ${name}`)
     }
     commandRunner('sqlite3', ['-safe', '-bail', databasePath], {
-      input: readFileSync(migrationPath), label: `期待schema生成: ${name}`,
+      // macOS等のCLI既定値に依存せず、D1と同じ改名時のFK更新を使う。
+      input: Buffer.concat([Buffer.from('PRAGMA legacy_alter_table=OFF;\n'), readFileSync(migrationPath)]), label: `期待schema生成: ${name}`,
     })
   }
   commandRunner('sqlite3', ['-safe', databasePath, 'CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY, name TEXT);'], { label: '期待migration表生成' })

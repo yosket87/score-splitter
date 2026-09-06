@@ -22,6 +22,7 @@ function inspect(sql: string) {
 }
 
 const snapshot = (stage: number) => [
+  'PRAGMA legacy_alter_table=OFF;',
   ...BACKUP_MIGRATIONS.slice(0, stage).map(({ name }) => readFileSync(path.join(process.cwd(), 'cloudflare/worker/migrations', name), 'utf8')),
   'CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY, name TEXT);',
   ...BACKUP_MIGRATIONS.slice(0, stage).map(({ name }, index) => `INSERT INTO d1_migrations VALUES (${index + 1}, '${name}');`),
@@ -58,6 +59,25 @@ describe('実SQLiteによるバックアップschema検証', () => {
       expect(expected.stage).toBe(String(stage).padStart(4, '0'))
       expect(expected.tables).toHaveLength(16)
       expect(verifyMatchingSchemaObjects(expected.objects, actual.schema.objects)).toEqual(expected.objects)
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+  it('CLIの旧改名動作が有効でも期待schemaのFKは改名後の表を参照する', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'backup-rename-schema-test-'))
+    const databasePath = path.join(directory, 'expected.sqlite')
+    const run = (executable: string, args: string[], options: { input?: Buffer } = {}) => {
+      const result = spawnSync(executable, ['-cmd', 'PRAGMA legacy_alter_table=ON;', ...args], { input: options.input, encoding: 'utf8' })
+      if (result.status !== 0) throw new Error(result.stderr)
+      return result.stdout
+    }
+    try {
+      createExpectedBackupSchema(BACKUP_MIGRATIONS.slice(0, 11).map(({ name }) => name), databasePath, run)
+      for (const table of ['payment_records', 'payment_voids']) {
+        const references = JSON.parse(run('sqlite3', ['-safe', '-json', databasePath, `PRAGMA foreign_key_list(${table});`]))
+        expect(references.some((row: { table: string }) => row.table.endsWith('_new'))).toBe(false)
+        expect(references.some((row: { table: string }) => row.table === 'payment_operations')).toBe(true)
+      }
     } finally {
       rmSync(directory, { recursive: true, force: true })
     }

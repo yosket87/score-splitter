@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Miniflare } from 'miniflare'
 
-// Wranglerと同じ隔離stateを開き、復元したDBへ実共有関数を直接接続する。
+// 正規0013へ更新済みの専用cloneへ現共有関数を接続する。歴史DBを直接変更しない。
 export async function verifyHouseholdFunctions(temp, state, restored = false) {
   const output = join(temp, 'shared-functions.mjs')
   await build({ stdin: { contents: ['records', 'copy-month', 'sessions', 'passkeys', 'challenges', 'ai-diagnosis-store', 'payment-status'].map(name => `export * from './cloudflare/worker/src/${name}.ts'`).join(';'), resolveDir: process.cwd(), loader: 'ts' }, bundle: true, platform: 'node', format: 'esm', outfile: output })
@@ -15,7 +15,7 @@ export async function verifyHouseholdFunctions(temp, state, restored = false) {
     const a = { householdId: (await db.prepare("SELECT id FROM households WHERE legacy_auth_key='legacy'").first()).id, person: null, authMethod: 'password' }
     const b = { householdId: 'B', person: 'wife', authMethod: 'passkey' }
     const runtime = { now: () => new Date('2026-09-05T00:00:00Z'), randomUUID: () => crypto.randomUUID() }
-    // 0012失敗後も0011の既存session/明細/認証/AI/operationを実関数が読める。
+    // 0011/0012から保持された既存session/明細/認証/AI/operationを現関数が読める。
     assert.equal((await api.getSession(db, '1'.padStart(64, '0'), runtime.now())).householdId, a.householdId)
     assert.equal((await api.getPasskey(db, a, 'credential')).counter, 17)
     assert.equal((await api.listRecordsByMonth(db, a, 'income', '202609'))[0].id, 'income')

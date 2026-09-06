@@ -206,5 +206,16 @@ Playwrightによるブラウザテスト。
 - `npm run test:d1:records`: 同額同キーの繰越共存、コピー元競合、繰越集合変更、skip/replaceとrevisionを含むrollback。
 - `npm run test:d1:ai-payment`: 同月2世帯のAI lease/quota/revision、分類所有権、同operation IDの並列再送、snapshot、越境取消拒否とbatch rollback。
 - `tests/integration/api/ai-payment-household-http.test.ts`: 実SQLを使うHTTP WorkerとMSWで、セッション検証・任意所属指定の無効性・越境拒否を共通に検証。
-- 最終0012の保持・rollback後の0011動作・再適用に加え、exportを別の隔離D1へ復元して実共有関数の世帯境界を検証する。クライアントはA→B同月、遅延応答、旧pendingと同operation IDの所有者違いを検証済み。
-- CIはlint/typecheck/coverage/buildを独立Job、実D1 4スクリプトを別matrixへ分離。段階PRでもtest/E2Eを起動し、関連変更とnightlyでD1を検証する。Worker共有関数をcoverageへ含め、80%閾値を維持する。[段階別の実行結果](household-verification.md)を参照する。
+- 最終0012の保持・rollback・再適用、exportを別の隔離D1へ復元する検証を維持する。現在のAPIは0013を必要とするため、歴史DBの専用cloneだけを正規migrationで更新して共有関数の世帯境界を検証し、元DBのschema・全保存値が変わらないことを確認する。クライアントはA→B同月、遅延応答、旧pendingと同operation IDの所有者違いを検証済み。
+- CIはlint/typecheck/coverage/buildを独立Job、実D1の各スクリプトを別matrixへ分離。段階PRでもtest/E2Eを起動し、関連変更とnightlyでD1を検証する。Worker共有関数をcoverageへ含め、80%閾値を維持する。[段階別の実行結果](household-verification.md)を参照する。
+
+
+## Google認証
+
+- `npm run test:google-oidc:worker`: 署名・issuer・audience・state・nonce・PKCEの実プロトコルをworkerdで検証。
+- `npm run test:d1:auth`: 実migrationを適用した隔離D1で一度きりの移行、所属、失効、復旧、競合rollback、運営CLIの承認を検証。実Wranglerのremote query契約はloopbackの合成APIで確認する。
+- `npm run test:google-auth:production`: OpenNext build後の実配布成果物で、形式上有効なダミーGoogle設定を与えて正規originの開始、Preview拒否、全モック入口の無効化、外部通信0を確認する。CIでは専用Jobを使う。
+- `tests/e2e/google-auth.spec.ts`: development限定の疑似providerで実OIDC検証を通し、通常ログイン、確認待ち・承認・再ログイン、本人だけの全端末失効、復旧、取消・期限切れを検証する。既存のパスワード回帰も維持する。
+- 画面の目視は長いメールアドレス・照合コード、375px幅、空月、確認dialogを含める。承認・停止の合成fixtureを実在世帯に適用しない。実Google設定と2人の本人確認は[段階リリース手順](google-auth-release-runbook.md)で別途記録する。
+
+旧認証終了後のUI確認は、ローカルの`/api/mock/google/prepare`へ`legacy-disabled`シナリオを準備してGoogleでログインする。通常ログインとの併存、停止後Googleのみの導線、設定での旧管理終了、CRUD/CSV、空月・狭幅を確認する。停止・承認用の実D1試験は2人の合成fixtureを使い、実在世帯の停止操作は行わない。

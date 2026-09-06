@@ -138,6 +138,8 @@ Google認証のドメインは`cloudflare/worker/src/oauth-attempts.ts`、`googl
 
 未知の主体には家計sessionを作らず、短期の申請だけを返す。承認済みの移行は個人・主体・所属・sessionを同じbatchで確定する。本人の全端末失効はepochとOAuth試行の下限を進め、復旧は同じuserと過去の振込actorを維持して旧主体を失効する。Google tokensを家計sessionに使わない。詳細は[Google認証ADR](adr/0002-google-authentication.md)を参照する。
 
+`google-finalization.ts`は、2人の消費済み移行枠と現在のGoogle認証条件を確認して旧方式の停止日時を設定する。同じUPDATEのtriggerで旧sessionを削除し、password/passkey/challengeの共通ドメインとServer Actionsでも停止状態を確認する。既存世帯の識別情報を読む処理は過去履歴にも必要なため維持し、旧方式でログインできるかの判定とは分離する。
+
 ブラウザの入口は`/api/auth/google/start`と`/api/auth/google/callback`。固定originと短期HttpOnly Cookieを照合し、試行claim、OIDC検証、D1の認可確定後に家計Cookieを発行する。未知の主体には`/auth/migration`で照合コードを表示し、家計Cookieは発行しない。設定画面の全端末ログアウトは、Cookieから取得した本人のsessionをServer Actionで失効する。
 
 UI検証の疑似Googleはdevelopment・Node runtime・USE_MOCKSの全条件が揃うlocalhostだけで利用する。実際の署名/PKCE検証を通す疑似providerと既存のインメモリStoreを使い、SQL認可の検証は隔離D1で行う。本番成果物では環境変数にモック指定を与えても疑似認証を有効にしない。

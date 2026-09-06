@@ -134,14 +134,16 @@ type Person = 'husband' | 'wife'
 UIやフロントエンドの変更時は、必ず以下の手順でブラウザ上の表示を検証すること。
 
 1. `npm run dev:mock` でモック付きdevサーバーを起動（MSWがWorker APIをモック）
-2. Playwright MCPでブラウザを操作し、ログイン → 対象画面を表示（パスワード: `password`）
+2. Playwright MCP（利用できない場合はCUA）でブラウザを操作し、ログイン → 対象画面を表示。旧方式の回帰はパスワード `password`、Google認証は `tests/e2e/google-auth.spec.ts` の固定シナリオを使う
 3. スクリーンショットを撮影し、表示崩れ・データ表示・操作性を目視確認
 4. 正常系だけでなく、空データや境界値のケースも確認する
 
 - モックデータ: `src/mocks/data.ts`
 - MSWハンドラー: `src/mocks/handlers.ts`
 - インメモリDB: `src/mocks/db.ts`
-- 起動制御: `src/instrumentation.ts`（`USE_MOCKS=true` 時のみMSW起動）
+- 起動制御: `src/instrumentation.ts`（development・Node runtime・`USE_MOCKS=true` の全条件を満たす場合のみMSW起動）
+- Googleの疑似provider: `src/mocks/google-provider.ts`。モック成功と固定開発Workerでの実Google確認を区別する
+- 本人確認・復旧・旧認証終了の合成シナリオは隔離fixtureで検証し、実在世帯の移行枠を架空主体で消費しない
 
 ## ドキュメント一覧
 

@@ -1,13 +1,5 @@
-import { test, expect, type Page } from '@playwright/test'
-import { resetMockData } from './helpers'
-async function prepare(page: Page, scenario: string) {
-  expect((await page.request.post('/api/mock/google/prepare', { data: { scenario } })).ok()).toBe(true)
-}
-async function googleLogin(page: Page, scenario: string) {
-  await prepare(page, scenario)
-  await page.goto('/login')
-  await page.getByRole('link', { name: 'Googleでログイン', exact: true }).click()
-}
+import { test, expect } from '@playwright/test'
+import { resetMockData, googleLogin, prepareGoogleMock as prepare } from './helpers'
 test.beforeEach(async ({ request }) => resetMockData(request))
 test('Googleでログインし連携状態を表示する', async ({ page }) => {
   await googleLogin(page, 'member-a')

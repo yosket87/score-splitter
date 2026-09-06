@@ -1,6 +1,6 @@
 const callback = 'http://localhost:3000/api/auth/google/callback'
 export const googleScenarios = ['member-a', 'member-b', 'pending-a', 'recovery', 'cancel'] as const
-export const googlePreparations = [...googleScenarios, 'approve-pending', 'approve-recovery', 'expire-pending'] as const
+export const googlePreparations = [...googleScenarios, 'approve-pending', 'approve-recovery', 'expire-pending', 'legacy-disabled'] as const
 interface Authorization { parameters: string; scenario: string; expiresAt: number }
 interface ProviderState { requests: Map<string, Authorization>; codes: Map<string, Authorization>; keys?: Promise<CryptoKeyPair> }
 const shared = globalThis as typeof globalThis & { __googleProvider?: ProviderState }

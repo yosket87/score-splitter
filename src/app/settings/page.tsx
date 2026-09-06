@@ -1,3 +1,4 @@
+import { isLegacyAuthEnabled } from '@/lib/api/households'
 import { cookies } from 'next/headers'
 import { getGoogleAccount } from '@/lib/api/google-auth'
 import { GoogleAccountSettings } from '@/features/google-auth/google-account-settings'
@@ -7,6 +8,7 @@ import { requireAuth } from '@/lib/webauthn/session'
 
 export default async function SettingsPage() {
   const { householdId, authMethod } = await requireAuth()
+  const legacyEnabled = await isLegacyAuthEnabled({ householdId })
   const token = (await cookies()).get('household_session')?.value
   const account = authMethod === 'google' && token ? await getGoogleAccount(token) : null
 
@@ -28,8 +30,11 @@ export default async function SettingsPage() {
             </h1>
           </div>
           {authMethod === 'google' && <GoogleAccountSettings email={account?.email ?? null} />}
-          <h2 className="mb-4 text-lg font-bold">パスキー管理</h2>
-          <PasskeySettings householdId={householdId} />
+          {legacyEnabled && <>
+            <h2 className="mb-4 text-lg font-bold">パスキー管理</h2>
+            <PasskeySettings householdId={householdId} />
+          </>}
+          {!legacyEnabled && <p className="mt-4 text-sm leading-relaxed text-sub-text">この家計はGoogleログインへ移行しました。端末に保存された旧パスキーは、このアプリでは利用できません。</p>}
         </section>
       </main>
     </div>

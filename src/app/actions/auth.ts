@@ -4,7 +4,7 @@ import { createHash } from 'crypto'
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import bcrypt from 'bcryptjs'
-import { getLegacyHouseholdContext } from '@/lib/api/households'
+import { getLegacyHouseholdContext, isLegacyAuthEnabled } from '@/lib/api/households'
 import {
   checkLoginRateLimit,
   recordFailedLoginAttempt,
@@ -23,6 +23,7 @@ export async function login(
   _prevState: { error?: string },
   formData: FormData
 ): Promise<{ error?: string }> {
+  if (!await isLegacyAuthEnabled()) return { error: 'これまでのログイン方法は終了しました。Googleでログインしてください。' }
   const password = formData.get('password') as string
 
   if (!password) {

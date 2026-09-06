@@ -126,7 +126,7 @@ Google Cloud側の同意画面・公開状態・許可対象の設定を実装�
 
 - `docs/adr/0002-google-authentication.md`: 採用方式、本人確認、認可、セッションと履歴の区別。
 - `docs/google-auth-release-runbook.md`: 設定・本人確認・移行記録・公開/停止/切り戻し・アカウント復旧手順。
-- `cloudflare/worker/migrations/0013_*.sql`以降: 互換追加、制約拡張、最後の旧認証停止を別段階で配布。
+- `cloudflare/worker/migrations/0013_*.sql`以降: 互換追加と制約拡張を配布。旧認証停止は後段の運営finalizeで実行。
 - `cloudflare/worker/src/users.ts`、`memberships.ts`、`google-migration.ts`、`oauth-attempts.ts`: 主体解決、認可、一度きりの処理。
 - `src/lib/auth/google.ts`、`src/app/api/auth/google/start/route.ts`、`src/app/api/auth/google/callback/route.ts`: 設定・OIDC・HTTP入口。
 - `src/app/auth/migration/page.tsx`、`src/features/account/`、`src/app/actions/account.ts`: 移行案内、連携状態、全端末ログアウト。
@@ -146,7 +146,7 @@ Google Cloud側の同意画面・公開状態・許可対象の設定を実装�
 | 3: Googleログインと併存 | Google入口、共通認可、一度きりの移行、設定/案内、全端末失効、復旧運用、全経路テストを完成させる。 | 固定開発環境で実OAuthを確認。明示承認後に本番で旧方式と併存させ、2人を移行する。 |
 | 4: 旧認証終了 | 2人の確認記録を条件に旧方式を停止。旧セッション失効、古い発行処理をDBでも拒否、旧UI/依存/Secretの整理、最終回帰と運用記録。 | 2人が独立してGoogle再ログインと既存家計利用を確認済み。Googleのみで運用でき、旧方式からの再侵入ができない。 |
 
-後段のmigrationを先行PRに同梱しない。pending一括適用で旧方式が早期終了しないよう、段階ごとの対象SHAと適用リストを固定する。
+互換migrationには停止日時が設定された場合だけ動くDB guardを含める。停止日時を設定する運営finalizeは後段PRで実装する。空DBからの期待schema生成を維持し、pending migrationの一括適用では旧方式が終了しない構成にする。
 
 実装タスク:
 
@@ -229,3 +229,11 @@ Google Cloud側の同意画面・公開状態・許可対象の設定を実装�
 Miniflare/workerdで同じproductionモジュールをbundleし、正常署名と不正署名の結果まで検証する独立scriptを作る。通常Unitに実workerdを混ぜない。npm run typecheckと対象テスト、独立scriptを実行し、結果を報告する。全体テスト/buildは親が統合時に行う。Secretなしの検証結果を実Googleアカウント確認済みとは表現しない。
 
 所有範囲に新規`.github/workflows/google-auth.yml`も含める。pull_request/push(main)で認証モジュール・対応テスト/fixture・独立script・package/lock・workflow自身の変更時にNode22/npm ci/独立workerd試験を実行する。contents:read、timeout10分。既存Unit/Integrationのmatrixは維持する。
+
+## 実装時の設計確定
+
+- バックアップの新表登録は実migrationと同じ第2PRで行う。適用前からその版を利用可能にする。
+- 全端末失効はuser単位のepochとOAuth試行sequenceのfloorで処理中callbackにも適用する。
+- Google主体は解除済み行を含めissuer/subを一意に保持し、復旧後に旧主体が未知ユーザー扱いで再加入しないようにする。
+- 2名の移行枠は専用slotで識別し、会計のhusband/wifeを本人性や人数制限に転用しない。
+- 旧方式停止の運営操作は確認済み2枠・有効user/identity/membershipを条件に単一UPDATEし、triggerで旧session失効を同時確定する。

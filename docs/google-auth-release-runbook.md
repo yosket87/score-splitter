@@ -40,7 +40,7 @@ OIDCライブラリを使う純粋な検証境界を追加する。実WebCrypto�
 
 新migration・backup-schema登録・非空fixture・失敗注入・復元試験を同じPRに揃える。古いバックアップ実装を、新migrationの適用後に使用しない。
 
-開発への適用前に、適用リストとDB UUIDを照合し、必要な退避を取る。後段の旧方式停止migrationがpendingへ混ざっていれば一括適用しない。sessionsと振込台帳の制約変更では件数だけでなく全保存値、FK、索引、triggerを比較する。
+開発への適用前に、適用リストとDB UUIDを照合し、必要な退避を取る。互換migrationは旧方式を停止しない。実利用者に依存する最終停止は後段の運営操作に分離する。sessionsと振込台帳の制約変更では件数だけでなく全保存値、FK、索引、triggerを比較する。
 
 ## 第3段階: 個人認証と併存
 
@@ -79,3 +79,11 @@ Googleアカウントを利用できない場合はGoogle側の復旧を案内�
 ## 実施記録
 
 各段階について、PR、SHA、CI、実行した試験、Worker Version、DB UUID、適用migration、バックアップ/復元結果、実Google確認、残事項を追記する。開始時の本番Versionを作業終了時にも読み取り比較する。
+
+### 第1段階のローカル検証
+
+- OIDC専用58テスト、対象モジュールのカバレッジ100%。
+- Node互換フラグを使わないworkerdで検証境界の動作を確認。
+- `opennextjs-cloudflare build --env dev`成功。
+- 全体1,369テスト成功、全体statement coverage 92.39%。lintはエラー0件、既存パスキーボタンの警告1件。
+- 実Googleアカウントと固定開発Workerでのログインは未検証。

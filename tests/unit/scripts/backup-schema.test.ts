@@ -7,8 +7,11 @@ const tables = (stage: number) => BACKUP_MIGRATIONS.slice(0, stage).flatMap((mig
 const schema = (stage: number) => resolveBackupSchema(tables(stage), names.slice(0, stage))
 
 describe('適用migrationとバックアップ対象schema', () => {
-  it.each([4, 5, 6, 7, 8, 9, 10, 11, 12])('000%sまでの業務テーブルを全て検証する', (stage) => {
+  it.each([4, 5, 6, 7, 8, 9, 10, 11, 12, 13])('000%sまでの業務テーブルを全て検証する', (stage) => {
     expect(schema(stage)).toEqual({ stage: String(stage).padStart(4, '0'), migrations: names.slice(0, stage), tables: tables(stage).sort(), objects: [] })
+  })
+  it.each(['users', 'google_identities', 'household_memberships', 'oauth_login_attempts', 'google_migration_requests'])('0013の%s欠落を拒否する', table => {
+    expect(() => resolveBackupSchema(tables(13).filter(name => name !== table), names.slice(0, 13))).toThrow(/schema/)
   })
   it.each(['ai_diagnoses', 'ai_execution_guard', 'ai_diagnosis_source_revision', 'payment_records', 'payment_operations', 'payment_voids', 'month_payment_revisions'])('%sの欠落を拒否する', (table) => {
     expect(() => resolveBackupSchema(tables(8).filter((name) => name !== table), names.slice(0, 8))).toThrow(/schema/)

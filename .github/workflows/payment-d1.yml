@@ -11,9 +11,13 @@ on:
       - 'src/types/payment-status.ts'
       - 'scripts/test-*-d1.mjs'
       - 'scripts/test-household-migrations.mjs'
+      - 'scripts/test-identity-migrations.mjs'
       - 'scripts/household-d1-*.mjs'
       - 'scripts/backup-*.mjs'
       - 'tests/fixtures/household-migration.sql'
+      - 'tests/fixtures/google-identity.sql'
+      - 'tests/helpers/identity-sqlite.ts'
+      - 'tests/unit/cloudflare/identity-*.test.ts'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/payment-d1.yml'
@@ -26,9 +30,13 @@ on:
       - 'src/types/payment-status.ts'
       - 'scripts/test-*-d1.mjs'
       - 'scripts/test-household-migrations.mjs'
+      - 'scripts/test-identity-migrations.mjs'
       - 'scripts/household-d1-*.mjs'
       - 'scripts/backup-*.mjs'
       - 'tests/fixtures/household-migration.sql'
+      - 'tests/fixtures/google-identity.sql'
+      - 'tests/helpers/identity-sqlite.ts'
+      - 'tests/unit/cloudflare/identity-*.test.ts'
       - 'package*.json'
       - '.github/workflows/payment-d1.yml'
   schedule:
@@ -44,7 +52,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [payment, records, ai-payment, household-migrations]
+        suite: [payment, records, ai-payment, household-migrations, identity-migrations]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

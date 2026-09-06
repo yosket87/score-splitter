@@ -175,3 +175,7 @@ Googleアカウントを利用できない場合はGoogle側の復旧を案内�
 - `40211db`のCLI転送経路で、実開発D1への読み取り専用SELECT成功を確認。Google個人0件・旧方式停止世帯0件を維持。実承認や書き込みは行っていない。
 
 - `7a93b13`: 正規originのOAuth開始時に期限切れ試行の秘密を清掃し、ログイン結果のqueryを既知3値へ限定。関連52テスト・typecheck・lint・OpenNext build・更新成果物の封鎖試験成功。
+
+- 第3段階Draft PR: [#125](https://github.com/yosket87/score-splitter/pull/125)、baseは第2段階ブランチ。`7a93b13`の修正再レビューで未解消指摘0件。
+- 2026-09-06 12:15 UTC: 第3段階（配備時HEAD `0b7dd0b`）を固定開発Workerへ配備。Version `bee98a84-d1bb-4d62-a02a-665167cb0b5b`、DB binding `51457bd5-8e0e-4645-ad34-86634285af2c`を実Versionから照合。Google client IDは空、Secret未設定、旧認証は継続。
+- 配備後、開発の旧passwordログイン・認証後の家計再表示200・ログアウト成功。実Google認証、実運営承認、旧方式の最終停止、本番変更は未実施。

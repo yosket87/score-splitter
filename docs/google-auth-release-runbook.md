@@ -98,5 +98,11 @@ Googleアカウントを利用できない場合はGoogle側の復旧を案内�
 
 - `2323052`: 全体1,417テスト成功、statement coverage 92.41%。
 - `9661739`: 通常バックアップ作成と切替前再検証にOAuth採番の高水位・失効下限の検査を追加。関連206テスト、隔離D1の移行・復元、typecheck、対象lint成功。
-- migration 0013のSHA256: `e6aba177044d146e8ac30e3ce784ee71d4a3cf0cf92f74a04f6e2c05ff09ba90`。開発0012 exportへのローカル適用で、既存16表の全保存値・FK・整合性を維持することを確認。
+- migration 0013の最終SHA256: `21b6046f36320ad3e405a918d9e3fcd0f2970143c74cd7da11bb5cca33c9dc31`。`12e7c1b`でD1 remoteの解析に合わせて2箇所のCASEを括弧化。関連249テスト・隔離D1・独立レビュー成功。開発0012 exportへの再リハーサルで、既存16表の全保存値・FK・整合性を維持することを確認。
 - 開発への適用前に2026-09-06 10:02 UTCのexportを再取得。SQLite復元・0012期待DDL・FK・整合性を確認済み。export SHA256: `0fcbfacbe08652be6336408c97f5a0c2430e62fedb995287f36b8ed5fec870e3`。
+
+- 第2段階Draft PR: [#124](https://github.com/yosket87/score-splitter/pull/124)、baseは第1段階ブランチ。
+- 2026-09-06 10:15 UTC: 開発D1 `51457bd5-8e0e-4645-ad34-86634285af2c`に0013を適用（159 commands、43.75ms）。初回のSQL解析エラー後はexport全体が適用前と一致し、上記書式修正後に成功した。
+- 適用後exportのSQLite復元・0013期待DDL・FK・整合性、旧16表の全保存値一致を確認。追加5表は空、旧方式停止日時は未設定。適用後export SHA256: `5adf9f22df26baea52c3b2d3d81027068dabe330b7f1f20adf931ecb6fc00983`。
+- 固定開発Workerで旧パスワードログインと認証後の家計再表示（HTTP 200）に成功。資格情報は出力せず、本番への変更は行っていない。
+- `3c4d165`: CIのバックアップ試験8件が5秒の個別上限を超えたため、migration単位のtransactionと試験用の不変snapshotコピーで重複生成・確定回数を削減。主要試験15.589→9.159秒、SQLite試験3.740→1.990秒。timeoutは変更せず、関連208テスト・backup専用coverage 90.6%・identity/backupの隔離D1試験に成功。

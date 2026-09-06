@@ -82,8 +82,9 @@ Googleアカウントを利用できない場合はGoogle側の復旧を案内�
 
 ### 第1段階のローカル検証
 
-- OIDC専用58テスト、対象モジュールのカバレッジ100%。
+- `6ebcf0f`: OIDC専用58テスト、対象モジュールのカバレッジ100%。
 - Node互換フラグを使わないworkerdで検証境界の動作を確認。
 - `opennextjs-cloudflare build --env dev`成功。
-- 全体1,369テスト成功、全体statement coverage 92.39%。lintはエラー0件、既存パスキーボタンの警告1件。
+- `6ebcf0f`: 全体1,369テスト成功、全体statement coverage 92.39%。lintはエラー0件、既存パスキーボタンの警告1件。
+- `341bab0`: 通信の合計10秒上限と4テストを追加。OIDC専用62テスト・typecheck・対象lint・workerd再検証成功。仕様・コードレビューで重大指摘なし。
 - 実Googleアカウントと固定開発Workerでのログインは未検証。

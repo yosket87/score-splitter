@@ -171,3 +171,7 @@ Googleアカウントを利用できない場合はGoogle側の復旧を案内�
 - 有効なダミーGoogle設定を与えた実Workers成果物で、通常login 200、正規Googleへの303、Preview拒否と試行0件、全mock入口404、家計session未発行、外部通信0件を確認した。
 - Wranglerのremoteファイル取り込みではSELECT行が得られないため、非公開入力をプロセス内部で通常queryへ渡す方式に修正。実Wranglerをloopbackの合成APIへ接続し、検索結果の保持を検証。実運営のremote承認は未実施。
 - CUAで既存2月の明細、空9月、375px幅の長いemailと照合コード、コードコピー、承認後再ログイン、設定、確認dialog、全端末ログアウト、旧passwordログインを確認。目視用の一時HTMLは削除済み。
+
+- `40211db`のCLI転送経路で、実開発D1への読み取り専用SELECT成功を確認。Google個人0件・旧方式停止世帯0件を維持。実承認や書き込みは行っていない。
+
+- `7a93b13`: 正規originのOAuth開始時に期限切れ試行の秘密を清掃し、ログイン結果のqueryを既知3値へ限定。関連52テスト・typecheck・lint・OpenNext build・更新成果物の封鎖試験成功。

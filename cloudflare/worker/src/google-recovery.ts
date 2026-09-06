@@ -17,6 +17,7 @@ export async function consumeGoogleRecovery(db: D1DatabaseLike, runtime: Runtime
     db.prepare(`UPDATE google_migration_requests SET status='consuming',consumption_id=?
       WHERE id=? AND purpose='identity_recovery' AND status='approved' AND issuer=? AND subject=? AND changes()=1
         AND julianday(expires_at)>julianday(?) AND julianday(approval_expires_at)>julianday(?)
+        AND julianday(expires_at)>julianday('now') AND julianday(approval_expires_at)>julianday('now')
         AND EXISTS(SELECT 1 FROM users u JOIN google_identities i ON i.user_id=u.id
           JOIN oauth_login_attempts a ON a.id=? AND a.claim_id=? AND a.sequence=? AND a.status='completed'
           WHERE u.id=target_user_id AND u.active=1 AND u.session_epoch=expected_session_epoch

@@ -307,3 +307,29 @@ it('復旧のconsumed更新が0件なら試行/epoch/旧主体/新主体の全�
   expect(store.sqlite.prepare('SELECT revoked_at FROM google_identities WHERE id=?').get(old.id)?.revoked_at).toBeNull()
   expect(store.sqlite.prepare('SELECT COUNT(*) n FROM google_identities').get()?.n).toBe(1)
 })
+
+import { hashSecret } from '../../../cloudflare/worker/src/google-auth-shared'
+it.each(['legacy_enrollment', 'identity_recovery'] as const)('捕捉時刻では有効でもDB実行時刻で期限切れの%sを消費しない', async purpose => {
+  const existing = purpose === 'identity_recovery' ? await enrolled() : null
+  const subject = 'expired-approval-subject'
+  const requestId = crypto.randomUUID()
+  const code = 'f'.repeat(64)
+  const clock = Date.now()
+  // 実時間で既に承認期限を過ぎたfixture。callbackが捕捉した時刻だけは期限前に固定する。
+  store.sqlite.prepare(`INSERT INTO google_migration_requests(id,purpose,issuer,subject,email,code_hash,browser_binding_hash,created_at,expires_at)
+    VALUES(?,'legacy_enrollment',?,?,?,?,?,?,?)`).run(requestId, identity.issuer, subject, identity.email,
+      await hashSecret(code), await hashSecret('b'.repeat(64)), new Date(clock - 12 * 60_000).toISOString(), new Date(clock + 18 * 60_000).toISOString())
+  const approvalRuntime = createRuntime({ now: () => new Date(clock - 11 * 60_000) })
+  if (existing) {
+    const old = store.sqlite.prepare('SELECT id FROM google_identities WHERE user_id=?').get(existing.userId)!
+    await approveGoogleRecovery(store.db, approvalRuntime, { requestId, code, approvedBy: 'operator', confirmationRef: 'checked',
+      targetUserId: existing.userId, expectedOldIdentityId: String(old.id), expectedEpoch: 0 })
+  } else await approveGoogleMigration(store.db, approvalRuntime, approval({ requestId, code }))
+  const claim = await claimed()
+  const snapshot = ['users', 'google_identities', 'household_memberships', 'sessions'].map(table => store.sqlite.prepare(`SELECT * FROM ${table}`).all())
+  const capturedRuntime = createRuntime({ now: () => new Date(clock - 2 * 60_000) })
+  await expect(completeGoogleLogin(store.db, capturedRuntime, claim, { ...identity, subject })).rejects.toMatchObject({ code: 'operation_failed' })
+  expect(store.sqlite.prepare('SELECT status FROM google_migration_requests WHERE id=?').get(requestId)?.status).toBe('approved')
+  expect(store.sqlite.prepare('SELECT status FROM oauth_login_attempts WHERE id=?').get(claim.attemptId)?.status).toBe('processing')
+  expect(['users', 'google_identities', 'household_memberships', 'sessions'].map(table => store.sqlite.prepare(`SELECT * FROM ${table}`).all())).toEqual(snapshot)
+})

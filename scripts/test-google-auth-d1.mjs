@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { readFile, readdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -44,6 +45,33 @@ try {
     householdId: '3975b870-bbfa-49fd-ae3d-d273c9f6e107', legacySlot: slot, defaultPerson: slot === 'existing-member-1' ? 'husband' : 'wife',
   })
   const count = async table => (await db.prepare(`SELECT COUNT(*) n FROM ${table}`).first()).n
+  const expiredApproval = async session => {
+    const clock = Date.now()
+    const requestId = crypto.randomUUID()
+    const subject = crypto.randomUUID()
+    const code = crypto.randomUUID() + 'code-padding'
+    const hash = value => createHash('sha256').update(value).digest('hex')
+    await db.prepare(`INSERT INTO google_migration_requests(id,purpose,issuer,subject,email,code_hash,browser_binding_hash,created_at,expires_at)
+      VALUES(?,'legacy_enrollment',?,?,?,?,?,?,?)`).bind(requestId, identity(subject).issuer, subject, identity(subject).email,
+      hash(code), hash('browser-fixture'), new Date(clock - 12 * 60_000).toISOString(), new Date(clock + 18 * 60_000).toISOString()).run()
+    const approvalRuntime = { ...runtime, now: () => new Date(clock - 11 * 60_000) }
+    if (session) {
+      const old = await db.prepare('SELECT id FROM google_identities WHERE user_id=? AND revoked_at IS NULL').bind(session.userId).first()
+      await api.approveGoogleRecovery(db, approvalRuntime, { requestId, code, approvedBy: 'fixture', confirmationRef: 'checked',
+        targetUserId: session.userId, expectedOldIdentityId: old.id, expectedEpoch: session.sessionEpoch })
+    } else await api.approveGoogleMigration(db, approvalRuntime, { requestId, code, approvedBy: 'fixture', confirmationRef: 'checked',
+      householdId: '3975b870-bbfa-49fd-ae3d-d273c9f6e107', legacySlot: 'existing-member-1', defaultPerson: 'husband' })
+    const currentClaim = await claim()
+    const snapshot = () => Promise.all(['users', 'google_identities', 'household_memberships', 'sessions'].map(async table => (await db.prepare(`SELECT * FROM ${table}`).all()).results))
+    const before = await snapshot()
+    await assert.rejects(api.completeGoogleLogin(db, { ...runtime, now: () => new Date(clock - 2 * 60_000) }, currentClaim, identity(subject)),
+      error => error.code === 'operation_failed')
+    assert.deepEqual(await snapshot(), before)
+    assert.equal((await db.prepare('SELECT status FROM oauth_login_attempts WHERE id=?').bind(currentClaim.attemptId).first()).status, 'processing')
+    assert.equal((await db.prepare('SELECT status FROM google_migration_requests WHERE id=?').bind(requestId).first()).status, 'approved')
+  }
+  await expiredApproval(null)
+
   const credentials = await attempt()
   const claims = await Promise.allSettled([api.claimOAuthAttempt(db, runtime, credentials), api.claimOAuthAttempt(db, runtime, credentials)])
   assert.equal(claims.filter(result => result.status === 'fulfilled').length, 1)
@@ -112,7 +140,8 @@ try {
   await assert.rejects(login('a'), error => error.code === 'identity_denied')
   assert.equal((await login('replacement')).session.userId, a.userId)
   assert.equal((await api.getSession(db, b.token)).userId, b.userId)
-  console.log('Google認証D1検証成功: 全migration・同時claim/承認消費・2名移行・batch rollback・本人失効・partner継続・復旧floor・事前失効保持・consumed更新0件rollback・同user保持')
+  await expiredApproval(b)
+  console.log('Google認証D1検証成功: 全migration・同時claim/承認消費・2名移行・batch rollback・本人失効・partner継続・復旧floor・事前失効保持・consumed更新0件rollback・DB時計の承認期限・同user保持')
 } finally {
   await mf.dispose()
   await rm(temp, { recursive: true, force: true })

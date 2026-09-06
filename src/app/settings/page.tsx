@@ -1,9 +1,14 @@
+import { cookies } from 'next/headers'
+import { getGoogleAccount } from '@/lib/api/google-auth'
+import { GoogleAccountSettings } from '@/features/google-auth/google-account-settings'
 import { PasskeySettings } from '@/features/passkey'
 import { Header } from '@/components/layout/header'
 import { requireAuth } from '@/lib/webauthn/session'
 
 export default async function SettingsPage() {
-  const { householdId } = await requireAuth()
+  const { householdId, authMethod } = await requireAuth()
+  const token = (await cookies()).get('household_session')?.value
+  const account = authMethod === 'google' && token ? await getGoogleAccount(token) : null
 
   return (
     <div key={householdId} className="app-shell flex min-h-screen flex-col">
@@ -19,9 +24,11 @@ export default async function SettingsPage() {
               設定
             </p>
             <h1 className="mt-2 text-[22px] font-bold tracking-[-0.02em]">
-              パスキー管理
+              アカウント設定
             </h1>
           </div>
+          {authMethod === 'google' && <GoogleAccountSettings email={account?.email ?? null} />}
+          <h2 className="mb-4 text-lg font-bold">パスキー管理</h2>
           <PasskeySettings householdId={householdId} />
         </section>
       </main>

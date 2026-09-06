@@ -35,6 +35,8 @@
     "test:d1:backup": "node scripts/test-backup-d1.mjs",
     "test:d1:household-migrations": "node scripts/test-household-migrations.mjs",
     "test:d1:identity-migrations": "node scripts/test-identity-migrations.mjs",
+    "auth:google:admin": "node scripts/google-auth-admin.mjs",
+    "test:google-auth:production": "node scripts/test-google-auth-production.mjs",
     "test:google-oidc:worker": "node scripts/test-google-oidc-worker.mjs"
   },
   "dependencies": {

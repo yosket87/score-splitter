@@ -6,6 +6,10 @@ import NotFound from '@/app/not-found'
 import SettingsPage from '@/app/settings/page'
 import { requireAuth } from '@/lib/webauthn/session'
 
+vi.mock('@/lib/api/google-auth', () => ({ getGoogleAccount: vi.fn() }))
+vi.mock('@/app/actions/google-auth', () => ({ logoutAllGoogleSessions: vi.fn() }))
+vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined }) }))
+
 vi.mock('@/app/actions/auth', () => ({
   logout: vi.fn(),
 }))

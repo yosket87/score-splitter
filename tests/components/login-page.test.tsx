@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 import LoginPage from '@/app/login/page'
 import { isAuthenticated } from '@/lib/webauthn/session'
 
+vi.mock('@/lib/auth/google-config', () => ({ googleOAuthConfig: () => null }))
+
 vi.mock('next-themes', () => ({
   useTheme: () => ({
     setTheme: vi.fn(),
@@ -32,7 +34,7 @@ describe('LoginPage', () => {
   it('未認証の場合はログインフォームを表示する', async () => {
     vi.mocked(isAuthenticated).mockResolvedValue(false)
 
-    const { container } = render(await LoginPage())
+    const { container } = render(await LoginPage({ searchParams: Promise.resolve({}) }))
 
     expect(screen.getByRole('img', { name: 'ヤマワケ' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'ヤマワケ' })).toBeInTheDocument()
@@ -47,7 +49,7 @@ describe('LoginPage', () => {
   it('ログイン操作を44px以上の領域で表示する', async () => {
     vi.mocked(isAuthenticated).mockResolvedValue(false)
 
-    render(await LoginPage())
+    render(await LoginPage({ searchParams: Promise.resolve({}) }))
 
     expect(screen.getByRole('button', { name: '表示' })).toHaveClass('min-h-11')
     expect(screen.getByRole('button', { name: 'ログイン' })).toHaveClass('h-12')
@@ -57,7 +59,7 @@ describe('LoginPage', () => {
   it('パスワード入力欄をカード幅まで縮小できる', async () => {
     vi.mocked(isAuthenticated).mockResolvedValue(false)
 
-    render(await LoginPage())
+    render(await LoginPage({ searchParams: Promise.resolve({}) }))
 
     expect(screen.getByPlaceholderText('パスワード')).toHaveClass('min-w-0')
   })
@@ -65,7 +67,7 @@ describe('LoginPage', () => {
   it('認証済みの場合はトップページへリダイレクトする', async () => {
     vi.mocked(isAuthenticated).mockResolvedValue(true)
 
-    await expect(LoginPage()).rejects.toThrow('NEXT_REDIRECT:/')
+    await expect(LoginPage({ searchParams: Promise.resolve({}) })).rejects.toThrow('NEXT_REDIRECT:/')
 
     expect(redirect).toHaveBeenCalledWith('/')
   })

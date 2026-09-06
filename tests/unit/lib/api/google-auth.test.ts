@@ -10,9 +10,9 @@ import { webcrypto } from 'node:crypto'
 describe('Google adapterの実D1とUIモック境界', () => {
   beforeEach(() => { vi.clearAllMocks(); backend.isWorkerApiMockEnabled.mockReturnValue(false) })
   const input = { state: 's'.repeat(43), nonce: 'n'.repeat(43), codeVerifier: 'v'.repeat(43), browserBinding: 'b'.repeat(64) }
-  it('UIモック未接続時は実D1 bindingを取得せず安全に拒否する', async () => {
+  it('UIモック時は実D1 bindingを取得せず専用Storeを使う', async () => {
     backend.isWorkerApiMockEnabled.mockReturnValue(true)
-    await expect(createOAuthAttempt(input)).rejects.toMatchObject({ code: 'operation_failed' })
+    await expect(createOAuthAttempt(input)).resolves.toMatchObject({ attemptId: expect.any(String) })
     expect(backend.getDatabase).not.toHaveBeenCalled()
   })
   it('binding取得例外の内部情報を外へ渡さない', async () => {

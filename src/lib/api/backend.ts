@@ -1,4 +1,5 @@
 import 'server-only'
+import { isDevelopmentMockEnabled } from '@/lib/mock-mode'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import {
   createRuntime,
@@ -9,7 +10,7 @@ import { HttpError } from '../../../cloudflare/worker/src/http'
 import { ApiError } from './client'
 
 export function isWorkerApiMockEnabled(): boolean {
-  return process.env.USE_MOCKS === 'true'
+  return isDevelopmentMockEnabled()
 }
 
 export function getDatabase(): D1DatabaseLike {

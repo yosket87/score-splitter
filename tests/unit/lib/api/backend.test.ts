@@ -43,6 +43,7 @@ describe('D1直接アクセス基盤', () => {
 
   it('USE_MOCKS=trueのときだけWorker APIモックを使う', () => {
     vi.stubEnv('USE_MOCKS', 'true')
+    vi.stubEnv('NODE_ENV', 'development'); vi.stubEnv('NEXT_RUNTIME', 'nodejs')
 
     expect(isWorkerApiMockEnabled()).toBe(true)
   })

@@ -1,7 +1,8 @@
+import { isLocalMockRequest } from '@/lib/mock-mode'
 import { NextResponse } from 'next/server'
 
-export async function POST() {
-  if (process.env.USE_MOCKS !== 'true') {
+export async function POST(request: Request) {
+  if (!isLocalMockRequest(request)) {
     return NextResponse.json(
       { error: 'エンドポイントが見つかりません' },
       { status: 404 }

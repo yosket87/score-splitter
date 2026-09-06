@@ -30,6 +30,7 @@ afterEach(() => {
 afterAll(() => server.close())
 beforeEach(() => {
   vi.stubEnv('USE_MOCKS', 'true')
+    vi.stubEnv('NODE_ENV', 'development'); vi.stubEnv('NEXT_RUNTIME', 'nodejs')
   vi.stubEnv('CLOUDFLARE_WORKER_API_URL', WORKER_URL)
   vi.stubEnv('CLOUDFLARE_WORKER_API_TOKEN', WORKER_TOKEN)
 })

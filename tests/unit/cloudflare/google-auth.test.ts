@@ -333,3 +333,16 @@ it.each(['legacy_enrollment', 'identity_recovery'] as const)('捕捉時刻では
   expect(store.sqlite.prepare('SELECT status FROM oauth_login_attempts WHERE id=?').get(claim.attemptId)?.status).toBe('processing')
   expect(['users', 'google_identities', 'household_memberships', 'sessions'].map(table => store.sqlite.prepare(`SELECT * FROM ${table}`).all())).toEqual(snapshot)
 })
+
+import { getGoogleAccount, getGoogleMigrationDisplay } from '../../../cloudflare/worker/src/google-account'
+it('設定emailは現sessionに限定し申請コードは同ブラウザでhash照合する', async () => {
+  const request = await pending()
+  expect(await getGoogleMigrationDisplay(store.db, runtime, request.requestId, request.browserSecret, '0'.repeat(64))).toBeNull()
+  expect(await getGoogleMigrationDisplay(store.db, runtime, request.requestId, request.browserSecret, request.code)).toMatchObject({ code: request.code })
+  await approveGoogleMigration(store.db, runtime, approval(request))
+  const result = await completeGoogleLogin(store.db, runtime, await claimed(), identity)
+  if (result.kind !== 'authenticated') throw new Error('認証が必要')
+  expect(await getGoogleAccount(store.db, result.session.token)).toEqual({ email: identity.email })
+  await revokeGoogleSessions(store.db, runtime, result.session.token)
+  expect(await getGoogleAccount(store.db, result.session.token)).toBeNull()
+})

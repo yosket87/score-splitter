@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import './test-google-auth-admin-transport.mjs'
 import { createHash } from 'node:crypto'
 import { readFile, readdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -6,6 +7,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { build } from 'esbuild'
 import { Miniflare } from 'miniflare'
+import { createWranglerDatabase, approveFromVerifiedRequest, inspectRequest } from './google-auth-admin.mjs'
 
 // Node専用の検証入口。実環境のbindingや設定を読まず、毎回独立したD1だけを使う。
 const temp = await mkdtemp(join(tmpdir(), 'google-auth-d1-'))
@@ -40,10 +42,20 @@ try {
     assert.equal(result.kind, 'migration_pending')
     return result
   }
-  const approve = (request, slot) => api.approveGoogleMigration(db, runtime, {
+  // remote通信せず、CLIが作るSQLファイルを隔離D1へ渡して実ドメインとの配線を検証する。
+  const adminDb = createWranglerDatabase({ database_id: 'local-fixture' }, 'dev', temp, async args => {
+    const sql = await readFile(args[args.indexOf('--file') + 1], 'utf8')
+    const result = await db.prepare(sql).all()
+    return [{ success: result.success, results: result.results }]
+  })
+  const approve = async (request, slot) => {
+    const inspection = await inspectRequest(adminDb, { code: request.code, householdId: '3975b870-bbfa-49fd-ae3d-d273c9f6e107' })
+    assert.equal(inspection.requests[0].requestId, request.requestId)
+    return approveFromVerifiedRequest(adminDb, api, 'approve-migration', {
     requestId: request.requestId, code: request.code, approvedBy: 'fixture-operator', confirmationRef: 'fixture-checked',
     householdId: '3975b870-bbfa-49fd-ae3d-d273c9f6e107', legacySlot: slot, defaultPerson: slot === 'existing-member-1' ? 'husband' : 'wife',
-  })
+    })
+  }
   const count = async table => (await db.prepare(`SELECT COUNT(*) n FROM ${table}`).first()).n
   const expiredApproval = async session => {
     const clock = Date.now()
@@ -119,7 +131,7 @@ try {
   const oldIdentity = await db.prepare('SELECT id FROM google_identities WHERE user_id=? AND revoked_at IS NULL').bind(a.userId).first()
   const revokedAt = new Date(Date.now() - 60_000).toISOString()
   await db.prepare('UPDATE google_identities SET revoked_at=? WHERE id=?').bind(revokedAt, oldIdentity.id).run()
-  await api.approveGoogleRecovery(db, runtime, { requestId: recovery.requestId, code: recovery.code,
+  await approveFromVerifiedRequest(adminDb, api, 'approve-recovery', { requestId: recovery.requestId, code: recovery.code,
     approvedBy: 'fixture-operator', confirmationRef: 'fixture-checked', targetUserId: a.userId,
     expectedOldIdentityId: oldIdentity.id, expectedEpoch: 2 })
   await assert.rejects(api.completeGoogleLogin(db, runtime, beforeLogout, identity('replacement')), error => error.code === 'operation_failed')
@@ -141,7 +153,7 @@ try {
   assert.equal((await login('replacement')).session.userId, a.userId)
   assert.equal((await api.getSession(db, b.token)).userId, b.userId)
   await expiredApproval(b)
-  console.log('Google認証D1検証成功: 全migration・同時claim/承認消費・2名移行・batch rollback・本人失効・partner継続・復旧floor・事前失効保持・consumed更新0件rollback・DB時計の承認期限・同user保持')
+  console.log('Google認証D1検証成功: 全migration・同時claim/承認消費・2名移行・batch rollback・本人失効・partner継続・復旧floor・事前失効保持・consumed更新0件rollback・DB時計の承認期限・CLI共通ドメイン/SQL転送・同user保持')
 } finally {
   await mf.dispose()
   await rm(temp, { recursive: true, force: true })

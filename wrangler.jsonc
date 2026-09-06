@@ -35,6 +35,8 @@
     // wrangler secret put で設定する（vars に書くと deploy のたびにダッシュボード設定を上書きするため厳禁）
     "CLOUDFLARE_WORKER_API_URL": "https://api.yamawake.app",
     // AIプロバイダーとモデル名は非秘密。APIキーは必ず `wrangler secret put` で設定する
+    "GOOGLE_OAUTH_CLIENT_ID": "",
+    "GOOGLE_OAUTH_ORIGIN": "https://app.yamawake.app",
     "AI_PROVIDER": "openai",
     "OPENAI_CLASSIFICATION_MODEL": "gpt-5-mini",
     "OPENAI_DIAGNOSIS_MODEL": "gpt-5-mini",
@@ -61,6 +63,8 @@
         }
       ],
       "vars": {
+        "GOOGLE_OAUTH_CLIENT_ID": "",
+        "GOOGLE_OAUTH_ORIGIN": "https://score-splitter-dev.bluespec.workers.dev",
         "AI_PROVIDER": "openai",
         "OPENAI_CLASSIFICATION_MODEL": "gpt-5-mini",
         "OPENAI_DIAGNOSIS_MODEL": "gpt-5-mini",

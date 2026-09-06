@@ -1,12 +1,13 @@
 'use client'
 
+import { GoogleLoginLink, GoogleRecoveryHelp } from '@/features/google-auth/google-login-link'
 import { useActionState, useState } from 'react'
 import { login } from '@/app/actions/auth'
 import { BrandLogo } from '@/components/brand/brand-logo'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { PasskeyLoginButton } from '@/features/passkey'
 
-export function LoginForm() {
+export function LoginForm({ googleEnabled = false, googleMessage }: { googleEnabled?: boolean; googleMessage?: string }) {
   const [state, formAction, isPending] = useActionState(login, {})
   const [showPassword, setShowPassword] = useState(false)
 
@@ -29,13 +30,15 @@ export function LoginForm() {
             ヤマワケ
           </h1>
           <p className="mt-2.5 text-[13px] leading-relaxed text-sub-text">
-            パスワードを入力してログインしてください。
+            ログイン方法を選んでください。
             <br />
             セッションは7日間保持されます。
           </p>
         </section>
 
         <div className="app-glass-heavy rounded-[24px] p-[18px]">
+          {googleMessage && <p role="status" className="mb-4 text-sm leading-relaxed">{googleMessage}</p>}
+          {googleEnabled && <div className="mb-6 space-y-4"><GoogleLoginLink /><p className="text-center text-xs text-sub-text">これまでのログイン方法も利用できます</p></div>}
           <form action={formAction} className="flex flex-col gap-3.5">
             <div>
               <div className="flex items-baseline justify-between mb-2">
@@ -99,6 +102,7 @@ export function LoginForm() {
           <br />
           管理者に問い合わせてください。
         </p>
+        <div className="mt-4"><GoogleRecoveryHelp /></div>
       </footer>
     </div>
   )

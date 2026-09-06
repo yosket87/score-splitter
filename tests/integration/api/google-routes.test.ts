@@ -2,7 +2,7 @@ import { webcrypto } from 'node:crypto'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 vi.mock('server-only', () => ({}))
-const api = vi.hoisted(() => ({ createOAuthAttempt: vi.fn(), claimOAuthAttempt: vi.fn(), failOAuthAttempt: vi.fn(), completeGoogleLogin: vi.fn() }))
+const api = vi.hoisted(() => ({ expireOAuthAttempts: vi.fn(), createOAuthAttempt: vi.fn(), claimOAuthAttempt: vi.fn(), failOAuthAttempt: vi.fn(), completeGoogleLogin: vi.fn() }))
 vi.mock('@/lib/api/google-auth', () => api)
 const verify = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/auth/google-protocol', async importOriginal => ({ ...await importOriginal<object>(), verifyGoogleCallback: verify }))
@@ -13,7 +13,7 @@ beforeEach(async () => {
   vi.stubGlobal('crypto', webcrypto); vi.stubEnv('NODE_ENV', 'production'); vi.stubEnv('USE_MOCKS', 'true')
   vi.stubEnv('GOOGLE_OAUTH_CLIENT_ID', 'fixture-client'); vi.stubEnv('GOOGLE_OAUTH_CLIENT_SECRET', 'fixture-secret')
   vi.stubEnv('GOOGLE_OAUTH_ORIGIN', 'https://app.example.com')
-  vi.clearAllMocks(); api.failOAuthAttempt.mockResolvedValue(undefined); api.createOAuthAttempt.mockResolvedValue({ attemptId: 'attempt', expiresAt: new Date(Date.now() + 600000).toISOString() })
+  vi.clearAllMocks(); api.expireOAuthAttempts.mockResolvedValue(undefined); api.failOAuthAttempt.mockResolvedValue(undefined); api.createOAuthAttempt.mockResolvedValue({ attemptId: 'attempt', expiresAt: new Date(Date.now() + 600000).toISOString() })
 })
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals() })
 it('許可originではmock入力を無視してGoogleへ遷移し秘密値はCookieへ入れない', async () => {
@@ -21,6 +21,7 @@ it('許可originではmock入力を無視してGoogleへ遷移し秘密値はCoo
   expect(result.status).toBe(303)
   expect(new URL(result.headers.get('location')!).origin).toBe('https://accounts.google.com')
   expect(api.createOAuthAttempt).toHaveBeenCalledOnce()
+  expect(api.expireOAuthAttempts.mock.invocationCallOrder[0]).toBeLessThan(api.createOAuthAttempt.mock.invocationCallOrder[0])
   const cookie = result.cookies.get('google_oauth_attempt')!
   expect(cookie.value).not.toContain(api.createOAuthAttempt.mock.calls[0][0].nonce)
   expect(cookie.value).not.toContain(api.createOAuthAttempt.mock.calls[0][0].codeVerifier)
@@ -31,6 +32,7 @@ it('動的Previewは有効設定でも試行作成前に拒否する', async () 
   const result = await start(new NextRequest('https://preview.example.com/api/auth/google/start'))
   expect(result.status).toBe(400)
   expect(api.createOAuthAttempt).not.toHaveBeenCalled()
+  expect(api.expireOAuthAttempts).not.toHaveBeenCalled()
   expect(result.headers.get('location')).toBeNull()
 })
 it('Cookieなしcallbackは交換せず固定エラーへ戻す', async () => {

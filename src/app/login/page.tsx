@@ -3,12 +3,13 @@ import { redirect } from 'next/navigation'
 import { LoginForm } from './login-form'
 import { isAuthenticated } from '@/lib/webauthn/session'
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ google?: string }> }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ google?: string | string[] }> }) {
   if (await isAuthenticated()) {
     redirect('/')
   }
 
   const { google } = await searchParams
-  const messages: Record<string, string> = { error: 'Googleログインを完了できませんでした。もう一度お試しください。', canceled: 'Googleログインをキャンセルしました。', recovered: 'アカウントを復旧しました。Googleでログインし直してください。' }
-  return <LoginForm googleEnabled={!!googleOAuthConfig()} googleMessage={google ? messages[google] : undefined} />
+  const messages = { error: 'Googleログインを完了できませんでした。もう一度お試しください。', canceled: 'Googleログインをキャンセルしました。', recovered: 'アカウントを復旧しました。Googleでログインし直してください。' }
+  const googleMessage = google === 'error' || google === 'canceled' || google === 'recovered' ? messages[google] : undefined
+  return <LoginForm googleEnabled={!!googleOAuthConfig()} googleMessage={googleMessage} />
 }

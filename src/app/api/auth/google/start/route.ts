@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createGoogleAuthorizationRequest } from '@/lib/auth/google-protocol'
 import { googleOAuthConfig, requestMatchesGoogleOrigin } from '@/lib/auth/google-config'
 import { attemptCookie, authCookieOptions, authUnavailable, privateResponse, clearAttempt } from '@/lib/auth/google-cookies'
-import { createOAuthAttempt } from '@/lib/api/google-auth'
+import { createOAuthAttempt, expireOAuthAttempts } from '@/lib/api/google-auth'
 import { isDevelopmentMockEnabled } from '@/lib/mock-mode'
 import { randomSecret } from '../../../../../../cloudflare/worker/src/google-auth-shared'
 
@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
   const config = googleOAuthConfig()
   if (!config || !requestMatchesGoogleOrigin(request, config)) return authUnavailable()
   try {
+    await expireOAuthAttempts()
     const authorization = await createGoogleAuthorizationRequest(config)
     const binding = randomSecret()
     const attempt = await createOAuthAttempt({ state: authorization.state, nonce: authorization.nonce, codeVerifier: authorization.codeVerifier, browserBinding: binding })

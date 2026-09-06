@@ -72,3 +72,20 @@ describe('LoginPage', () => {
     expect(redirect).toHaveBeenCalledWith('/')
   })
 })
+
+it.each(['__proto__', 'constructor', 'toString', 'unknown', ['error', 'canceled']])('未知のGoogle結果 %j でもログイン画面を安全に表示する', async google => {
+  vi.mocked(isAuthenticated).mockResolvedValue(false)
+  const page = await LoginPage({ searchParams: Promise.resolve({ google }) })
+  expect(page.props.googleMessage).toBeUndefined()
+  render(page)
+  expect(screen.getByRole('button', { name: 'ログイン' })).toBeInTheDocument()
+})
+it.each([
+  ['error', 'Googleログインを完了できませんでした。もう一度お試しください。'],
+  ['canceled', 'Googleログインをキャンセルしました。'],
+  ['recovered', 'アカウントを復旧しました。Googleでログインし直してください。'],
+])('既知Google結果 %s は安全な固定メッセージを表示する', async (google, message) => {
+  vi.mocked(isAuthenticated).mockResolvedValue(false)
+  render(await LoginPage({ searchParams: Promise.resolve({ google }) }))
+  expect(screen.getByText(message)).toBeInTheDocument()
+})

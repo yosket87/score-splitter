@@ -34,6 +34,13 @@ export async function createOAuthAttempt(input: { state: string; nonce: string; 
   state.attempts.push(row)
   return { attemptId: row.id, expiresAt: row.expiresAt }
 }
+export async function expireOAuthAttempts() {
+  for (const row of googleState().attempts) {
+    if (['pending', 'processing'].includes(row.status) && !valid(row.expiresAt)) {
+      row.status = 'expired'; row.nonce = null; row.codeVerifier = null
+    }
+  }
+}
 export async function claimOAuthAttempt(input: { attemptId: string; state: string; browserBinding: string }) {
   const [stateHash, browserHash] = await Promise.all([hashSecret(input.state), hashSecret(input.browserBinding)])
   const row = googleState().attempts.find(row => row.id === input.attemptId && row.status === 'pending' && valid(row.expiresAt) && row.stateHash === stateHash && row.browserHash === browserHash)

@@ -16,6 +16,12 @@ export function createOAuthAttempt(input: Parameters<typeof attempts.createOAuth
     return attempts.createOAuthAttempt(getDatabase(), getRuntime(), input)
   })
 }
+export function expireOAuthAttempts() {
+  return authOperation(async () => {
+    if (isWorkerApiMockEnabled()) return (await import('@/mocks/google-auth')).expireOAuthAttempts()
+    return attempts.expireOAuthAttempts(getDatabase(), getRuntime())
+  })
+}
 export function claimOAuthAttempt(input: Parameters<typeof attempts.claimOAuthAttempt>[2]) {
   return authOperation(async () => {
     if (isWorkerApiMockEnabled()) return (await import('@/mocks/google-auth')).claimOAuthAttempt(input)

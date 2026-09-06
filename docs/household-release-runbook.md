@@ -2,6 +2,57 @@
 
 対象: Issue #102。これは実行手順であり、本番適用済みの証跡ではない。本番操作は、対象SHA・検証結果・バックアップPASS・停止/切り戻し手順を提示して明示承認を得た後に行う。
 
+## PR #122の切替手順（2026-09-06）
+
+### 今回の前提と承認範囲
+
+利用者は2人で、どちらも操作していないとユーザーが確認済み。今回に限り、利用再開まで2人とも操作しない運用で停止を代替する。Git自動デプロイの保留、全公開入口・旧Previewの物理的な遮断確認はマージの必須条件としない。以下の一般手順にある停止ゲートより、この今回の運用を優先する。旧APIの再配備や2世帯fixtureの本番投入は行わない。
+
+これは切替手順の記録であり、マージ・本番0012適用の実施記録ではない。利用者が操作を再開した場合は、作業中の操作を控えてもらってから続ける。
+
+### 確認済みの状態
+
+- 対象PR: #122。コード検証対象は `519024d12c2d6883d83ee81136e460ac5f4531eb`。main取り込み・指摘修正済み、CI全11件成功、Draft解除済み。
+- 本番Worker: `score-splitter`。本番D1: `score-splitter` / `7f8d3531-a833-4474-84d5-cee3ac98ee96`。本番は0011まで適用済みで、0012が未適用。
+- 開発D1は0012まで適用済み。移行前の全既存保存値の保持と、Previewのパスワードログイン・月次表示を確認済み。
+- 専用のリモートD1で、PRの0012を変更せずに適用し、途中失敗時のrollback、全保存値・索引・trigger・FKの保持、別D1へのexport/restore、復元後の世帯分離を検証済み。検証Workerと専用D1は削除済み。
+- 専用D1の初期fixture作成時だけ、旧0008/0010のCASE式をリモートD1が受理する同値の括弧付き表記にした。過去migration一式を無変更で新規適用した検証ではない。
+- 本番バックアップ `20260906T062900Z` は取得・再検証PASS。ただし以後のドキュメントcommitやマージでHEADが変わるため、切替時には流用せず取り直す。
+
+### 実施順
+
+1. PRの最新HEADとCIを再確認してマージする。本番Buildが自動起動する場合は対象SHAと結果を記録する。マージだけでD1 migrationが適用されたと判断しない。
+2. checkoutを最終マージSHAへ合わせ、作業ツリーがcleanであることを確認する。本番の配備Version・SHA・DB bindingを記録し、世帯対応版であることを確認する。既に当該SHAが正常配備済みなら再配備は不要。未配備の場合は手順4のバックアップPASS後に、このcheckoutから `npm run deploy` でroot Workerを配備し、成功を確認する。`deploy:worker` は旧APIも配備するため使わない。
+3. 次のコマンドで本番のpendingを確認する。**0012だけ**でなければ一括適用せず差異を調べる。
+
+   ```bash
+   npx wrangler d1 migrations list score-splitter --remote --config wrangler.jsonc
+   ```
+
+4. AIなどの実行中処理が終了していること、所属NULL・不明所属・越境参照が0件であることを確認する。最終SHAでバックアップを取得し、表示された新しいmanifestを使って再検証する。
+
+   ```bash
+   npm run backup:d1:production -- --confirm-production-d1 7f8d3531-a833-4474-84d5-cee3ac98ee96
+   npm run verify:d1:production-backup -- /実際に出力された保存先/manifest.json
+   ```
+
+   PASS、HEAD一致、完了から30分以内を確認する。移行前後の比較資料はバックアップと同じprivate領域に保存し、家計明細や認証情報をPR・ログへ貼らない。
+
+5. 最終SHAの世帯対応版が配備済みであることを確認する。配備待ちでバックアップが30分を超えた場合は手順4をやり直す。root設定のDB UUIDを上記の本番UUIDと照合してから0012を適用する。
+
+   ```bash
+   npx wrangler d1 migrations apply score-splitter --remote --config wrangler.jsonc
+   npx wrangler d1 migrations list score-splitter --remote --config wrangler.jsonc
+   npx wrangler d1 execute score-splitter --remote --config wrangler.jsonc --command 'PRAGMA foreign_key_check;'
+   ```
+
+6. pendingなし・FK違反0件を確認する。移行前のバックアップと件数・金額・revision・台帳JSONを照合し、NOT NULL・複合FK・索引・triggerの定義が0012の期待値と一致することを確認する。本番のimmutable保護は定義照合と専用D1の検証結果で確認し、振込履歴を試しに更新・削除しない。
+7. 既存世帯でログイン、月一覧、明細表示と精算額を確認する。編集・コピー・AI・振込操作は必要な実操作の範囲で確認し、架空の振込履歴は作らない。利用中のパスキーはユーザーの実端末で確認する。配備SHA・Version・本番DB UUID・確認結果を記録して、2人の利用を再開する。
+
+### 失敗時
+
+0012が失敗したら、0011のschema・保存値・migration台帳へrollbackしたことを確認し、利用再開を見合わせる。適用済みの0011を再適用したり、世帯非対応の旧コードへ戻したりしない。0012成功後の問題は対応版の修正を優先する。バックアップやTime Travelの復元は新規書込を失う可能性があるため、復元時点と影響を確認して別途承認を得る。
+
 ## 段階ごとの配布物
 
 | 段階 | ブランチ/PR | DBとコードの状態 |

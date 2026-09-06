@@ -24,6 +24,7 @@ export class GoogleOAuthError extends Error {
 }
 
 const callbackPath = '/api/auth/google/callback'
+const verificationTimeoutMs = 10_000
 const configSchema = z.object({
   clientId: z.string().trim().min(1),
   clientSecret: z.string().trim().min(1),
@@ -76,6 +77,10 @@ interface GoogleVerificationOptions {
   readonly fetch?: typeof fetch
 }
 
+interface GoogleRequestOptions extends GoogleVerificationOptions {
+  readonly signal: AbortSignal
+}
+
 const attemptSchema = z.object({
   state: z.string().trim().min(1),
   nonce: z.string().trim().min(1),
@@ -114,18 +119,26 @@ export async function verifyGoogleCallback(
   const redirect = validateConfig(config)
   const client: oauth.Client = { client_id: config.clientId, id_token_signed_response_alg: 'RS256', [oauth.clockTolerance]: 0 }
   const parameters = validateCallback(redirect, callbackUrl, attempt, client)
-  const response = await exchangeCode(config, client, parameters, attempt.codeVerifier, options)
-  return verifyTokenResponse(client, response, attempt.nonce, options)
+  const controller = new AbortController()
+  // token交換・応答body読取・JWKS取得を同じ期限で中断する。
+  const timeout = setTimeout(() => controller.abort(), verificationTimeoutMs)
+  const requestOptions = { fetch: options.fetch, signal: controller.signal }
+  try {
+    const response = await exchangeCode(config, client, parameters, attempt.codeVerifier, requestOptions)
+    return await verifyTokenResponse(client, response, attempt.nonce, requestOptions)
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 async function exchangeCode(
   config: GoogleOAuthConfig, client: oauth.Client, parameters: URLSearchParams,
-  codeVerifier: string, options: GoogleVerificationOptions,
+  codeVerifier: string, options: GoogleRequestOptions,
 ): Promise<Response> {
   try {
     return await oauth.authorizationCodeGrantRequest(
       googleServer, client, oauth.ClientSecretPost(config.clientSecret),
-      parameters, config.redirectUri, codeVerifier, { [oauth.customFetch]: options.fetch },
+      parameters, config.redirectUri, codeVerifier, { [oauth.customFetch]: options.fetch, signal: options.signal },
     )
   } catch {
     throw new GoogleOAuthError('provider_error')
@@ -140,13 +153,13 @@ const identitySchema = z.object({
 })
 
 async function verifyTokenResponse(
-  client: oauth.Client, response: Response, nonce: string, options: GoogleVerificationOptions,
+  client: oauth.Client, response: Response, nonce: string, options: GoogleRequestOptions,
 ): Promise<{ issuer: string; subject: string; email: string }> {
   try {
     const result = await oauth.processAuthorizationCodeResponse(googleServer, client, response, {
       expectedNonce: nonce, requireIdToken: true,
     })
-    await oauth.validateApplicationLevelSignature(googleServer, response, { [oauth.customFetch]: options.fetch })
+    await oauth.validateApplicationLevelSignature(googleServer, response, { [oauth.customFetch]: options.fetch, signal: options.signal })
     const claims = oauth.getValidatedIdTokenClaims(result)!
     // ライブラリは複数audience時のみazpを検証するため、単一audienceも確認する。
     if (claims.azp !== undefined && claims.azp !== client.client_id) throw new GoogleOAuthError('invalid_token')

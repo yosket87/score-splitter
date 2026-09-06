@@ -267,3 +267,70 @@ it('キャンセル以外のproviderエラーも本文を返さない', async ()
   expect(error.cause).toBeUndefined()
   expect(fixture.requests).toHaveLength(0)
 })
+
+describe('外部通信のタイムアウト', () => {
+  it.each([
+    ['token交換', 'https://oauth2.googleapis.com/token', 'provider_error', 0],
+    ['JWKS取得', 'https://www.googleapis.com/oauth2/v3/certs', 'invalid_token', 0],
+    ['token交換4秒後のJWKS取得', 'https://www.googleapis.com/oauth2/v3/certs', 'invalid_token', 4_000],
+  ])('%sが停止しても10秒でabortし安全なエラーで終了する', async (_, endpoint, code, tokenDelay) => {
+    // ASオブジェクト単位のJWKSキャッシュを持ち越さず、実取得経路を通す。
+    vi.resetModules()
+    const protocol = await import('@/lib/auth/google-protocol')
+    const attempt = await protocol.createGoogleAuthorizationRequest(config)
+    const fixture = await createGoogleOidcFixture(attempt)
+    let requestSignal: AbortSignal | null | undefined
+    let rejectRequest: (() => void) | undefined
+    let started!: () => void
+    const requestStarted = new Promise<void>(resolve => { started = resolve })
+    const fetcher: typeof fetch = (url, init) => {
+      if (String(url) !== endpoint) {
+        if (!tokenDelay) return fixture.fetch(url, init)
+        return new Promise<Response>(resolve => {
+          setTimeout(() => resolve(fixture.fetch(url, init)), tokenDelay)
+        })
+      }
+      requestSignal = init?.signal
+      started()
+      return new Promise<Response>((_, reject) => {
+        rejectRequest = () => reject(new Error(`timeout ${config.clientSecret} fixture-code`))
+        requestSignal?.addEventListener('abort', rejectRequest, { once: true })
+      })
+    }
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    let settled = false
+    const verification = protocol.verifyGoogleCallback(config, googleCallbackUrl(attempt.state), attempt, { fetch: fetcher })
+      .then(value => { settled = true; return value }, error => { settled = true; return error })
+    try {
+      if (tokenDelay) await vi.advanceTimersByTimeAsync(tokenDelay)
+      await requestStarted
+      await vi.advanceTimersByTimeAsync(9_999 - tokenDelay)
+      expect(settled).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(requestSignal?.aborted).toBe(true)
+      const error = await verification
+      expect(error).toMatchObject({ code })
+      expect(error.cause).toBeUndefined()
+      expect(`${String(error)} ${JSON.stringify(error)} ${error.stack}`).not.toContain(config.clientSecret)
+      expect(`${String(error)} ${JSON.stringify(error)}`).not.toContain('fixture-code')
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      rejectRequest?.()
+      await verification
+      vi.useRealTimers()
+    }
+  })
+})
+
+it('検証が期限前に成功した場合はタイマーを解除する', async () => {
+  const attempt = await createGoogleAuthorizationRequest(config)
+  const fixture = await createGoogleOidcFixture(attempt)
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  try {
+    await expect(verifyGoogleCallback(config, googleCallbackUrl(attempt.state), attempt, fixture))
+      .resolves.toMatchObject({ subject: 'google-subject-123' })
+    expect(vi.getTimerCount()).toBe(0)
+  } finally {
+    vi.useRealTimers()
+  }
+})

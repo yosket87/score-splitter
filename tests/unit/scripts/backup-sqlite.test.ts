@@ -5,6 +5,7 @@ import path from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { BACKUP_MIGRATIONS, createExpectedBackupSchema, readBackupSchema, verifyMatchingSchemaObjects } from '../../../scripts/backup-schema.mjs'
 import { restoreAndInspectBackup } from '../../../scripts/backup-sqlite.mjs'
+import { createSqliteFixture } from '../../helpers/backup-sqlite-fixtures'
 
 function inspect(sql: string, afterInspect?: (databasePath: string) => void) {
   const directory = mkdtempSync(path.join(tmpdir(), 'backup-sqlite-test-'))
@@ -26,12 +27,31 @@ function inspect(sql: string, afterInspect?: (databasePath: string) => void) {
 
 const snapshot = (stage: number) => [
   'PRAGMA legacy_alter_table=OFF;',
+  'BEGIN;',
   ...BACKUP_MIGRATIONS.slice(0, stage).map(({ name }) => readFileSync(path.join(process.cwd(), 'cloudflare/worker/migrations', name), 'utf8')),
   'CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY, name TEXT);',
   ...BACKUP_MIGRATIONS.slice(0, stage).map(({ name }, index) => `INSERT INTO d1_migrations VALUES (${index + 1}, '${name}');`),
+  'COMMIT;',
 ].join('\n')
 
 describe('実SQLiteによるバックアップschema検証', () => {
+  it('fixtureの同じ生成SQLを再利用しても各試験の変更は別のコピーへ伝わらない', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'backup-fixture-isolation-'))
+    const first = path.join(directory, 'first.sqlite')
+    const second = path.join(directory, 'second.sqlite')
+    const sql = 'CREATE TABLE sample(id INTEGER); INSERT INTO sample VALUES(1);'
+    try {
+      createSqliteFixture(sql, first)
+      const changed = spawnSync('sqlite3', ['-safe', first, 'UPDATE sample SET id=2;'], { encoding: 'utf8' })
+      expect(changed.status, changed.stderr).toBe(0)
+      createSqliteFixture(sql, second)
+      const read = spawnSync('sqlite3', ['-safe', second, 'SELECT id FROM sample;'], { encoding: 'utf8' })
+      expect(read.status, read.stderr).toBe(0)
+      expect(read.stdout.trim()).toBe('1')
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
   it.each([4, 5, 6, 7, 8, 9, 10, 11, 12, 13])('実migrationの000%sまで復元し全対象表を検査する', (stage) => {
     const result = inspect(snapshot(stage))
     expect(result.schema.stage).toBe(String(stage).padStart(4, '0'))
@@ -138,6 +158,29 @@ describe('実SQLiteによるバックアップschema検証', () => {
         BACKUP_MIGRATIONS.slice(0, 4).map(({ name }) => name),
         path.join(directory, 'expected.sqlite'), run,
       ).stage).toBe('0004')
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+  it('期待schemaのmigration途中で失敗したら直前stageのDDLと行へ戻る', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'backup-expected-rollback-'))
+    const databasePath = path.join(directory, 'expected.sqlite')
+    let beforeFailure = ''
+    const dump = () => spawnSync('sqlite3', ['-safe', databasePath, '.dump'], { encoding: 'utf8' }).stdout
+    const run = (executable: string, args: string[], options: { input?: Buffer; label?: string } = {}) => {
+      let input = options.input
+      if (options.label?.endsWith('0013_add_google_identities.sql')) {
+        beforeFailure = dump()
+        input = Buffer.from(input!.toString().replace('CREATE TABLE users (', 'INSERT INTO _identity_migration_assert VALUES(0);\nCREATE TABLE users ('))
+      }
+      const result = spawnSync(executable, args, { input, encoding: 'utf8' })
+      if (result.status !== 0) throw new Error(result.stderr)
+      return result.stdout
+    }
+    try {
+      expect(() => createExpectedBackupSchema(BACKUP_MIGRATIONS.map(({ name }) => name), databasePath, run)).toThrow(/CHECK/)
+      expect(beforeFailure).not.toBe('')
+      expect(dump()).toBe(beforeFailure)
     } finally {
       rmSync(directory, { recursive: true, force: true })
     }

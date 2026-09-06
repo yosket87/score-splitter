@@ -240,7 +240,8 @@ export function createExpectedBackupSchema(migrations, databasePath, commandRunn
     }
     commandRunner('sqlite3', ['-safe', '-bail', databasePath], {
       // macOS等のCLI既定値に依存せず、D1と同じ改名時のFK更新を使う。
-      input: Buffer.concat([Buffer.from('PRAGMA legacy_alter_table=OFF;\n'), readFileSync(migrationPath)]), label: `期待schema生成: ${name}`,
+      // D1と同じmigration単位で確定し、文ごとのディスク同期と途中状態の残留を避ける。
+      input: Buffer.concat([Buffer.from('PRAGMA legacy_alter_table=OFF;\nBEGIN;\n'), readFileSync(migrationPath), Buffer.from('\nCOMMIT;\n')]), label: `期待schema生成: ${name}`,
     })
   }
   commandRunner('sqlite3', ['-safe', databasePath, 'CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY, name TEXT);'], { label: '期待migration表生成' })

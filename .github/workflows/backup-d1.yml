@@ -6,6 +6,7 @@ on:
       - 'scripts/backup-*.mjs'
       - 'scripts/test-backup-d1.mjs'
       - 'tests/unit/scripts/backup-*.test.ts'
+      - 'tests/helpers/backup-sqlite-fixtures.ts'
       - 'cloudflare/worker/migrations/**'
       - 'package*.json'
       - '.github/workflows/backup-d1.yml'
@@ -14,6 +15,7 @@ on:
     paths:
       - 'scripts/backup-*.mjs'
       - 'scripts/test-backup-d1.mjs'
+      - 'tests/helpers/backup-sqlite-fixtures.ts'
       - 'cloudflare/worker/migrations/**'
       - 'package*.json'
       - '.github/workflows/backup-d1.yml'

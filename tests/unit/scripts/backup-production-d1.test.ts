@@ -47,12 +47,15 @@ import {
 } from '../../../scripts/backup-production-d1.mjs'
 
 import { BACKUP_MIGRATIONS, readBackupSchema } from '../../../scripts/backup-schema.mjs'
+import { createSqliteFixture } from '../../helpers/backup-sqlite-fixtures'
 
 function migrationSnapshot(stage: number) {
   return [
+    'BEGIN;',
     ...BACKUP_MIGRATIONS.slice(0, stage).map(({ name }) => readFileSync(path.join(process.cwd(), 'cloudflare/worker/migrations', name), 'utf8')),
     'CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY, name TEXT);',
     ...BACKUP_MIGRATIONS.slice(0, stage).map(({ name }, index) => `INSERT INTO d1_migrations VALUES (${index + 1}, '${name}');`),
+    'COMMIT;',
   ].join('\n')
 }
 
@@ -64,8 +67,7 @@ function schemaFromSql(sql: string) {
   const directory = mkdtempSync(path.join(tmpdir(), 'backup-schema-fixture-'))
   const databasePath = path.join(directory, 'schema.sqlite')
   try {
-    const created = spawnSync('sqlite3', ['-safe', '-bail', databasePath], { input: sql, encoding: 'utf8' })
-    if (created.status !== 0) throw new Error(created.stderr)
+    createSqliteFixture(sql, databasePath)
     return readBackupSchema((sql: string) => {
       const result = spawnSync('sqlite3', ['-safe', '-json', databasePath, sql], { encoding: 'utf8' })
       if (result.status !== 0) throw new Error(result.stderr)
@@ -251,8 +253,7 @@ function createRealSqliteBackupCommandRunner({ sourceSql, exportSql = sourceSql 
   const sourcePath = path.join(directory, 'source.sqlite')
   const exportSourcePath = path.join(directory, 'export-source.sqlite')
   for (const [databasePath, sql] of [[sourcePath, sourceSql], [exportSourcePath, exportSql]] as const) {
-    const created = spawnSync('sqlite3', ['-safe', '-bail', databasePath], { input: sql, encoding: 'utf8' })
-    if (created.status !== 0) throw new Error(created.stderr)
+    createSqliteFixture(sql, databasePath)
   }
   const commandRunner = (executable: string, args: string[], options: { input?: Buffer } = {}) => {
     if (executable === 'sqlite3') {

@@ -131,7 +131,7 @@ export class FakeD1Database implements D1DatabaseLike {
     this.loginAttemptRows = rows.loginAttempts ?? this.loginAttemptRows
     this.diagnosisRows = rows.diagnoses ?? this.diagnosisRows
     this.sourceRevision = rows.sourceRevision ?? this.sourceRevision
-    this.recordSqlite.sqlite.prepare('INSERT INTO sessions VALUES(?,?,?,?,?,?)').run('a'.repeat(64),null,'password','2099-01-01','2026-01-01','A')
+    this.recordSqlite.sqlite.prepare('INSERT INTO sessions(token,person,auth_method,expires_at,created_at,household_id) VALUES(?,?,?,?,?,?)').run('a'.repeat(64),null,'password','2099-01-01','2026-01-01','A')
     this.syncRecordsToSqlite()
     this.aiSqlite.sqlite.exec("INSERT INTO households(id,created_at) VALUES('A','now'); INSERT INTO ai_execution_guard(household_id,id,usage_date,daily_count,updated_at) VALUES('A',1,'1970-01-01',0,'now'); INSERT INTO ai_diagnosis_source_revision(household_id,id,revision,updated_at) VALUES('A',1,0,'now');")
     for (const row of this.diagnosisRows) {

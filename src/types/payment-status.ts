@@ -1,4 +1,5 @@
-import type { CalculationResult, Carryover, Expense, Income, Session } from './index'
+import type { PaymentActor } from './auth'
+import type { CalculationResult, Carryover, Expense, Income } from './index'
 
 export interface PaymentSnapshot {
   schemaVersion: 1
@@ -16,7 +17,7 @@ export interface PaymentRecord {
   signedYen: number
   paidOn: string
   createdAt: string
-  actor: Session
+  actor: PaymentActor
   snapshot: PaymentSnapshot
   voidedAt: string | null
   voidReason: string | null

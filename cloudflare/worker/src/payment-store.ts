@@ -1,5 +1,6 @@
 import { assertHouseholdContext, type HouseholdContext } from './households'
 import type { D1DatabaseLike, Runtime } from './d1'
+import type { PaymentActor } from '../../../src/types/auth'
 import type { Session } from '../../../src/types'
 import type {
   PaymentOperationResult,
@@ -19,7 +20,8 @@ type PaymentRow = {
   created_at: string
   snapshot_json: string
   actor_person: Session['person']
-  actor_auth_method: Session['authMethod']
+  actor_auth_method: PaymentActor['authMethod']
+  actor_user_id: string | null
   voided_at: string | null
   reason: string | null
 }
@@ -42,7 +44,7 @@ export async function readPaymentMonth(
       db.prepare(`SELECT * FROM ${table} WHERE household_id = ? AND month = ? ORDER BY id`).bind(context.householdId, month)
     ),
     db.prepare(`
-      SELECT p.*, o.actor_person, o.actor_auth_method, v.created_at AS voided_at, v.reason
+      SELECT p.*, o.actor_person, o.actor_auth_method, o.actor_user_id, v.created_at AS voided_at, v.reason
       FROM payment_records p
       JOIN payment_operations o ON o.household_id = p.household_id AND o.id = p.operation_id
       LEFT JOIN payment_voids v ON v.household_id = p.household_id AND v.payment_id = p.id
@@ -65,7 +67,9 @@ export async function readPaymentMonth(
       signedYen: row.signed_yen,
       paidOn: row.paid_on,
       createdAt: row.created_at,
-      actor: { person: row.actor_person, authMethod: row.actor_auth_method },
+      actor: row.actor_auth_method === 'google'
+        ? { person: row.actor_person, authMethod: 'google' as const, userId: row.actor_user_id! }
+        : { person: row.actor_person, authMethod: row.actor_auth_method },
       snapshot: JSON.parse(row.snapshot_json) as PaymentSnapshot,
       voidedAt: row.voided_at,
       voidReason: row.reason,
@@ -134,12 +138,12 @@ export async function writeOperation(
     db.prepare(`
       INSERT INTO payment_operations(
         household_id,id,month,kind,expected_revision,input_json,result_json,
-        actor_person,actor_auth_method,created_at
-      ) VALUES(?,?,?,?,?,?,?,?,?,?)
+        actor_person,actor_auth_method,actor_user_id,created_at
+      ) VALUES(?,?,?,?,?,?,?,?,?,?,?)
     `).bind(
       context.householdId, input.operationId, input.month, input.kind, input.expectedRevision,
       input.inputJson, JSON.stringify(result), input.actor.person,
-      input.actor.authMethod, now
+      input.actor.authMethod, input.actor.authMethod === 'google' ? input.actor.userId : null, now
     ),
   ]
   if (input.voidPayment) {

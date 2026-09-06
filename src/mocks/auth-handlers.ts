@@ -1,3 +1,4 @@
+import type { ApiSession } from '@/types/auth'
 import { http, HttpResponse } from 'msw'
 import { z } from 'zod'
 import { applyOrder, deleteRows, getTable, insertRows, updateRows } from './db'
@@ -19,13 +20,25 @@ function legacyHousehold() {
 export function validSession(token: string) {
   if (!/^[a-f0-9]{64}$/.test(token)) return null
   const row = getTable('sessions').find((item) => item.token === token)
-  if (!row || !householdExists(row.household_id) || !['password', 'passkey'].includes(String(row.auth_method)) ||
+  if (!row || !householdExists(row.household_id) || !['password', 'passkey', 'google'].includes(String(row.auth_method)) ||
     ![null, 'husband', 'wife'].includes(row.person as string | null) ||
     !Number.isFinite(Date.parse(String(row.expires_at))) || Date.parse(String(row.expires_at)) <= Date.now()) return null
+  if (row.auth_method === 'google') {
+    const user = getTable('users').find(user => user.id === row.user_id && user.active === 1)
+    const member = getTable('household_memberships').find(member => member.id === row.membership_id && member.user_id === row.user_id
+      && member.household_id === row.household_id && member.revoked_at === null)
+    if (!user || !member || !Number.isSafeInteger(row.session_epoch) || user.session_epoch !== row.session_epoch) return null
+    return { ...row, person: member.default_person }
+  }
+  if (getTable('households').find(h => h.id === row.household_id)?.legacy_auth_disabled_at != null) return null
   return row
 }
-function apiSession(row: Row) {
-  return { token: row.token, householdId: row.household_id, person: row.person, authMethod: row.auth_method, expiresAt: row.expires_at }
+export function apiSession(row: Row): ApiSession {
+  const base = { token: String(row.token), householdId: String(row.household_id),
+    person: row.person as 'husband' | 'wife' | null, expiresAt: String(row.expires_at) }
+  return row.auth_method === 'google'
+    ? { ...base, authMethod: 'google', userId: String(row.user_id), membershipId: String(row.membership_id), sessionEpoch: Number(row.session_epoch) }
+    : { ...base, authMethod: row.auth_method as 'password' | 'passkey' }
 }
 function apiPasskey(row: Row) {
   return { id: row.id, householdId: row.household_id, person: row.person, publicKeyBase64: row.public_key_base64, counter: row.counter,
@@ -93,7 +106,8 @@ async function internal(request: Request, [resource, id, action]: string[]) {
   if (resource === 'sessions') {
     if (!id && request.method === 'POST') {
       const input = sessionInput.parse(await request.json())
-      if (input.householdId !== legacyHousehold()?.id) return unauthorized()
+      const household = legacyHousehold()
+      if (input.householdId !== household?.id || household?.legacy_auth_disabled_at != null) return unauthorized()
       const row = insertRows('sessions', [{ token: input.token, household_id: input.householdId, person: input.person,
         auth_method: input.authMethod, expires_at: input.expiresAt }])[0]
       return data(apiSession(row), 201)

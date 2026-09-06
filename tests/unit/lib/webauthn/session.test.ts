@@ -199,3 +199,39 @@ describe('セッション境界の世帯認可', () => {
     await expect(requireAuth()).rejects.toThrow('NEXT_REDIRECT:/login')
   })
 })
+
+it('セッション作成失敗の内部情報を公開しない', async () => {
+  mockSessionsApi.createSession.mockRejectedValueOnce(new Error('D1 token=secret-fixture'))
+  await expect(createSession(context, null, 'password')).rejects.toThrow(/^セッション作成に失敗しました$/)
+})
+
+describe('Google共通sessionとCookie', () => {
+  const session = { token: 'b'.repeat(64), householdId: 'A', person: 'wife' as const, authMethod: 'google' as const,
+    userId: 'user-a', membershipId: 'member-a', sessionEpoch: 2, expiresAt: '2026-09-07T00:00:00.000Z' }
+  beforeEach(() => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-06T00:00:00.000Z'))
+    mockCookies.set.mockClear(); mockCookies.get.mockReturnValue({ value: session.token })
+    mockSessionsApi.getSession.mockResolvedValue(session)
+  })
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs() })
+  it('現在の認証snapshotに個人と所属とepochを保持する', async () => {
+    expect(await getSession()).toEqual({ householdId: 'A', person: 'wife', authMethod: 'google',
+      userId: 'user-a', membershipId: 'member-a', sessionEpoch: 2 })
+  })
+  it.each([{ userId: '' }, { membershipId: '' }, { sessionEpoch: -1 }, { sessionEpoch: 1.5 }])('不正なGoogle metadataを拒否する %j', async override => {
+    mockSessionsApi.getSession.mockResolvedValue({ ...session, ...override })
+    expect(await getSession()).toBeNull()
+  })
+  it('DB確定後のGoogle Cookieは残り期限とSecure属性を持つ', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    const { setGoogleSessionCookie } = await import('@/lib/webauthn/session')
+    await setGoogleSessionCookie(session)
+    expect(mockCookies.set).toHaveBeenCalledWith('household_session', session.token,
+      { httpOnly: true, secure: true, sameSite: 'lax', maxAge: 86400, path: '/' })
+  })
+  it('期限切れのGoogle Cookieを発行しない', async () => {
+    const { setGoogleSessionCookie } = await import('@/lib/webauthn/session')
+    await expect(setGoogleSessionCookie({ ...session, expiresAt: '2026-09-06T00:00:00.000Z' })).rejects.toThrow('期限')
+    expect(mockCookies.set).not.toHaveBeenCalled()
+  })
+})

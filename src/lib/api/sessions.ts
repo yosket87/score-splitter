@@ -16,21 +16,18 @@ import { apiRequest } from './client'
 import { apiEnvelopeSchema, type ApiEnvelope } from './types'
 import type { Person } from '@/types'
 
-export interface ApiSession {
-  token: string
-  householdId: string
-  person: Person | null
-  authMethod: 'password' | 'passkey'
-  expiresAt: string
-}
+export type { ApiSession } from '@/types/auth'
+import type { ApiSession } from '@/types/auth'
 
-const sessionSchema: z.ZodType<ApiSession> = z.object({
-  token: z.string(),
-  householdId: z.string().min(1),
-  person: z.enum(['husband', 'wife']).nullable(),
-  authMethod: z.enum(['password', 'passkey']),
-  expiresAt: z.string(),
+const sessionBase = z.object({
+  token: z.string(), householdId: z.string().min(1),
+  person: z.enum(['husband', 'wife']).nullable(), expiresAt: z.string(),
 })
+const sessionSchema: z.ZodType<ApiSession> = z.union([
+  sessionBase.extend({ authMethod: z.enum(['password', 'passkey']) }),
+  sessionBase.extend({ authMethod: z.literal('google'), userId: z.string().min(1),
+    membershipId: z.string().min(1), sessionEpoch: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER) }),
+])
 
 const sessionEnvelopeSchema = apiEnvelopeSchema(sessionSchema)
 const nullableSessionEnvelopeSchema = apiEnvelopeSchema(sessionSchema.nullable())

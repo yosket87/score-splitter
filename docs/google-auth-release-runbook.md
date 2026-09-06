@@ -179,3 +179,5 @@ Googleアカウントを利用できない場合はGoogle側の復旧を案内�
 - 第3段階Draft PR: [#125](https://github.com/yosket87/score-splitter/pull/125)、baseは第2段階ブランチ。`7a93b13`の修正再レビューで未解消指摘0件。
 - 2026-09-06 12:15 UTC: 第3段階（配備時HEAD `0b7dd0b`）を固定開発Workerへ配備。Version `bee98a84-d1bb-4d62-a02a-665167cb0b5b`、DB binding `51457bd5-8e0e-4645-ad34-86634285af2c`を実Versionから照合。Google client IDは空、Secret未設定、旧認証は継続。
 - 配備後、開発の旧passwordログイン・認証後の家計再表示200・ログアウト成功。実Google認証、実運営承認、旧方式の最終停止、本番変更は未実施。
+
+- `7352486`: 第3段階CIで、0011/0012の歴史DBへ0013必須の現APIを接続していた試験不整合を修正。元DBの故障注入・rollback・再適用・0012の16表復元検証は維持し、独立cloneだけを正規0013へ進めて現APIを検証。clone初期schema・全値一致、更新後の旧全列全値保持、元state不変、対象D1・typecheck・lint成功。アプリのschema fallbackは追加していない。

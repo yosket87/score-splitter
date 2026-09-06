@@ -20,21 +20,32 @@ export async function consumeGoogleRecovery(db: D1DatabaseLike, runtime: Runtime
         AND EXISTS(SELECT 1 FROM users u JOIN google_identities i ON i.user_id=u.id
           JOIN oauth_login_attempts a ON a.id=? AND a.claim_id=? AND a.sequence=? AND a.status='completed'
           WHERE u.id=target_user_id AND u.active=1 AND u.session_epoch=expected_session_epoch
-            AND a.sequence>u.oauth_attempt_floor AND julianday(a.expires_at)>julianday(?)
-            AND i.id=expected_old_identity_id AND i.revoked_at IS NULL)`)
+            AND u.session_epoch<9007199254740991 AND a.sequence>u.oauth_attempt_floor AND julianday(a.expires_at)>julianday(?)
+            AND i.id=expected_old_identity_id
+            AND NOT EXISTS(SELECT 1 FROM google_identities other WHERE other.user_id=u.id AND other.revoked_at IS NULL AND other.id<>i.id))`)
       .bind(consumptionId, approval.id, identity.issuer, identity.subject, now, now, claim.attemptId, claim.claimId, claim.sequence, now),
+    db.prepare(`UPDATE google_identities SET revoked_at=COALESCE(revoked_at,?)
+      WHERE id=? AND user_id=? AND EXISTS(
+        SELECT 1 FROM google_migration_requests WHERE id=? AND status='consuming' AND consumption_id=?)`)
+      .bind(now, approval.expected_old_identity_id, approval.target_user_id, approval.id, consumptionId),
     db.prepare(`UPDATE users SET session_epoch=session_epoch+1,
       oauth_attempt_floor=MAX(oauth_attempt_floor,COALESCE((SELECT MAX(sequence) FROM oauth_login_attempts),0)),updated_at=?
       WHERE id=? AND active=1 AND session_epoch=? AND EXISTS(
         SELECT 1 FROM google_migration_requests WHERE id=? AND status='consuming' AND consumption_id=?)`)
       .bind(now, approval.target_user_id, approval.expected_session_epoch, approval.id, consumptionId),
-    db.prepare(`UPDATE google_identities SET revoked_at=? WHERE id=? AND user_id=? AND revoked_at IS NULL AND changes()=1`)
-      .bind(now, approval.expected_old_identity_id, approval.target_user_id),
-    db.prepare(`INSERT INTO google_identities(id,user_id,issuer,subject,email,created_at)
-      VALUES(?,(SELECT target_user_id FROM google_migration_requests WHERE id=? AND status='consuming' AND consumption_id=? AND changes()=1),?,?,?,?)`)
-      .bind(runtime.randomUUID(), approval.id, consumptionId, identity.issuer, identity.subject, identity.email, now),
     db.prepare(`UPDATE google_migration_requests SET status='consumed',consumed_at=?,consumed_user_id=?
       WHERE id=? AND status='consuming' AND consumption_id=?`).bind(now, approval.target_user_id, approval.id, consumptionId),
+    // 最後の必須scalarでconsumed更新0件も含めて検査し、先行変更を全てrollbackする。
+    db.prepare(`INSERT INTO google_identities(id,user_id,issuer,subject,email,created_at)
+      VALUES(?,(SELECT u.id FROM google_migration_requests r
+        JOIN users u ON u.id=r.target_user_id AND u.id=r.consumed_user_id
+        JOIN google_identities old ON old.id=r.expected_old_identity_id AND old.user_id=u.id
+        WHERE r.id=? AND r.purpose='identity_recovery' AND r.status='consumed' AND r.consumption_id=?
+          AND r.target_user_id=? AND r.expected_old_identity_id=? AND r.expected_session_epoch=?
+          AND r.issuer=? AND r.subject=? AND u.active=1 AND u.session_epoch=r.expected_session_epoch+1
+          AND old.revoked_at IS NOT NULL AND changes()=1),?,?,?,?)`)
+      .bind(runtime.randomUUID(), approval.id, consumptionId, approval.target_user_id, approval.expected_old_identity_id,
+        approval.expected_session_epoch, identity.issuer, identity.subject, identity.issuer, identity.subject, identity.email, now),
   ])
   // 復旧自身の試行もfloor以下になる。ここではsessionを発行しない。
   return { kind: 'recovered' as const, userId: approval.target_user_id }

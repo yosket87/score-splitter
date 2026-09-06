@@ -88,7 +88,8 @@ export function approveGoogleRecovery(db: D1DatabaseLike, runtime: Runtime, valu
       approved_by=?,confirmation_ref=?,target_user_id=?,expected_old_identity_id=?,expected_session_epoch=?
       WHERE id=? AND code_hash=? AND status='pending' AND julianday(expires_at)>julianday(?)
       AND EXISTS(SELECT 1 FROM users u JOIN google_identities i ON i.user_id=u.id
-        WHERE u.id=? AND u.active=1 AND u.session_epoch=? AND i.id=? AND i.revoked_at IS NULL)
+        WHERE u.id=? AND u.active=1 AND u.session_epoch=? AND i.id=?
+        AND NOT EXISTS(SELECT 1 FROM google_identities other WHERE other.user_id=u.id AND other.revoked_at IS NULL AND other.id<>i.id))
       AND NOT EXISTS(SELECT 1 FROM google_identities WHERE issuer=google_migration_requests.issuer AND subject=google_migration_requests.subject)
       RETURNING id AS requestId`)
       .bind(now, approvalExpiry, approvalExpiry, input.approvedBy, input.confirmationRef, input.targetUserId,

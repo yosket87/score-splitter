@@ -271,3 +271,39 @@ it('不正な検証済み主体形式と対象が変わった復旧承認を固�
     confirmationRef: 'checked', targetUserId: a.userId, expectedEpoch: 0, expectedOldIdentityId: 'wrong-old-identity' }))
     .rejects.toMatchObject({ code: 'approval_invalid' })
 })
+
+it('事前失効済み旧主体を保持して同じuserへ復旧する', async () => {
+  const a = await enrolled()
+  const old = store.sqlite.prepare('SELECT id FROM google_identities WHERE user_id=?').get(a.userId)!
+  const revokedAt = new Date(Date.now() - 60_000).toISOString()
+  store.sqlite.prepare('UPDATE google_identities SET revoked_at=? WHERE id=?').run(revokedAt, old.id)
+  await revokeGoogleSessions(store.db, runtime, a.token)
+  const request = await pending('replacement')
+  await approveGoogleRecovery(store.db, runtime, { requestId: request.requestId, code: request.code,
+    approvedBy: 'operator', confirmationRef: 'checked', targetUserId: a.userId, expectedOldIdentityId: String(old.id), expectedEpoch: 1 })
+  await expect(completeGoogleLogin(store.db, runtime, await claimed(), { ...identity, subject: 'replacement' }))
+    .resolves.toEqual({ kind: 'recovered', userId: a.userId })
+  expect(store.sqlite.prepare('SELECT revoked_at FROM google_identities WHERE id=?').get(old.id)?.revoked_at).toBe(revokedAt)
+  expect(store.sqlite.prepare('SELECT session_epoch FROM users WHERE id=?').get(a.userId)?.session_epoch).toBe(2)
+  expect(store.sqlite.prepare('SELECT COUNT(*) n FROM household_memberships WHERE user_id=?').get(a.userId)?.n).toBe(1)
+  const another = await pending('another-replacement')
+  await expect(approveGoogleRecovery(store.db, runtime, { requestId: another.requestId, code: another.code,
+    approvedBy: 'operator', confirmationRef: 'checked', targetUserId: a.userId, expectedOldIdentityId: String(old.id), expectedEpoch: 2 }))
+    .rejects.toMatchObject({ code: 'approval_invalid' })
+})
+it('復旧のconsumed更新が0件なら試行/epoch/旧主体/新主体の全てをrollbackする', async () => {
+  const a = await enrolled()
+  const request = await pending('replacement')
+  const old = store.sqlite.prepare('SELECT id FROM google_identities WHERE user_id=?').get(a.userId)!
+  await approveGoogleRecovery(store.db, runtime, { requestId: request.requestId, code: request.code,
+    approvedBy: 'operator', confirmationRef: 'checked', targetUserId: a.userId, expectedOldIdentityId: String(old.id), expectedEpoch: 0 })
+  const claim = await claimed()
+  const before = store.sqlite.prepare('SELECT * FROM users WHERE id=?').get(a.userId)
+  store.sqlite.exec("CREATE TRIGGER fixture_ignore_consumed BEFORE UPDATE OF status ON google_migration_requests WHEN NEW.status='consumed' BEGIN SELECT RAISE(IGNORE); END")
+  await expect(completeGoogleLogin(store.db, runtime, claim, { ...identity, subject: 'replacement' })).rejects.toMatchObject({ code: 'operation_failed' })
+  expect(store.sqlite.prepare('SELECT * FROM users WHERE id=?').get(a.userId)).toEqual(before)
+  expect(store.sqlite.prepare('SELECT status FROM oauth_login_attempts WHERE id=?').get(claim.attemptId)?.status).toBe('processing')
+  expect(store.sqlite.prepare('SELECT status FROM google_migration_requests WHERE id=?').get(request.requestId)?.status).toBe('approved')
+  expect(store.sqlite.prepare('SELECT revoked_at FROM google_identities WHERE id=?').get(old.id)?.revoked_at).toBeNull()
+  expect(store.sqlite.prepare('SELECT COUNT(*) n FROM google_identities').get()?.n).toBe(1)
+})

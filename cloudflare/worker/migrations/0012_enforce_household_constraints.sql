@@ -2,9 +2,9 @@
 CREATE TABLE _household_migration_assert (ok INTEGER NOT NULL CHECK (ok = 1));
 INSERT INTO _household_migration_assert SELECT CASE WHEN (SELECT COUNT(*) FROM households)=1 AND EXISTS(SELECT 1 FROM households WHERE id='3975b870-bbfa-49fd-ae3d-d273c9f6e107' AND legacy_auth_key='legacy') THEN 1 ELSE 0 END;
 -- 未知の表・列・索引・trigger・参照はデータ損失を避けるため適用前に拒否する。
-INSERT INTO _household_migration_assert SELECT CASE WHEN (SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('_cf_KV','_cf_METADATA','d1_migrations','_household_migration_assert'))=16 AND NOT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('_cf_KV','_cf_METADATA','d1_migrations','_household_migration_assert') AND name NOT IN ('ai_diagnoses','ai_diagnosis_source_revision','ai_execution_guard','carryovers','expenses','households','incomes','login_attempts','month_payment_revisions','passkey_credentials','payment_operations','payment_records','payment_voids','sessions','waitlist_entries','webauthn_challenges')) THEN 1 ELSE 0 END;
-INSERT INTO _household_migration_assert SELECT CASE WHEN (SELECT COUNT(*) FROM sqlite_schema WHERE type='trigger' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('_cf_KV','_cf_METADATA','d1_migrations','_household_migration_assert'))=48 AND NOT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='trigger' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('_cf_KV','_cf_METADATA','d1_migrations','_household_migration_assert') AND name NOT IN ('ai_diagnoses_household_insert','ai_diagnoses_household_update','ai_diagnosis_source_revision_household_insert','ai_diagnosis_source_revision_household_update','ai_execution_guard_household_insert','ai_execution_guard_household_update','carryovers_household_insert','carryovers_household_update','carryovers_payment_delete','carryovers_payment_insert','carryovers_payment_update','expenses_household_insert','expenses_household_update','expenses_payment_delete','expenses_payment_insert','expenses_payment_update','incomes_household_insert','incomes_household_update','incomes_payment_delete','incomes_payment_insert','incomes_payment_update','increment_ai_revision_after_carryover_delete','increment_ai_revision_after_carryover_insert','increment_ai_revision_after_carryover_update','increment_ai_revision_after_expense_delete','increment_ai_revision_after_expense_insert','increment_ai_revision_after_expense_update','increment_ai_revision_after_income_delete','increment_ai_revision_after_income_insert','increment_ai_revision_after_income_update','month_payment_revisions_household_insert','month_payment_revisions_household_update','passkey_credentials_household_insert','passkey_credentials_household_update','payment_operation_revision','payment_operations_immutable_delete','payment_operations_immutable_update','payment_record_operation','payment_records_immutable_delete','payment_records_immutable_update','payment_void_operation','payment_voids_immutable_delete','payment_voids_immutable_update','release_ai_execution_guard','sessions_household_insert','sessions_household_update','webauthn_challenges_household_insert','webauthn_challenges_household_update')) THEN 1 ELSE 0 END;
-INSERT INTO _household_migration_assert SELECT CASE WHEN (SELECT COUNT(*) FROM sqlite_schema WHERE type='index' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('_cf_KV','_cf_METADATA','d1_migrations','_household_migration_assert'))=16 AND NOT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='index' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('_cf_KV','_cf_METADATA','d1_migrations','_household_migration_assert') AND name NOT IN ('idx_carryovers_household_month','idx_carryovers_month','idx_carryovers_month_cleared','idx_carryovers_unique_household_month_label_amount_person','idx_expenses_household_month','idx_expenses_month','idx_expenses_month_carryover','idx_incomes_household_month','idx_incomes_month','idx_login_attempts_updated_at','idx_passkey_credentials_person','idx_payment_operations_household_month','idx_payment_records_household_month','idx_sessions_expires_at','idx_webauthn_challenges_expires_at','idx_webauthn_challenges_lookup')) THEN 1 ELSE 0 END;
+INSERT INTO _household_migration_assert SELECT CASE WHEN (SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name NOT GLOB 'sqlite_*' AND name NOT IN ('_cf_KV','_cf_METADATA','d1_migrations','_household_migration_assert'))=16 AND NOT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name NOT GLOB 'sqlite_*' AND name NOT IN ('_cf_KV','_cf_METADATA','d1_migrations','_household_migration_assert') AND name NOT IN ('ai_diagnoses','ai_diagnosis_source_revision','ai_execution_guard','carryovers','expenses','households','incomes','login_attempts','month_payment_revisions','passkey_credentials','payment_operations','payment_records','payment_voids','sessions','waitlist_entries','webauthn_challenges')) THEN 1 ELSE 0 END;
+INSERT INTO _household_migration_assert SELECT CASE WHEN (SELECT COUNT(*) FROM sqlite_schema WHERE type='trigger' AND name NOT GLOB 'sqlite_*' AND name NOT IN ('_cf_KV','_cf_METADATA','d1_migrations','_household_migration_assert'))=48 AND NOT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='trigger' AND name NOT GLOB 'sqlite_*' AND name NOT IN ('_cf_KV','_cf_METADATA','d1_migrations','_household_migration_assert') AND name NOT IN ('ai_diagnoses_household_insert','ai_diagnoses_household_update','ai_diagnosis_source_revision_household_insert','ai_diagnosis_source_revision_household_update','ai_execution_guard_household_insert','ai_execution_guard_household_update','carryovers_household_insert','carryovers_household_update','carryovers_payment_delete','carryovers_payment_insert','carryovers_payment_update','expenses_household_insert','expenses_household_update','expenses_payment_delete','expenses_payment_insert','expenses_payment_update','incomes_household_insert','incomes_household_update','incomes_payment_delete','incomes_payment_insert','incomes_payment_update','increment_ai_revision_after_carryover_delete','increment_ai_revision_after_carryover_insert','increment_ai_revision_after_carryover_update','increment_ai_revision_after_expense_delete','increment_ai_revision_after_expense_insert','increment_ai_revision_after_expense_update','increment_ai_revision_after_income_delete','increment_ai_revision_after_income_insert','increment_ai_revision_after_income_update','month_payment_revisions_household_insert','month_payment_revisions_household_update','passkey_credentials_household_insert','passkey_credentials_household_update','payment_operation_revision','payment_operations_immutable_delete','payment_operations_immutable_update','payment_record_operation','payment_records_immutable_delete','payment_records_immutable_update','payment_void_operation','payment_voids_immutable_delete','payment_voids_immutable_update','release_ai_execution_guard','sessions_household_insert','sessions_household_update','webauthn_challenges_household_insert','webauthn_challenges_household_update')) THEN 1 ELSE 0 END;
+INSERT INTO _household_migration_assert SELECT CASE WHEN (SELECT COUNT(*) FROM sqlite_schema WHERE type='index' AND name NOT GLOB 'sqlite_*' AND name NOT IN ('_cf_KV','_cf_METADATA','d1_migrations','_household_migration_assert'))=16 AND NOT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='index' AND name NOT GLOB 'sqlite_*' AND name NOT IN ('_cf_KV','_cf_METADATA','d1_migrations','_household_migration_assert') AND name NOT IN ('idx_carryovers_household_month','idx_carryovers_month','idx_carryovers_month_cleared','idx_carryovers_unique_household_month_label_amount_person','idx_expenses_household_month','idx_expenses_month','idx_expenses_month_carryover','idx_incomes_household_month','idx_incomes_month','idx_login_attempts_updated_at','idx_passkey_credentials_person','idx_payment_operations_household_month','idx_payment_records_household_month','idx_sessions_expires_at','idx_webauthn_challenges_expires_at','idx_webauthn_challenges_lookup')) THEN 1 ELSE 0 END;
 INSERT INTO _household_migration_assert SELECT CASE WHEN (SELECT COUNT(*) FROM pragma_table_info('incomes'))=8 AND NOT EXISTS(SELECT 1 FROM pragma_table_info('incomes') WHERE name NOT IN ('id','month','label','amount','person','created_at','updated_at','household_id')) THEN 1 ELSE 0 END;
 INSERT INTO _household_migration_assert SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM incomes WHERE household_id IS NULL) THEN 1 ELSE 0 END;
 INSERT INTO _household_migration_assert SELECT CASE WHEN (SELECT COUNT(*) FROM pragma_table_info('expenses'))=12 AND NOT EXISTS(SELECT 1 FROM pragma_table_info('expenses') WHERE name NOT IN ('id','month','label','amount','person','is_carryover','created_at','updated_at','ai_category','ai_category_source','ai_categorized_at','household_id')) THEN 1 ELSE 0 END;
@@ -206,7 +206,7 @@ END;
 CREATE TRIGGER increment_ai_revision_after_carryover_delete
 AFTER DELETE ON carryovers
 BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=OLD.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=OLD.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END);
   UPDATE ai_diagnosis_source_revision
   SET revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   WHERE household_id = OLD.household_id;
@@ -214,7 +214,7 @@ END;
 CREATE TRIGGER increment_ai_revision_after_carryover_insert
 AFTER INSERT ON carryovers
 BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END);
   UPDATE ai_diagnosis_source_revision
   SET revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   WHERE household_id = NEW.household_id;
@@ -225,7 +225,7 @@ WHEN OLD.month IS NOT NEW.month
   OR OLD.amount IS NOT NEW.amount
   OR OLD.is_cleared IS NOT NEW.is_cleared
 BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END);
   UPDATE ai_diagnosis_source_revision
   SET revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   WHERE household_id = NEW.household_id;
@@ -233,7 +233,7 @@ END;
 CREATE TRIGGER increment_ai_revision_after_expense_delete
 AFTER DELETE ON expenses
 BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=OLD.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=OLD.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END);
   UPDATE ai_diagnosis_source_revision
   SET revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   WHERE household_id = OLD.household_id;
@@ -241,7 +241,7 @@ END;
 CREATE TRIGGER increment_ai_revision_after_expense_insert
 AFTER INSERT ON expenses
 BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END);
   UPDATE ai_diagnosis_source_revision
   SET revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   WHERE household_id = NEW.household_id;
@@ -253,7 +253,7 @@ WHEN OLD.month IS NOT NEW.month
   OR OLD.amount IS NOT NEW.amount
   OR OLD.is_carryover IS NOT NEW.is_carryover
 BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END);
   UPDATE ai_diagnosis_source_revision
   SET revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   WHERE household_id = NEW.household_id;
@@ -261,7 +261,7 @@ END;
 CREATE TRIGGER increment_ai_revision_after_income_delete
 AFTER DELETE ON incomes
 BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=OLD.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=OLD.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END);
   UPDATE ai_diagnosis_source_revision
   SET revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   WHERE household_id = OLD.household_id;
@@ -269,7 +269,7 @@ END;
 CREATE TRIGGER increment_ai_revision_after_income_insert
 AFTER INSERT ON incomes
 BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END);
   UPDATE ai_diagnosis_source_revision
   SET revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   WHERE household_id = NEW.household_id;
@@ -278,7 +278,7 @@ CREATE TRIGGER increment_ai_revision_after_income_update
 AFTER UPDATE OF month, amount ON incomes
 WHEN OLD.month IS NOT NEW.month OR OLD.amount IS NOT NEW.amount
 BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END);
   UPDATE ai_diagnosis_source_revision
   SET revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   WHERE household_id = NEW.household_id;

@@ -19,7 +19,7 @@ function apply(db: ReturnType<typeof setup>, sql = existsSync(filename) ? readFi
   try { db.exec(sql); db.exec('COMMIT') } catch (error) { db.exec('ROLLBACK'); throw error }
 }
 function snapshot(db: ReturnType<typeof setup>) {
-  const schema = db.prepare("SELECT type,name,tbl_name,sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY name").all()
+  const schema = db.prepare("SELECT type,name,tbl_name,sql FROM sqlite_schema WHERE name NOT GLOB 'sqlite_*' ORDER BY name").all()
   return { schema, rows: schema.filter(row => row.type === 'table').map(row => [row.name, db.prepare(`SELECT * FROM ${row.name} ORDER BY rowid`).all()]) }
 }
 describe('0012の最終所属制約', () => {
@@ -55,12 +55,25 @@ describe('0012の最終所属制約', () => {
     "INSERT INTO households(id,created_at) VALUES('B','now')",
     'DROP TRIGGER incomes_household_update; UPDATE incomes SET household_id=NULL',
     "CREATE TRIGGER unknown_guard AFTER INSERT ON incomes BEGIN SELECT 1; END;",
+    "CREATE TRIGGER sqlitex_guard AFTER INSERT ON incomes BEGIN SELECT 1; END;",
+    'CREATE INDEX sqlitex_index ON incomes(label)',
     'CREATE TABLE unknown_child(id TEXT, income_id TEXT REFERENCES incomes(id))',
     'ALTER TABLE login_attempts ADD COLUMN income_id TEXT REFERENCES incomes(id)',
     'ALTER TABLE incomes ADD COLUMN untracked TEXT',
   ])('想定外の開始状態を補修しない: %s', change => {
     const db = setup()
     try { db.exec(change); const before = snapshot(db); expect(() => apply(db)).toThrow(); expect(snapshot(db)).toEqual(before) } finally { db.close() }
+  })
+  it('内部表に似た名前の未知表を拒否し、連鎖削除される子行も保持する', () => {
+    const db = setup()
+    try {
+      db.exec("CREATE TABLE sqlitex_child(id TEXT, income_id TEXT REFERENCES incomes(id) ON DELETE CASCADE); INSERT INTO sqlitex_child VALUES('child','income');")
+      const before = snapshot(db)
+      expect(() => apply(db)).toThrow('CHECK constraint failed')
+      expect(db.prepare('SELECT * FROM sqlitex_child').all()).toEqual([{ id: 'child', income_id: 'income' }])
+      expect(snapshot(db)).toEqual(before)
+      expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([])
+    } finally { db.close() }
   })
   it('旧明細DROP後の故障で全schemaと保持値が戻り、再試行できる', () => {
     const db = setup()

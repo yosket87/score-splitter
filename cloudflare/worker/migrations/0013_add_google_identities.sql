@@ -531,9 +531,9 @@ BEGIN SELECT RAISE(ABORT,'MIGRATION_REQUEST_STATE'); END;
 CREATE TRIGGER migration_requests_approval BEFORE UPDATE OF status ON google_migration_requests
 WHEN NEW.status='approved'
 BEGIN
-  SELECT CASE WHEN (NEW.purpose='legacy_enrollment' AND NOT EXISTS(SELECT 1 FROM households WHERE id=NEW.approved_household_id AND legacy_auth_key='legacy' AND legacy_auth_disabled_at IS NULL))
+  SELECT (CASE WHEN (NEW.purpose='legacy_enrollment' AND NOT EXISTS(SELECT 1 FROM households WHERE id=NEW.approved_household_id AND legacy_auth_key='legacy' AND legacy_auth_disabled_at IS NULL))
     OR (NEW.purpose='identity_recovery' AND NOT EXISTS(SELECT 1 FROM users u JOIN google_identities i ON i.user_id=u.id WHERE u.id=NEW.target_user_id AND u.active=1 AND u.session_epoch=NEW.expected_session_epoch AND i.id=NEW.expected_old_identity_id))
-  THEN RAISE(ABORT,'MIGRATION_APPROVAL_TARGET') END;
+  THEN RAISE(ABORT,'MIGRATION_APPROVAL_TARGET') END);
 END;
 CREATE TRIGGER migration_requests_no_consumed_delete BEFORE DELETE ON google_migration_requests WHEN OLD.status IN ('consuming','consumed')
 BEGIN SELECT RAISE(ABORT,'MIGRATION_HISTORY_REQUIRED'); END;
@@ -651,7 +651,7 @@ WHEN NEW.token IS NOT OLD.token OR NEW.user_id IS NOT OLD.user_id OR NEW.members
 BEGIN SELECT RAISE(ABORT,'SESSION_AUTH_IMMUTABLE'); END;
 CREATE TRIGGER sessions_google_insert BEFORE INSERT ON sessions WHEN NEW.auth_method='google'
 BEGIN
-  SELECT CASE WHEN NOT EXISTS(
+  SELECT (CASE WHEN NOT EXISTS(
     SELECT 1 FROM users u
     JOIN household_memberships m ON m.user_id=u.id AND m.id=NEW.membership_id AND m.household_id=NEW.household_id
     JOIN google_identities i ON i.user_id=u.id AND i.revoked_at IS NULL
@@ -660,7 +660,7 @@ BEGIN
       AND a.status='completed' AND a.claim_id IS NOT NULL AND a.sequence>u.oauth_attempt_floor
       AND julianday(a.expires_at)>julianday(NEW.created_at) AND julianday(a.expires_at)>julianday('now')
       AND julianday(NEW.expires_at)>julianday(NEW.created_at)
-  ) THEN RAISE(ABORT,'GOOGLE_SESSION_INVALID') END;
+  ) THEN RAISE(ABORT,'GOOGLE_SESSION_INVALID') END);
 END;
 
 -- 日時はこのmigrationでは設定しない。後段の本人確認済みfinalizeだけが停止を行う。

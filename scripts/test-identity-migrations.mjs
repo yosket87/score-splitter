@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { buildCountSql, createExpectedBackupSchema, readBackupSchema } from './backup-schema.mjs'
 import { restoreAndInspectBackup } from './backup-sqlite.mjs'
+import { assertD1RemoteTriggerSyntax } from './identity-migration-sql.mjs'
 
 // 毎回独立した設定・migration・D1だけを利用する。remote指定や実設定を受け付けない。
 const temp = mkdtempSync(join(tmpdir(), 'identity-migrations-'))
@@ -78,6 +79,7 @@ try {
   stage(filename)
   apply()
   const after = snapshot()
+  assertD1RemoteTriggerSyntax(after.schema.filter(row => row.type === 'trigger'))
   for (const table of before.rows.filter(row => row.table !== 'd1_migrations')) {
     const columns = Object.keys(table.rows[0] ?? {})
     const actual = after.rows.find(row => row.table === table.table).rows

@@ -93,3 +93,10 @@ Googleアカウントを利用できない場合はGoogle側の復旧を案内�
 
 - 第1段階Draft PR: [#123](https://github.com/yosket87/score-splitter/pull/123)、対象SHA `bdb7803`。全12チェック成功、E2E job 5分49秒。マージは実施していない。
 - 第2段階開始前の開発D1（`51457bd5-8e0e-4645-ad34-86634285af2c`）をexportし、0012のSQLite復元・整合性・外部キー・期待DDL一致を確認した。移行適用前には再取得する。
+
+### 第2段階の互換DB検証
+
+- `2323052`: 全体1,417テスト成功、statement coverage 92.41%。
+- `9661739`: 通常バックアップ作成と切替前再検証にOAuth採番の高水位・失効下限の検査を追加。関連206テスト、隔離D1の移行・復元、typecheck、対象lint成功。
+- migration 0013のSHA256: `e6aba177044d146e8ac30e3ce784ee71d4a3cf0cf92f74a04f6e2c05ff09ba90`。開発0012 exportへのローカル適用で、既存16表の全保存値・FK・整合性を維持することを確認。
+- 開発への適用前に2026-09-06 10:02 UTCのexportを再取得。SQLite復元・0012期待DDL・FK・整合性を確認済み。export SHA256: `0fcbfacbe08652be6336408c97f5a0c2430e62fedb995287f36b8ed5fec870e3`。

@@ -22,6 +22,7 @@ export const BACKUP_MIGRATIONS = Object.freeze([
   },
   // 定義だけを先行させ、実行時はmigrationファイルの存在も要求する。
   { name: '0009_add_households.sql', tables: ['households'] },
+  { name: '0010_backfill_households.sql', tables: [] },
 ].map((migration) => Object.freeze({ ...migration, tables: Object.freeze(migration.tables) })))
 
 // SQLite予約表と、D1が使用する既知の内部表だけを除外する。

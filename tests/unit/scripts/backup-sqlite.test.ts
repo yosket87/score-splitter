@@ -28,7 +28,7 @@ const snapshot = (stage: number) => [
 ].join('\n')
 
 describe('実SQLiteによるバックアップschema検証', () => {
-  it.each([4, 5, 6, 7, 8])('実migrationの000%sまで復元し全対象表を検査する', (stage) => {
+  it.each([4, 5, 6, 7, 8, 9, 10])('実migrationの000%sまで復元し全対象表を検査する', (stage) => {
     const result = inspect(snapshot(stage))
     expect(result.schema.stage).toBe(String(stage).padStart(4, '0'))
     expect(Object.keys(result.countRows[0]).sort()).toEqual(result.schema.tables)
@@ -41,6 +41,26 @@ describe('実SQLiteによるバックアップschema検証', () => {
       DROP TRIGGER payment_record_operation;
       INSERT INTO payment_records VALUES ('record', 'missing-operation', '202609', 1, '2026-09-05', 'now', '{}', 'v1', 'v1');
     `)).toThrow(/foreign_key_check/)
+  })
+  it.each([9, 10])('世帯migration段階%sの期待定義と復元定義が一致する', (stage) => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'backup-household-schema-test-'))
+    const run = (executable: string, args: string[], options: { input?: Buffer } = {}) => {
+      const result = spawnSync(executable, args, { input: options.input, encoding: 'utf8' })
+      if (result.status !== 0) throw new Error(result.stderr)
+      return result.stdout
+    }
+    try {
+      const actual = inspect(snapshot(stage))
+      const expected = createExpectedBackupSchema(
+        BACKUP_MIGRATIONS.slice(0, stage).map(({ name }) => name),
+        path.join(directory, 'expected.sqlite'), run,
+      )
+      expect(expected.stage).toBe(String(stage).padStart(4, '0'))
+      expect(expected.tables).toHaveLength(16)
+      expect(verifyMatchingSchemaObjects(expected.objects, actual.schema.objects)).toEqual(expected.objects)
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
   })
   it('migrationだけ8へ進んだ欠落schemaを拒否する', () => {
     expect(() => inspect(`${snapshot(8)} DROP TABLE ai_diagnoses;`)).toThrow(/schema/)

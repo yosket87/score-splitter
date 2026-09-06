@@ -1,0 +1,21 @@
+-- 全15業務表に既存データを用意し、JSON内の空白・コメント記号も保持対象にする。
+INSERT INTO incomes (id,month,label,amount,person,created_at,updated_at) VALUES ('income','202609','給与 -- 月額',310001,'husband','2026-09-01','2026-09-02');
+INSERT INTO expenses (id,month,label,amount,person,is_carryover,created_at,updated_at,ai_category,ai_category_source,ai_categorized_at) VALUES ('expense','202609','食費',-2345,'wife',1,'2026-09-01','2026-09-02','groceries','ai','2026-09-03');
+INSERT INTO carryovers (id,month,label,amount,person,is_cleared,created_at,updated_at) VALUES ('carryover','202608','繰越',-1001,'husband',1,'2026-08-01','2026-09-02');
+INSERT INTO sessions (token,person,auth_method,expires_at,created_at) VALUES (printf('%064d',1),NULL,'password','2026-10-01','2026-09-01');
+INSERT INTO sessions (token,person,auth_method,expires_at,created_at) VALUES (printf('%064d',2),'wife','passkey','2026-10-01','2026-09-01');
+INSERT INTO passkey_credentials (id,person,public_key_base64,counter,device_name,transports,created_at) VALUES ('credential','wife','a2V5',17,'端末','["internal", "hybrid"]','2026-09-01');
+INSERT INTO webauthn_challenges (id,challenge,type,person,expires_at,created_at) VALUES ('register','challenge-register','registration','wife','2026-10-01','2026-09-01');
+INSERT INTO webauthn_challenges (id,challenge,type,person,expires_at,created_at) VALUES ('authenticate','challenge-auth','authentication',NULL,'2026-10-01','2026-09-01');
+INSERT INTO login_attempts (attempt_key,count,window_start,updated_at) VALUES ('legacy',3,'2026-09-01','2026-09-02');
+INSERT INTO waitlist_entries (id,email,price_intent,simulator_used,created_at) VALUES ('waitlist','fixture@example.invalid','paid_ok',1,'2026-09-01');
+INSERT INTO ai_diagnoses (id,month,result_json,input_hash,analysis_version,run_token,run_expires_at,created_at,updated_at) VALUES ('diagnosis','202609','{ "z": "a  b -- c", "a": 1 }','hash','v1','lease','2026-10-01','2026-09-01','2026-09-02');
+UPDATE ai_execution_guard SET run_token='lease',run_expires_at='2026-10-01',last_started_at='2026-09-03',usage_date='2026-09-03',daily_count=7,updated_at='2026-09-03';
+UPDATE ai_diagnosis_source_revision SET revision=29,updated_at='2026-09-04';
+INSERT INTO payment_operations (id,month,kind,expected_revision,input_json,result_json,actor_person,actor_auth_method,created_at) VALUES ('record','202609','record',2,'{ "input": "a  b -- c" }','{ "ok": true }',NULL,'password','2026-09-01');
+INSERT INTO payment_records (id,operation_id,month,signed_yen,paid_on,created_at,snapshot_json,calculation_version,rounding_version) VALUES ('payment','record','202609',1001,'2026-09-01','2026-09-01','{ "snapshot": "a  b -- c" }','calc1','round1');
+INSERT INTO payment_operations (id,month,kind,expected_revision,input_json,result_json,actor_person,actor_auth_method,created_at) VALUES ('correct','202609','correct',2,'{}','{ "id": "replacement" }','wife','passkey','2026-09-02');
+INSERT INTO payment_voids (id,operation_id,payment_id,reason,created_at) VALUES ('void-original','correct','payment','金額訂正','2026-09-02');
+INSERT INTO payment_records (id,operation_id,month,signed_yen,paid_on,created_at,snapshot_json,calculation_version,rounding_version) VALUES ('replacement','correct','202609',-1201,'2026-09-02','2026-09-02','{ "snapshot": 2 }','calc1','round1');
+INSERT INTO payment_operations (id,month,kind,expected_revision,input_json,result_json,actor_person,actor_auth_method,created_at) VALUES ('void','202609','void',2,'{}','{}','husband','passkey','2026-09-03');
+INSERT INTO payment_voids (id,operation_id,payment_id,reason,created_at) VALUES ('void-replacement','void','replacement','取消','2026-09-03');

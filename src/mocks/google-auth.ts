@@ -1,4 +1,4 @@
-import { getTable, insertRows, updateRows } from './db'
+import { getTable, insertRows, updateRows, deleteRows } from './db'
 import { apiSession, validSession, MOCK_LEGACY_HOUSEHOLD_ID as householdId } from './auth-handlers'
 import { googleState } from './google-state'
 import { GoogleAuthError, hashSecret, randomSecret, type OAuthClaim, type VerifiedGoogleIdentity } from '../../cloudflare/worker/src/google-auth-shared'
@@ -16,6 +16,14 @@ export function seedGoogleMember(person: 'a' | 'b') {
   insertRows('household_memberships', [{ id: `membership-${person}`, user_id: id, household_id: householdId, default_person: person === 'a' ? 'husband' : 'wife', revoked_at: null }])
 }
 export function prepareGoogleScenario(scenario: string): string {
+  if (scenario === 'legacy-disabled') {
+    seedGoogleMember('a'); seedGoogleMember('b')
+    updateRows('households', { id: `eq.${householdId}` }, { legacy_auth_disabled_at: now() })
+    for (const session of [...getTable('sessions')]) {
+      if (session.household_id === householdId && session.auth_method !== 'google') deleteRows('sessions', { token: `eq.${session.token}` })
+    }
+    return 'member-a'
+  }
   if (['member-a', 'member-b', 'recovery'].includes(scenario)) seedGoogleMember(scenario === 'member-b' ? 'b' : 'a')
   if (scenario === 'approve-pending' || scenario === 'approve-recovery' || scenario === 'expire-pending') {
     const subject = scenario === 'approve-recovery' ? 'replacement-a' : 'pending-a'

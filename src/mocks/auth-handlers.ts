@@ -17,6 +17,10 @@ function householdExists(id: unknown) {
 function legacyHousehold() {
   return getTable('households').find((row) => row.legacy_auth_key === 'legacy')
 }
+function legacyEnabled(householdId?: unknown) {
+  const row = householdId === undefined ? legacyHousehold() : getTable('households').find(row => row.id === householdId)
+  return !!row && row.legacy_auth_disabled_at == null
+}
 export function validSession(token: string) {
   if (!/^[a-f0-9]{64}$/.test(token)) return null
   const row = getTable('sessions').find((item) => item.token === token)
@@ -62,6 +66,7 @@ export function createAuthHandlers(baseUrl: string, token: string) {
       const session = validSession(request.headers.get('x-household-session') ?? '')
       if (!session) return unauthorized()
       const householdId = String(session.household_id)
+      if (!legacyEnabled(householdId)) return unauthorized()
       if (parts[0] === 'webauthn-challenges') return await challenges(request, parts.slice(1), householdId)
       const id = parts[1]
       const rows = getTable('passkey_credentials').filter((row) => row.household_id === householdId)
@@ -123,11 +128,12 @@ async function internal(request: Request, [resource, id, action]: string[]) {
   }
   if (resource === 'credentials' && id) {
     if (request.method === 'GET') {
-      const row = getTable('passkey_credentials').find((row) => row.id === id && householdExists(row.household_id))
+      const row = getTable('passkey_credentials').find((row) => row.id === id && householdExists(row.household_id) && legacyEnabled(row.household_id))
       return data(row ? apiPasskey(row) : null)
     }
     if (request.method === 'PATCH') {
       const input = z.object({ householdId: z.string().trim().min(1), counter: z.number().int() }).parse(await request.json())
+      if (!legacyEnabled(input.householdId)) return unauthorized()
       const updated = updateRows('passkey_credentials', { id: `eq.${id}`, household_id: `eq.${input.householdId}`, counter: input.counter === 0 ? 'eq.0' : `lt.${input.counter}` }, { counter: input.counter })
       if (updated.length !== 1) return HttpResponse.json({ error: 'パスキーの状態が変わりました。再認証してください' }, { status: 409 })
       return success()
@@ -148,6 +154,7 @@ async function internal(request: Request, [resource, id, action]: string[]) {
 
 async function challenges(request: Request, [id, action]: string[], householdId: string | null) {
   if (request.method !== 'POST') return notFound()
+  if (!legacyEnabled(householdId ?? undefined)) return unauthorized()
   const type = householdId === null ? 'authentication' : 'registration'
   if (!id) {
     const input = challengeInput.parse(await request.json())

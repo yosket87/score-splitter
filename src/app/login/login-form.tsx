@@ -7,7 +7,7 @@ import { BrandLogo } from '@/components/brand/brand-logo'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { PasskeyLoginButton } from '@/features/passkey'
 
-export function LoginForm({ googleEnabled = false, googleMessage }: { googleEnabled?: boolean; googleMessage?: string }) {
+export function LoginForm({ googleEnabled = false, legacyEnabled = true, googleMessage }: { googleEnabled?: boolean; legacyEnabled?: boolean; googleMessage?: string }) {
   const [state, formAction, isPending] = useActionState(login, {})
   const [showPassword, setShowPassword] = useState(false)
 
@@ -38,7 +38,8 @@ export function LoginForm({ googleEnabled = false, googleMessage }: { googleEnab
 
         <div className="app-glass-heavy rounded-[24px] p-[18px]">
           {googleMessage && <p role="status" className="mb-4 text-sm leading-relaxed">{googleMessage}</p>}
-          {googleEnabled && <div className="mb-6 space-y-4"><GoogleLoginLink /><p className="text-center text-xs text-sub-text">これまでのログイン方法も利用できます</p></div>}
+          {googleEnabled && <div className="mb-6 space-y-4"><GoogleLoginLink />{legacyEnabled && <p className="text-center text-xs text-sub-text">これまでのログイン方法も利用できます</p>}</div>}
+          {legacyEnabled && <>
           <form action={formAction} className="flex flex-col gap-3.5">
             <div>
               <div className="flex items-baseline justify-between mb-2">
@@ -93,15 +94,17 @@ export function LoginForm({ googleEnabled = false, googleMessage }: { googleEnab
           <div className="mt-4">
             <PasskeyLoginButton />
           </div>
+          </>}
+          {!legacyEnabled && <p className="text-sm leading-relaxed text-sub-text">パスワードとパスキーによるログインは終了しました。</p>}
         </div>
       </main>
 
       <footer className="mx-auto w-full max-w-md px-5 py-5">
-        <p className="text-[11px] text-sub-text leading-relaxed">
+        {legacyEnabled && <p className="text-[11px] text-sub-text leading-relaxed">
           パスワードを忘れた場合は
           <br />
           管理者に問い合わせてください。
-        </p>
+        </p>}
         <div className="mt-4"><GoogleRecoveryHelp /></div>
       </footer>
     </div>

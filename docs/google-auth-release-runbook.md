@@ -100,6 +100,35 @@ CLIは設定上のbindingとWrangler標準認証で取得した実DBの名前・
 
 旧世帯の識別情報は保存する。旧資格情報表の物理DROPは今回行わず、旧方式で利用できないことを保証する。過去の振込actorをGoogleへ書き換えない。
 
+### 終了前確認と明示実行
+
+実行前に2人それぞれが独立してGoogleへ再ログインし、既存明細・精算額・振込履歴を確認する。`inspect`の結果だけではこの確認を代用できない。結果を運営管理で保存し、次のJSONを権限600の非公開ファイルに用意する。
+
+| 入力 | 内容 |
+|---|---|
+| `householdId` | 終了対象の既存世帯 |
+| `confirmedBy` | 2人分の確認記録を照合した運営担当 |
+| `members` | 次の項目を含む2人分の配列 |
+| 各人の`legacySlot` / `userId` | 消費済みの既存利用者枠と個人。2人を別々に指定 |
+| 各人の`identityId` / `membershipId` / `sessionEpoch` | `inspect`で取得したGoogle連携・所属ID・失効世代。所属の唯一性はreview/finalizeで検証する |
+| 各人の`reloginRef` / `dataCheckRef` | その人の再ログイン記録と既存データ確認記録への参照。2人で使い回さない |
+
+次のコマンド例は開発環境用の操作形式であり、現在の未移行世帯へ実行するものではない。開発の合成試験は隔離D1で完結させる。
+
+```bash
+npm run auth:google:admin -- review-finalize --env dev --confirm-database 51457bd5-8e0e-4645-ad34-86634285af2c --input-file /private/path/confirmation.json --output-file /private/path/review.json
+```
+
+reviewは状態を読み取り、確認済み環境・DB UUIDを付けた新規の非公開ファイルを作る。この操作では停止しない。本人の実操作をDBだけで証明できるとは扱わず、運営が参照先の内容を確認する。
+
+対象と確認結果を照合し、実行が承認された段階で、同じ環境・DBとreviewファイルを指定する。
+
+```bash
+npm run auth:google:admin -- finalize --env dev --confirm-database 51457bd5-8e0e-4645-ad34-86634285af2c --input-file /private/path/review.json
+```
+
+実行時にも2人の有効状態・Google連携・唯一の所属・失効世代・消費済み枠を同じUPDATE条件で確認する。条件が変わって対象が0件なら失敗とし、旧session削除と停止日時設定を原子的に行う。停止済みの世帯は再停止・巻戻しせず、既存の結果を確認する。成功・既停止の結果には正規化したISO形式の停止日時を表示するので、実行記録へ保存する。本番への実行は、本番の確認資料と明示承認を別途揃える。
+
 ## 停止・復旧
 
 認可漏れ、不正所属、保存値不一致、旧方式終了後の旧ログイン成功、両名の利用不能を停止条件とする。併存段階はそのschemaとGoogle履歴を扱える版へ戻し、最終停止後はGoogle対応版のみを切り戻し候補にする。
@@ -181,3 +210,17 @@ Googleアカウントを利用できない場合はGoogle側の復旧を案内�
 - 配備後、開発の旧passwordログイン・認証後の家計再表示200・ログアウト成功。実Google認証、実運営承認、旧方式の最終停止、本番変更は未実施。
 
 - `7352486`: 第3段階CIで、0011/0012の歴史DBへ0013必須の現APIを接続していた試験不整合を修正。元DBの故障注入・rollback・再適用・0012の16表復元検証は維持し、独立cloneだけを正規0013へ進めて現APIを検証。clone初期schema・全値一致、更新後の旧全列全値保持、元state不変、対象D1・typecheck・lint成功。アプリのschema fallbackは追加していない。
+
+- 第3段階最終HEAD `8a09050`: 全15 CI成功。世帯migration Jobは2分16秒（試験1分48秒）、E2E Jobは5分59秒（試験5分7秒）。本番Version `032f523f-ad7c-4cca-8f60-dcd1bc20038a` が100%のまま維持されていることも読み取り確認した。
+
+
+## 第4段階の実装検証
+
+- `ef54eca`: 2人の確認記録を入力とするreview/finalize、旧認証の共通停止判定、停止後UIを実装。配備だけで停止しない。
+- 全体127ファイル・1,553テスト、カバレッジ91.08%、全80 E2E（3.1分）成功。typecheck、lint、OpenNext build、有効ダミー設定による実Workers成果物のモック遮断・Preview拒否も成功。
+- 隔離D1で確認不足・重複・実行直前の利用者停止/所属追加/Google連携失効・UPDATE0件を拒否。正常時の旧session削除、2人の停止後Google再ログイン、旧passkey/challenge/管理入口拒否、履歴保持を確認。歴史migrationのclone検証も成功。
+- CUAで375px幅のGoogleのみログイン、既存2月の明細・精算15,500円、空9月、旧パスキー管理を終了した設定、復旧案内、全端末ログアウトを確認。ローカル合成fixtureだけを使用し、一時HTMLは削除済み。
+- 実Googleクライアント設定、2人の実本人確認・独立再ログイン・既存データ確認、実世帯のfinalize、本番変更は未実施。
+
+- `ef54eca`の独立レビューは未解消指摘0件。2026-09-06 13:01 UTC、最終成果物を固定開発Workerへ配備。Version `61a782ee-5db9-467f-8b77-e6876119b109` が100%、実DB bindingは開発UUIDと一致。
+- 最終配備後の旧passwordログイン・家計再表示200・ログアウト成功。開発Google個人0件、停止済み世帯0件、Google client/secret未設定を読み取り確認。実世帯の停止は行っていない。本番Version `032f523f-ad7c-4cca-8f60-dcd1bc20038a` は100%のまま不変。

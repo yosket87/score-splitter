@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import LoginPage from '@/app/login/page'
 import { isAuthenticated } from '@/lib/webauthn/session'
 
+vi.mock('@/lib/api/households', () => ({ isLegacyAuthEnabled: vi.fn(async () => true) }))
 vi.mock('@/lib/auth/google-config', () => ({ googleOAuthConfig: () => null }))
 
 vi.mock('next-themes', () => ({
@@ -88,4 +89,14 @@ it.each([
   vi.mocked(isAuthenticated).mockResolvedValue(false)
   render(await LoginPage({ searchParams: Promise.resolve({ google }) }))
   expect(screen.getByText(message)).toBeInTheDocument()
+})
+
+import { LoginForm } from '@/app/login/login-form'
+it('旧認証停止後はGoogleと復旧案内を残しpassword/passkey導線を表示しない', () => {
+  render(<LoginForm googleEnabled legacyEnabled={false} />)
+  expect(screen.getByRole('link', { name: 'Googleでログイン' })).toBeInTheDocument()
+  expect(screen.queryByPlaceholderText('パスワード')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'パスキーでログイン' })).not.toBeInTheDocument()
+  expect(screen.queryByText('これまでのログイン方法も利用できます')).not.toBeInTheDocument()
+  expect(screen.getByRole('link', { name: /Google.*復旧/ })).toBeInTheDocument()
 })

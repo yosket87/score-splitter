@@ -27,3 +27,13 @@ export async function assertExistingLoginHousehold(db: D1DatabaseLike, context: 
   if (!legacy) throw new HttpError('旧ログインは利用できません', 401)
   if (legacy.id !== context.householdId) throw new HttpError('この世帯ではログインできません', 401)
 }
+
+export async function isLegacyAuthEnabled(db: D1DatabaseLike, context?: HouseholdContext): Promise<boolean> {
+  if (context) assertHouseholdContext(context)
+  const row = await db.prepare(`SELECT id FROM households WHERE ${context ? 'id=?' : "legacy_auth_key='legacy'"} AND legacy_auth_disabled_at IS NULL`)
+    .bind(...(context ? [context.householdId] : [])).first()
+  return row !== null
+}
+export async function assertLegacyAuthEnabled(db: D1DatabaseLike, context: HouseholdContext) {
+  if (!await isLegacyAuthEnabled(db, context)) throw new HttpError('これまでのログイン方法は終了しました。Googleでログインしてください。', 401)
+}

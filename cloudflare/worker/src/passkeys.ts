@@ -1,6 +1,6 @@
 import type { D1DatabaseLike, Runtime } from './d1'
 import { HttpError } from './http'
-import { assertHouseholdContext, type HouseholdContext } from './households'
+import { assertHouseholdContext, assertLegacyAuthEnabled, type HouseholdContext } from './households'
 import {
   assertObject,
   parseInteger,
@@ -22,7 +22,8 @@ interface PasskeyRow {
 
 export async function listPasskeys(db: D1DatabaseLike, context: HouseholdContext, person?: string | null) {
   assertHouseholdContext(context)
-  const query = 'SELECT * FROM passkey_credentials WHERE household_id = ?' +
+  await assertLegacyAuthEnabled(db, context)
+  const query = 'SELECT * FROM passkey_credentials WHERE household_id = ? AND household_id IN (SELECT id FROM households WHERE legacy_auth_disabled_at IS NULL)' +
     (person ? ' AND person = ?' : '') + ' ORDER BY created_at ASC'
   const statement = person ? db.prepare(query).bind(context.householdId, person) : db.prepare(query).bind(context.householdId)
   const { results } = await statement.all<PasskeyRow>()
@@ -31,20 +32,22 @@ export async function listPasskeys(db: D1DatabaseLike, context: HouseholdContext
 
 export async function getPasskey(db: D1DatabaseLike, context: HouseholdContext, id: string) {
   assertHouseholdContext(context)
-  const row = await db.prepare('SELECT * FROM passkey_credentials WHERE household_id = ? AND id = ?')
+  await assertLegacyAuthEnabled(db, context)
+  const row = await db.prepare('SELECT * FROM passkey_credentials WHERE household_id = ? AND id = ? AND household_id IN (SELECT id FROM households WHERE legacy_auth_disabled_at IS NULL)')
     .bind(context.householdId, id).first<PasskeyRow>()
   return row ? mapPasskey(row) : null
 }
 
 // 署名検証用のサーバー内部検索。結果をブラウザへ返さない。
 export async function findAuthenticationCredential(db: D1DatabaseLike, id: string) {
-  const row = await db.prepare('SELECT p.* FROM passkey_credentials p INNER JOIN households h ON h.id = p.household_id WHERE p.id = ?')
+  const row = await db.prepare('SELECT p.* FROM passkey_credentials p INNER JOIN households h ON h.id = p.household_id WHERE p.id = ? AND h.legacy_auth_disabled_at IS NULL')
     .bind(id).first<PasskeyRow>()
   return row && row.household_id?.trim() ? mapPasskey(row) : null
 }
 
 export async function createPasskey(db: D1DatabaseLike, runtime: Runtime, context: HouseholdContext, body: unknown) {
   assertHouseholdContext(context)
+  await assertLegacyAuthEnabled(db, context)
   const input = assertObject(body)
   const id = parseString(input.id, 'id')
   const person = parsePerson(input.person)
@@ -78,6 +81,7 @@ export async function createPasskey(db: D1DatabaseLike, runtime: Runtime, contex
 
 export async function updatePasskeyCounter(db: D1DatabaseLike, context: HouseholdContext, id: string, body: unknown) {
   assertHouseholdContext(context)
+  await assertLegacyAuthEnabled(db, context)
   const input = assertObject(body)
   const counter = parseInteger(input.counter, 'counter')
   // 同期パスキーの0→0は許可するが、署名検証中に進んだ非ゼロcounterは巻き戻さない。
@@ -89,7 +93,8 @@ export async function updatePasskeyCounter(db: D1DatabaseLike, context: Househol
 
 export async function deletePasskey(db: D1DatabaseLike, context: HouseholdContext, id: string) {
   assertHouseholdContext(context)
-  await db.prepare('DELETE FROM passkey_credentials WHERE household_id = ? AND id = ?').bind(context.householdId, id).run()
+  await assertLegacyAuthEnabled(db, context)
+  await db.prepare('DELETE FROM passkey_credentials WHERE household_id = ? AND id = ? AND household_id IN (SELECT id FROM households WHERE legacy_auth_disabled_at IS NULL)').bind(context.householdId, id).run()
 }
 
 function mapPasskey(row: PasskeyRow) {

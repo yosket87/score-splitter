@@ -11,15 +11,15 @@ const safeFailure = () => new Error('承認できませんでした。対象環�
 
 export function parseArguments(args) {
   const [command, ...flags] = args
-  if (!['approve-migration', 'approve-recovery', 'inspect'].includes(command) || flags.length !== (command === 'inspect' ? 8 : 6)) throw safeFailure()
+  if (!['approve-migration', 'approve-recovery', 'inspect', 'review-finalize', 'finalize'].includes(command) || flags.length !== (['inspect', 'review-finalize'].includes(command) ? 8 : 6)) throw safeFailure()
   const values = new Map()
   for (let i = 0; i < flags.length; i += 2) {
-    if (![ '--env', '--confirm-database', '--input-file', ...(command === 'inspect' ? ['--output-file'] : []) ].includes(flags[i]) || values.has(flags[i]) || !flags[i + 1]) throw safeFailure()
+    if (![ '--env', '--confirm-database', '--input-file', ...(['inspect', 'review-finalize'].includes(command) ? ['--output-file'] : []) ].includes(flags[i]) || values.has(flags[i]) || !flags[i + 1]) throw safeFailure()
     values.set(flags[i], flags[i + 1])
   }
   const environment = values.get('--env')
   if (!['dev', 'production'].includes(environment)) throw safeFailure()
-  return { command, environment, databaseId: values.get('--confirm-database'), inputFile: values.get('--input-file'), ...(command === 'inspect' ? { outputFile: values.get('--output-file') } : {}) }
+  return { command, environment, databaseId: values.get('--confirm-database'), inputFile: values.get('--input-file'), ...(['inspect', 'review-finalize'].includes(command) ? { outputFile: values.get('--output-file') } : {}) }
 }
 export function verifyDatabase(databases, target, confirmation) {
   if (!target || target.database_id !== confirmation || !Array.isArray(databases)
@@ -100,15 +100,30 @@ export async function inspectRequest(db, input) {
   if (!input || typeof input.code !== 'string' || !/^[a-f0-9]{64}$/.test(input.code)
     || typeof input.householdId !== 'string' || !input.householdId.trim()) throw safeFailure()
   const codeHash = createHash('sha256').update(input.code).digest('hex')
-  const requests = (await db.prepare(`SELECT id AS requestId,purpose,status,email,created_at AS createdAt,expires_at AS expiresAt
+  const requests = (await db.prepare(`SELECT id AS requestId,purpose,status,email,legacy_slot AS legacySlot,consumed_user_id AS consumedUserId,created_at AS createdAt,expires_at AS expiresAt
     FROM google_migration_requests WHERE code_hash=? AND issuer='https://accounts.google.com'`).bind(codeHash).all()).results
   if (requests.length !== 1) throw safeFailure()
   const existingPeople = (await db.prepare(`SELECT u.id AS userId,u.active,u.session_epoch AS sessionEpoch,
-    m.household_id AS householdId,m.default_person AS defaultPerson,m.revoked_at AS membershipRevokedAt,
+    m.id AS membershipId,m.household_id AS householdId,m.default_person AS defaultPerson,m.revoked_at AS membershipRevokedAt,
     i.id AS identityId,i.email,i.revoked_at AS identityRevokedAt
     FROM users u JOIN household_memberships m ON m.user_id=u.id
     LEFT JOIN google_identities i ON i.user_id=u.id WHERE m.household_id=? ORDER BY u.id,i.created_at`).bind(input.householdId).all()).results
   return { requests, existingPeople }
+}
+export async function executeFinalizationCommand(db, domain, options, input) {
+  if (options.command === 'review-finalize') {
+    const review = await domain.reviewLegacyFinalization(db, input)
+    return { ...review, kind: 'legacy-finalization-review', environment: options.environment, databaseId: options.databaseId }
+  }
+  if (options.command !== 'finalize' || input.kind !== 'legacy-finalization-review'
+    || input.environment !== options.environment || input.databaseId !== options.databaseId) throw safeFailure()
+  return domain.finalizeLegacyAuthentication(db, { randomUUID: () => crypto.randomUUID(), now: () => new Date() }, input)
+}
+export function formatFinalizationResult(result) {
+  const timestamp = typeof result.disabledAt === 'string' ? Date.parse(result.disabledAt) : NaN
+  if (!Number.isFinite(timestamp) || !['finalized', 'already_finalized'].includes(result.kind)) throw safeFailure()
+  const message = result.kind === 'already_finalized' ? 'この世帯の旧認証は既に停止済みです。' : 'この世帯の旧認証を停止しました。Googleログインは継続します。'
+  return `${message}停止日時: ${new Date(timestamp).toISOString()}`
 }
 export async function writeInspection(path, result) {
   // 新規ファイルだけに書き、既存内容や広い権限を引き継がない。
@@ -136,8 +151,16 @@ export async function main(args) {
     }
     const outfile = join(directory, 'domain.mjs')
     const { build } = await import('esbuild')
-    await build({ entryPoints: [resolve('cloudflare/worker/src/google-migrations.ts')], bundle: true, platform: 'node', format: 'esm', outfile, logLevel: 'silent' })
+    await build({ stdin: { contents: "export * from './cloudflare/worker/src/google-migrations'; export * from './cloudflare/worker/src/google-finalization'", resolveDir: process.cwd(), loader: 'ts' }, bundle: true, platform: 'node', format: 'esm', outfile, logLevel: 'silent' })
     const domain = await import(pathToFileURL(outfile).href)
+    if (['review-finalize', 'finalize'].includes(options.command)) {
+      const result = await executeFinalizationCommand(db, domain, options, input)
+      if (options.command === 'review-finalize') {
+        await writeInspection(options.outputFile, result)
+        return '停止前の確認情報を非公開ファイルへ保存しました。内容を確認してからfinalizeを明示実行してください。'
+      }
+      return formatFinalizationResult(result)
+    }
     await approveFromVerifiedRequest(db, domain, options.command, input)
     // code/subject/email/本人確認参照やWrangler出力は表示しない。
     return `承認が完了しました（${options.environment}）。本人にGoogleでの再ログインを案内してください。`

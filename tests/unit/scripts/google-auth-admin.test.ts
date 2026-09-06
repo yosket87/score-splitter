@@ -116,3 +116,31 @@ it('inspect結果は600の新規ファイルのみで既存ファイルを上書
     expect(JSON.parse(await readFile(path, 'utf8')).requests).toEqual([{ requestId: 'verified' }])
   } finally { await rm(directory, { recursive: true, force: true }) }
 })
+
+import { executeFinalizationCommand } from '../../../scripts/google-auth-admin.mjs'
+it('停止reviewは新規非公開出力先を必須としfinalizeを明示操作に分ける', () => {
+  expect(parseArguments(['review-finalize', '--env', 'dev', '--confirm-database', 'id', '--input-file', 'proof', '--output-file', 'review']))
+    .toMatchObject({ command: 'review-finalize', outputFile: 'review' })
+  expect(parseArguments(['finalize', '--env', 'dev', '--confirm-database', 'id', '--input-file', 'review']))
+    .toMatchObject({ command: 'finalize' })
+  expect(() => parseArguments(['review-finalize', '--env', 'dev', '--confirm-database', 'id', '--input-file', 'proof'])).toThrow()
+})
+it('reviewでは停止せず、確認済み環境/DBのreviewファイルだけを純finalizeへ渡す', async () => {
+  const db = {}, domain = { reviewLegacyFinalization: vi.fn().mockResolvedValue({ householdId: 'household', members: ['proof'] }), finalizeLegacyAuthentication: vi.fn().mockResolvedValue({ kind: 'finalized' }) }
+  const options = { command: 'review-finalize', environment: 'dev', databaseId: 'fixture' }
+  const review = await executeFinalizationCommand(db, domain, options, { householdId: 'household' })
+  expect(review).toMatchObject({ kind: 'legacy-finalization-review', environment: 'dev', databaseId: 'fixture' })
+  expect(domain.finalizeLegacyAuthentication).not.toHaveBeenCalled()
+  await expect(executeFinalizationCommand(db, domain, { ...options, command: 'finalize', environment: 'production' }, review)).rejects.toThrow()
+  await expect(executeFinalizationCommand(db, domain, { ...options, command: 'finalize' }, { householdId: 'unreviewed' })).rejects.toThrow()
+  expect(await executeFinalizationCommand(db, domain, { ...options, command: 'finalize' }, review)).toEqual({ kind: 'finalized' })
+  expect(domain.finalizeLegacyAuthentication).toHaveBeenCalledWith(db, expect.any(Object), review)
+})
+
+import { formatFinalizationResult } from '../../../scripts/google-auth-admin.mjs'
+it('停止結果は状態と正規化した日時だけを表示し未知の文字列を漏らさない', () => {
+  const disabledAt = '2026-09-06T01:02:03.000Z'
+  expect(formatFinalizationResult({ kind: 'finalized', disabledAt, householdId: 'private-household' })).toBe(`この世帯の旧認証を停止しました。Googleログインは継続します。停止日時: ${disabledAt}`)
+  expect(formatFinalizationResult({ kind: 'already_finalized', disabledAt })).toBe(`この世帯の旧認証は既に停止済みです。停止日時: ${disabledAt}`)
+  expect(() => formatFinalizationResult({ kind: 'finalized', disabledAt: 'private-invalid-value' })).toThrow()
+})

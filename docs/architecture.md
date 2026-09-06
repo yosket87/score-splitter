@@ -137,4 +137,4 @@ D1 sessionのtoken・期限・実在householdを検証
 
 全家計経路へのcontext伝播と0011は実装済み。月・年・設定画面はサーバー由来の世帯keyで状態を分け、非同期処理は画面の寿命を確認してからstorage・toast・再取得を更新する。振込pendingは世帯＋月のsessionStorageへ保存する。旧月キーは移管・再送せず、DBから解決した既存世帯との一致をサーバーが確認した画面だけで結果照会・解消する。
 
-最終DB制約0012と全体検証は段階実装中。[認可設計](adr/0001-household-isolation.md)、[SQL台帳](household-data-paths.md)、[段階リリース手順](household-release-runbook.md)を参照。
+最終DB制約0012とローカル全体検証は完了。本番適用と旧入口停止は承認待ち。[認可設計](adr/0001-household-isolation.md)、[SQL台帳](household-data-paths.md)、[段階リリース手順](household-release-runbook.md)を参照。

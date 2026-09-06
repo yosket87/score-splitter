@@ -23,7 +23,11 @@ Cloudflare D1（SQLite）を使用したデータベース設計です。本番�
 | payment_records / payment_voids | 所属付きoperation参照、取消対象への所属付き複合FK。履歴UPDATE/DELETE禁止 |
 | carryovers | UNIQUE(household_id, month, label, amount, person) |
 
-AI3表・振込4表のhousehold_idはNOT NULL。明細3表と認証3表は0011では暫定トリガーで所属欠落・変更を拒否し、認証前challengeだけNULLを許す。これら6表の最終制約は0012で強化する。
+AI3表・振込4表のhousehold_idはNOT NULL。明細3表と認証3表は0011では暫定トリガーで所属欠落・変更を拒否し、認証前challengeだけNULLを許す。
+
+## 最終制約（0012）
+
+0012は明細3表・sessions・passkey_credentialsのhousehold_idをNOT NULL/FKへ再構築し、webauthn_challengesは種別CHECKでauthenticationだけ所属NULLを許す。NULLの追補は行わず、不明所属や必要所属NULLがあれば停止する。全列比較で既存値を保持し、索引・トリガーを復元する。ローカルの最終制約・失敗rollback・再適用・別D1復元は検証済み。本番適用は別承認で、0011から0012完了まで全入口の停止を維持する。
 
 ## テーブル構造
 

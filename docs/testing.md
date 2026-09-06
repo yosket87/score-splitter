@@ -203,7 +203,8 @@ Playwrightによるブラウザテスト。
 - `npm run test:run -- tests/unit/cloudflare/household-migrations.test.ts tests/unit/scripts/backup-schema.test.ts`: SQLiteで0009の旧SQL互換、0010の全保持列/JSON・revision・quota不変、不正所属の拒否を検証。
 - `npm run test:d1:household-migrations`: 一時設定とローカルWrangler D1で、0010/0011の途中失敗によるデータ・DDL・trigger・適用台帳のrollback、正規SQL再適用、immutable/FK保護を確認。0011は4故障点と旧NULL追記の最終補完も検証。remoteへ接続しない。
 - 実D1検証は通常Unitから独立。Node 22のSQLite標準モジュールがExperimentalWarningを出す場合がある。失敗を無視する設定は使わない。
-- `node scripts/test-records-household-d1.mjs`: 同額同キーの繰越共存、コピー元競合、繰越集合変更、skip/replaceとrevisionを含むrollback。
-- `node scripts/test-ai-payment-household-d1.mjs`: 同月2世帯のAI lease/quota/revision、分類所有権、同operation IDの並列再送、snapshot、越境取消拒否とbatch rollback。
+- `npm run test:d1:records`: 同額同キーの繰越共存、コピー元競合、繰越集合変更、skip/replaceとrevisionを含むrollback。
+- `npm run test:d1:ai-payment`: 同月2世帯のAI lease/quota/revision、分類所有権、同operation IDの並列再送、snapshot、越境取消拒否とbatch rollback。
 - `tests/integration/api/ai-payment-household-http.test.ts`: 実SQLを使うHTTP WorkerとMSWで、セッション検証・任意所属指定の無効性・越境拒否を共通に検証。
-- 最終0012とクライアント状態分離は後続タスク。SQLの世帯条件だけを世帯分離完成の証拠にしない。[段階別の実行結果](household-verification.md)を参照する。
+- 最終0012の保持・rollback後の0011動作・再適用に加え、exportを別の隔離D1へ復元して実共有関数の世帯境界を検証する。クライアントはA→B同月、遅延応答、旧pendingと同operation IDの所有者違いを検証済み。
+- CIはlint/typecheck/coverage/buildを独立Job、実D1 4スクリプトを別matrixへ分離。段階PRでもtest/E2Eを起動し、関連変更とnightlyでD1を検証する。Worker共有関数をcoverageへ含め、80%閾値を維持する。[段階別の実行結果](household-verification.md)を参照する。

@@ -24,6 +24,7 @@ export const BACKUP_MIGRATIONS = Object.freeze([
   { name: '0009_add_households.sql', tables: ['households'] },
   { name: '0010_backfill_households.sql', tables: [] },
   { name: '0011_scope_household_data.sql', tables: [] },
+  { name: '0012_enforce_household_constraints.sql', tables: [] },
 ].map((migration) => Object.freeze({ ...migration, tables: Object.freeze(migration.tables) })))
 
 // SQLite予約表と、D1が使用する既知の内部表だけを除外する。

@@ -267,7 +267,10 @@ function createRealSqliteBackupCommandRunner({ sourceSql, exportSql = sourceSql 
     if (args[0] === 'd1' && args[1] === 'export') {
       const dumped = spawnSync('sqlite3', ['-safe', exportSourcePath, '.dump'], { encoding: 'utf8' })
       if (dumped.status !== 0) throw new Error(dumped.stderr)
-      writeFileSync(args[args.indexOf('--output') + 1], dumped.stdout)
+      // macOSの.dumpは内部表の初期化を省くため、偽exportではWranglerの復元形式へ揃える。
+      writeFileSync(args[args.indexOf('--output') + 1], dumped.stdout.replace(
+        'INSERT INTO sqlite_sequence', 'DELETE FROM sqlite_sequence;\nINSERT INTO sqlite_sequence'
+      ))
       return ''
     }
     if (args[0] === 'd1' && args[1] === 'execute') {
@@ -1100,6 +1103,53 @@ describe('本番切替直前のバックアップ実体再検証', () => {
 })
 
 describe('本番D1バックアップ処理の統合', () => {
+  const googleSourceSql = () => ['PRAGMA legacy_alter_table=OFF;', migrationSnapshot(13), ...['google-identity.sql', 'google-oauth-high-water.sql'].map((name) =>
+    readFileSync(path.join(process.cwd(), 'tests/fixtures', name), 'utf8'))].join('\n')
+
+  it('OAuth高水位がfloor未満のexportからPASS manifestを作らない', () => {
+    const backupRoot = mkdtempSync(path.join(tmpdir(), 'backup-oauth-invalid-'))
+    const sourceSql = googleSourceSql()
+    const real = createRealSqliteBackupCommandRunner({
+      sourceSql, exportSql: `${sourceSql}\nUPDATE sqlite_sequence SET seq=99 WHERE name='oauth_login_attempts';`,
+    })
+    try {
+      expect(() => runProductionBackup(['--confirm-production-d1', EXPECTED_DATABASE_ID], {
+        backupRoot, commandRunner: real.commandRunner, clock: () => new Date(STARTED_AT),
+      })).toThrow(/OAuth.*採番/)
+      expect(existsSync(path.join(backupRoot, '20260902T090000Z', 'manifest.json'))).toBe(false)
+    } finally {
+      real.cleanup()
+      rmSync(backupRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('正常なOAuthバックアップを作成・再検証し、SHA一致でも採番情報の欠落を拒否する', () => {
+    const backupRoot = mkdtempSync(path.join(tmpdir(), 'backup-oauth-release-'))
+    const real = createRealSqliteBackupCommandRunner({ sourceSql: googleSourceSql() })
+    try {
+      const result = runProductionBackup(['--confirm-production-d1', EXPECTED_DATABASE_ID], {
+        backupRoot, commandRunner: real.commandRunner, clock: () => new Date(STARTED_AT),
+      })
+      const options = { backupRoot, expectedGitHeadSha: VALID_GIT_HEAD_SHA, clock: () => new Date('2026-09-02T09:10:00.000Z') }
+      const verified = verifyReleaseBackupArtifacts(result.manifestPath, options)
+      expect(verified.manifest.verification).toBe('PASS')
+      expect(verified.manifest.counts.restored.oauth_login_attempts).toBe(2)
+      const originalSql = readFileSync(verified.sqlPath, 'utf8')
+      const sequenceRow = "INSERT INTO sqlite_sequence VALUES('oauth_login_attempts',100);"
+      expect(originalSql).toContain(sequenceRow)
+      const damagedSql = originalSql.replace(sequenceRow, '')
+      writeFileSync(verified.sqlPath, damagedSql)
+      const manifest = { ...verified.manifest, sql: { ...verified.manifest.sql,
+        bytes: Buffer.byteLength(damagedSql), sha256: createHash('sha256').update(damagedSql).digest('hex'),
+      } }
+      writeFileSync(result.manifestPath, JSON.stringify(manifest))
+      expect(() => verifyReleaseBackupArtifacts(result.manifestPath, options)).toThrow(/OAuth.*採番/)
+    } finally {
+      real.cleanup()
+      rmSync(backupRoot, { recursive: true, force: true })
+    }
+  })
+
   it.each(DDL_FAULTS.flatMap(([label, mutate]) => [
     [`${label}: sourceのみ`, mutate, (sql: string) => sql],
     [`${label}: dumpのみ`, (sql: string) => sql, mutate],

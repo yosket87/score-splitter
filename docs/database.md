@@ -240,3 +240,7 @@ D1マイグレーションは `cloudflare/worker/migrations/` に配置してい
 3明細テーブルのINSERT/UPDATE/DELETEはAFTERトリガーで対象世帯・月のrevisionを加算する。明細の編集は禁止しない。分類だけのAI更新はsnapshot対象外のためrevisionを変えない。振込操作は同一読取batchで作った見積りを、操作INSERT時のrevisionトリガーと単一書込batchで検証する。編集が先なら再確認、記録が先なら編集後の差額へ反映する。
 
 コピーは明細だけを対象とし、振込状態・履歴を次月へ引き継がない。支払正味合計はBigIntで計算し、最終値の安全整数を検証する。
+
+### D1 remoteのトリガー構文
+
+トリガー内のCASE式は`SELECT (CASE ... END);`のように括弧で囲む。0013ではローカルD1で成功した括弧なしCASEがremote適用時に`incomplete input`となり、括弧化で解消した。完成したトリガー定義への構文検査をidentity migration suiteで実行する。[Cloudflareの既知事例](https://github.com/cloudflare/workers-sdk/issues/4727)

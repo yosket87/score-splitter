@@ -126,12 +126,17 @@ middleware.ts（Cookie等による画面入口の確認）
 Server Action / RSC の認証境界
     ↓
 D1 sessionのtoken・期限・実在householdを検証
+Google方式は有効user・有効membership・失効世代も検証
     ↓
 ├── 有効 → householdId/person/authMethodの不変snapshot
 └── 無効 → 認証拒否 / loginへ誘導
 ```
 
 世帯対応の共通入口は `src/lib/household-context.ts`。middlewareやlayoutだけを認可境界とみなさず、データ操作ごとに認証済み世帯を渡す。householdIdは家計担当者のpersonとは別概念。Cookieのtokenや内部Bearerはクライアントコンポーネントへ渡さない。
+
+Google認証のドメインは`cloudflare/worker/src/oauth-attempts.ts`、`google-login.ts`、`google-migrations.ts`に分ける。OIDC署名の検証結果を受けた後、D1側で一度きりの試行・移行許可・現在の所属を確認する。`src/lib/api/google-auth.ts`がリクエスト内でDBを取得し、安全な固定エラーへ変換する。旧HTTPのsession作成はpassword/passkeyに限定し、任意のuserIdからGoogle sessionを作る入口にはしない。
+
+未知の主体には家計sessionを作らず、短期の申請だけを返す。承認済みの移行は個人・主体・所属・sessionを同じbatchで確定する。本人の全端末失効はepochとOAuth試行の下限を進め、復旧は同じuserと過去の振込actorを維持して旧主体を失効する。Google tokensを家計sessionに使わない。詳細は[Google認証ADR](adr/0002-google-authentication.md)を参照する。
 
 認証前の内部HTTPは `/internal/auth/*`、パスキー管理と登録challengeはDB session必須の管理ルートへ分ける。認証challengeはNULL所属で、登録challengeは認証済み世帯に属する。短期httpOnly cookieで試行IDをブラウザへ紐づけ、期限・type・世帯/personと照合して原子的に消費する。署名検証失敗後はoptionsを取り直す。
 

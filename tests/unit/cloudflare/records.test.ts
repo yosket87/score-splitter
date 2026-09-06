@@ -1,3 +1,4 @@
+const household = {householdId:'A'}
 import { describe, expect, it } from 'vitest'
 import type {
   D1DatabaseLike,
@@ -49,7 +50,7 @@ class SpyStatement implements D1PreparedStatementLike {
 
   run(): Promise<D1ResultLike> {
     this.db.executions.push({ query: this.query, params: this.params, method: 'run' })
-    return Promise.resolve({ success: true })
+    return Promise.resolve({ success: true, meta:{changes:1} })
   }
 }
 
@@ -130,12 +131,12 @@ describe('Cloudflare Worker レコード操作', () => {
       },
     ]
 
-    const records = await listRecordsByMonth(db, type, '202607')
+    const records = await listRecordsByMonth(db, household, type, '202607')
 
     expect(records).toHaveLength(1)
     expect(db.executions[0]).toEqual({
-      query: `SELECT * FROM ${table} WHERE month = ? ORDER BY ${order}`,
-      params: ['202607'],
+      query: `SELECT * FROM ${table} WHERE household_id = ? AND month = ? ORDER BY ${order}`,
+      params: ['A', '202607'],
       method: 'all',
     })
   })
@@ -147,7 +148,7 @@ describe('Cloudflare Worker レコード操作', () => {
       { pattern: 'FROM expenses', results: [{ month: '202607', amount: -120000 }] },
     ]
 
-    await expect(listMonthlyAmounts(db)).resolves.toEqual({
+    await expect(listMonthlyAmounts(db, household)).resolves.toEqual({
       incomes: [{ month: '202607', amount: 300000 }],
       expenses: [{ month: '202607', amount: -120000 }],
     })
@@ -162,7 +163,7 @@ describe('Cloudflare Worker レコード操作', () => {
   ] as const)('%sレコードを作成する', async (type, extra, table, flag) => {
     const db = new SpyDatabase()
 
-    const result = await createRecord(db, runtime, type, {
+    const result = await createRecord(db, runtime, household, type, {
       month: '202607',
       label: 'テスト項目',
       person: 'husband',
@@ -201,14 +202,14 @@ describe('Cloudflare Worker レコード操作', () => {
     const db = new SpyDatabase()
     db.firstResult = row
 
-    const result = await updateRecord(db, runtime, type, 'record-id', {
+    const result = await updateRecord(db, runtime, household, type, 'record-id', {
       label: '更新項目',
       person: 'wife',
       ...extra,
     })
 
     expect(db.executions.find(({ query }) => query.startsWith(`UPDATE ${table}`))).toBeDefined()
-    expect(db.executions.at(-1)?.query).toBe(`SELECT * FROM ${table} WHERE id = ?`)
+    expect(db.executions.at(-1)?.query).toBe(`SELECT * FROM ${table} WHERE id = ? AND household_id = ?`)
     expect(result.id).toBe('record-id')
   })
 
@@ -216,7 +217,7 @@ describe('Cloudflare Worker レコード操作', () => {
     const db = new SpyDatabase()
 
     await expect(
-      updateRecord(db, runtime, 'income', 'missing-id', {
+      updateRecord(db, runtime, household, 'income', 'missing-id', {
         label: '更新項目',
         amount: 2000,
         person: 'wife',
@@ -228,7 +229,7 @@ describe('Cloudflare Worker レコード操作', () => {
     const db = new SpyDatabase()
     db.firstResult = { ...baseRow, amount: -1000, is_carryover: 0 }
 
-    await updateRecord(db, runtime, 'expense', 'record-id', {
+    await updateRecord(db, runtime, household, 'expense', 'record-id', {
       label: '変更後の項目',
       amount: -1000,
       person: 'husband',
@@ -248,7 +249,7 @@ describe('Cloudflare Worker レコード操作', () => {
     const db = new SpyDatabase()
     db.firstResult = { ...baseRow, amount: -1000, is_carryover: 0 }
 
-    await updateRecord(db, runtime, 'expense', 'record-id', {
+    await updateRecord(db, runtime, household, 'expense', 'record-id', {
       label: '変更後の項目',
       amount: -1000,
       person: 'husband',
@@ -271,7 +272,7 @@ describe('Cloudflare Worker レコード操作', () => {
     const db = new SpyDatabase()
     db.firstResult = { ...baseRow, amount: -1000, is_carryover: 0 }
 
-    await updateRecord(db, runtime, 'expense', 'record-id', {
+    await updateRecord(db, runtime, household, 'expense', 'record-id', {
       label: baseRow.label,
       amount: -2000,
       person: 'wife',
@@ -291,10 +292,10 @@ describe('Cloudflare Worker レコード操作', () => {
   ] as const)('%sの状態フラグを更新する', async (type, body, table, flag) => {
     const db = new SpyDatabase()
 
-    await patchRecordFlag(db, runtime, type, 'record-id', body)
+    await patchRecordFlag(db, runtime, household, type, 'record-id', body)
 
     expect(db.executions[0].query).toContain(`UPDATE ${table}`)
-    expect(db.executions[0].params).toEqual([flag, NOW, 'record-id'])
+    expect(db.executions[0].params).toEqual([flag, NOW, 'record-id', 'A'])
   })
 
   it.each([
@@ -304,11 +305,11 @@ describe('Cloudflare Worker レコード操作', () => {
   ] as const)('%sレコードを削除する', async (type, table) => {
     const db = new SpyDatabase()
 
-    await deleteRecord(db, type, 'record-id')
+    await deleteRecord(db, household, type, 'record-id')
 
     expect(db.executions[0]).toEqual({
-      query: `DELETE FROM ${table} WHERE id = ?`,
-      params: ['record-id'],
+      query: `DELETE FROM ${table} WHERE id = ? AND household_id = ?`,
+      params: ['record-id', 'A'],
       method: 'run',
     })
   })
@@ -322,7 +323,7 @@ describe('Cloudflare Worker レコード操作', () => {
   ] as const)('%sの一括登録ステートメントを構築する', async (type, flags, table, flag) => {
     const db = new SpyDatabase()
 
-    await insertRecordStatement(db, runtime, type, {
+    await insertRecordStatement(db, runtime, household, type, {
       month: '202607',
       label: '一括登録',
       amount: type === 'income' ? 1000 : -1000,

@@ -10,7 +10,7 @@ function context(path: string, method = 'GET', body?: unknown): WorkerRouteConte
   return { url, parts: url.pathname.split('/').filter(Boolean), env: { DB: {} as WorkerRouteContext['env']['DB'], WORKER_API_TOKEN: 'internal' }, runtime: createRuntime(), request: new Request(url, { method, headers: { 'x-household-session': 'token' }, ...(body ? { body: JSON.stringify(body) } : {}) }) }
 }
 describe('振込HTTP入口', () => {
-  beforeEach(() => { vi.resetAllMocks(); mocks.session.mockResolvedValue({ person: null, authMethod: 'password', expiresAt: '2099-01-01T00:00:00Z' }) })
+  beforeEach(() => { vi.resetAllMocks(); mocks.session.mockResolvedValue({ householdId: 'A', person: null, authMethod: 'password', expiresAt: '2099-01-01T00:00:00Z' }) })
   it('セッション期限切れや未認証は読取を拒否', async () => {
     mocks.session.mockResolvedValue(null)
     await expect(routePaymentStatus(context('/months/202602/payment-status'))).rejects.toMatchObject({ status: 401 })
@@ -23,7 +23,7 @@ describe('振込HTTP入口', () => {
     const c = context('/months/202602/payments', 'POST', { month: '202602' })
     const r = await routePaymentStatus(c)
     expect(await r?.json()).toEqual({ data: { operationId: 'op' } })
-    expect(mocks.record).toHaveBeenCalledWith(c.env.DB, c.runtime, { month: '202602' }, { person: null, authMethod: 'password' })
+    expect(mocks.record).toHaveBeenCalledWith(c.env.DB, c.runtime, { householdId: 'A', person: null, authMethod: 'password', expiresAt: '2099-01-01T00:00:00Z' }, { month: '202602' })
   })
   it('URLとbodyの月が異なる書込を拒否', async () => {
     await expect(routePaymentStatus(context('/months/202602/payments', 'POST', { month: '202603' }))).rejects.toMatchObject({ status: 400 })

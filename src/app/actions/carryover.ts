@@ -9,22 +9,22 @@ import {
 } from '@/lib/api/records'
 import { readEntryFormData, runEntryMutation, runEntryQuery } from './entry-helpers'
 import { carryoverSchema } from '@/lib/validations/carryover'
-import { requireAuth } from '@/lib/webauthn/session'
+import { requireHouseholdContext } from '@/lib/household-context'
 import type { Carryover, ActionResult } from '@/types'
 
 export async function getCarryoversByMonth(month: string): Promise<ActionResult<Carryover[]>> {
-  await requireAuth()
+  const context = await requireHouseholdContext()
 
   return runEntryQuery(
     { log: '繰越取得エラー:', error: '繰越データの取得に失敗しました' },
-    () => getCarryoverRecordsByMonth(month)
+    () => getCarryoverRecordsByMonth(context, month)
   )
 }
 
 export async function createCarryover(
   formData: FormData
 ): Promise<ActionResult<Carryover>> {
-  await requireAuth()
+  const context = await requireHouseholdContext()
 
   const parsed = carryoverSchema.safeParse({
     ...readEntryFormData(formData),
@@ -38,7 +38,7 @@ export async function createCarryover(
   return runEntryMutation(
     { log: '繰越作成エラー:', error: '繰越の作成に失敗しました' },
     parsed.data.month,
-    () => createCarryoverRecord({
+    () => createCarryoverRecord(context, {
       month: parsed.data.month,
       label: parsed.data.label,
       amount: -parsed.data.amount,
@@ -52,7 +52,7 @@ export async function updateCarryover(
   id: string,
   formData: FormData
 ): Promise<ActionResult<Carryover>> {
-  await requireAuth()
+  const context = await requireHouseholdContext()
 
   const parsed = carryoverSchema.safeParse({
     ...readEntryFormData(formData),
@@ -66,7 +66,7 @@ export async function updateCarryover(
   return runEntryMutation(
     { log: '繰越更新エラー:', error: '繰越の更新に失敗しました' },
     parsed.data.month,
-    () => updateCarryoverRecord(id, {
+    () => updateCarryoverRecord(context, id, {
       month: parsed.data.month,
       label: parsed.data.label,
       amount: -parsed.data.amount,
@@ -81,21 +81,21 @@ export async function toggleCarryoverCleared(
   isCleared: boolean,
   month?: string
 ): Promise<ActionResult> {
-  await requireAuth()
+  const context = await requireHouseholdContext()
 
   return runEntryMutation(
     { log: '繰越清算フラグ更新エラー:', error: '清算フラグの更新に失敗しました' },
     month,
-    () => toggleCarryoverClearedRecord(id, isCleared)
+    () => toggleCarryoverClearedRecord(context, id, isCleared)
   )
 }
 
 export async function deleteCarryover(id: string, month?: string): Promise<ActionResult> {
-  await requireAuth()
+  const context = await requireHouseholdContext()
 
   return runEntryMutation(
     { log: '繰越削除エラー:', error: '繰越の削除に失敗しました' },
     month,
-    () => deleteCarryoverRecord(id)
+    () => deleteCarryoverRecord(context, id)
   )
 }

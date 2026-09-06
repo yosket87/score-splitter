@@ -29,7 +29,7 @@ Cloudflare Custom Domains（各 `wrangler.jsonc` の `routes` + `custom_domain: 
 
 ## Workers Builds（Git連携）の設定値
 
-Cloudflareダッシュボード → Workers & Pagesでは、本番と開発を同じGitHubリポジトリに接続した別プロジェクトとして設定する。実行時のWorkerは本番・開発それぞれ1つであり、API Worker用のWorkers Buildsプロジェクトは作成しない。
+Cloudflareダッシュボード → Workers & Pagesでは、本番と開発を同じGitHubリポジトリに接続した別プロジェクトとして設定する。実行時のWorkerは本番・開発それぞれ1つであり、API Worker用のWorkers Buildsプロジェクトは新設しない。2026-09-05の実環境照合では旧APIのGit連携が残り、PR #120から本番D1をbindingしたPreviewが生成された。後続の世帯対応コードをpushする前に旧APIの非本番ブランチ自動uploadを停止または隔離する。ソース内の設定だけを停止済みの証拠としない。詳細は[世帯分離リリース手順](household-release-runbook.md)を参照。
 
 | 項目 | score-splitter（本番） | score-splitter-dev（開発・PR Preview） |
 |------|---------------------------|--------------------------------------|

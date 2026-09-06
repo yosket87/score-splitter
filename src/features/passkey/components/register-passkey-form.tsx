@@ -5,6 +5,7 @@ import {
   startRegistration,
   type PublicKeyCredentialCreationOptionsJSON,
 } from '@simplewebauthn/browser'
+import { useRequestGuard } from '@/hooks/use-request-guard'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PersonSelector } from '@/components/ui/person-selector'
@@ -22,6 +23,7 @@ interface RegisterPasskeyFormProps {
 }
 
 export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) {
+  const captureRequest = useRequestGuard()
   const formId = useId()
   const [person, setPerson] = useState<Person>('husband')
   const [deviceName, setDeviceName] = useState('')
@@ -29,11 +31,13 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
   const [error, setError] = useState<string | null>(null)
 
   async function handleRegister() {
+    const isCurrent = captureRequest()
     setIsRegistering(true)
     setError(null)
 
     try {
       const optionsResult = await generateRegistrationOptions(person)
+      if (!isCurrent()) return
       if (!optionsResult.success || !optionsResult.data) {
         setError(optionsResult.error ?? '登録オプションの取得に失敗しました')
         return
@@ -43,12 +47,14 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
         optionsJSON: optionsResult.data as unknown as PublicKeyCredentialCreationOptionsJSON,
       })
 
+      if (!isCurrent()) return
       const verifyResult = await verifyRegistration(
         person,
         credential,
         deviceName || undefined
       )
 
+      if (!isCurrent()) return
       if (!verifyResult.success) {
         setError(verifyResult.error ?? '登録の検証に失敗しました')
         return
@@ -57,6 +63,7 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
       setDeviceName('')
       onRegistered()
     } catch (err) {
+      if (!isCurrent()) return
       if (err instanceof Error && err.name === 'NotAllowedError') {
         setError('パスキーの登録がキャンセルされました')
       } else {
@@ -64,7 +71,7 @@ export function RegisterPasskeyForm({ onRegistered }: RegisterPasskeyFormProps) 
         setError(UNEXPECTED_PASSKEY_REGISTRATION_ERROR)
       }
     } finally {
-      setIsRegistering(false)
+      if (isCurrent()) setIsRegistering(false)
     }
   }
 

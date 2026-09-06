@@ -11,7 +11,7 @@ interface YearPageProps {
 
 export default async function YearPage({ params }: YearPageProps) {
   const { year } = await params
-  await requireAuth()
+  const { householdId } = await requireAuth()
 
   if (!isValidYear(year)) {
     redirect('/')
@@ -24,7 +24,7 @@ export default async function YearPage({ params }: YearPageProps) {
   const summaries = summariesResult.data ?? []
 
   return (
-    <div className="app-shell">
+    <div key={householdId} className="app-shell">
       <Header />
       <main
         id="main"

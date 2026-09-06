@@ -1,3 +1,5 @@
+import { createHouseholdDataSqlite } from './household-data-sqlite'
+import { createRecordsSqlite } from './records-sqlite'
 import { expect, vi } from 'vitest'
 import { handleRequest } from '../../cloudflare/worker/src/index'
 import type {
@@ -31,6 +33,7 @@ class FakeStatement implements D1PreparedStatementLike {
 }
 
 type FakeIncomeRow = {
+  household_id?: string
   id: string
   month: string
   label: string
@@ -56,33 +59,6 @@ type FakeLoginAttemptRow = {
   count: number
   window_start: string
   updated_at: string
-}
-
-type FakeSessionRow = {
-  token: string
-  person: 'husband' | 'wife' | null
-  auth_method: 'password' | 'passkey'
-  expires_at: string
-  created_at: string
-}
-
-type FakePasskeyRow = {
-  id: string
-  person: 'husband' | 'wife'
-  public_key_base64: string
-  counter: number
-  device_name: string | null
-  transports: string
-  created_at: string
-}
-
-type FakeChallengeRow = {
-  id: string
-  challenge: string
-  type: 'registration' | 'authentication'
-  person: 'husband' | 'wife' | null
-  expires_at: string
-  created_at: string
 }
 
 type FakeDiagnosisRow = {
@@ -132,48 +108,20 @@ export class FakeD1Database implements D1DatabaseLike {
     },
   ]
   private loginAttemptRows: FakeLoginAttemptRow[] = []
-  private sessionRows: FakeSessionRow[] = []
-  private passkeyRows: FakePasskeyRow[] = [
-    {
-      id: 'credential-1',
-      person: 'husband',
-      public_key_base64: 'AQID',
-      counter: 0,
-      device_name: 'iPhone',
-      transports: '["internal"]',
-      created_at: '2026-01-04T00:00:00.000Z',
-    },
-  ]
-  private challengeRows: FakeChallengeRow[] = []
   private diagnosisRows: FakeDiagnosisRow[] = []
   private sourceRevision = 0
 
   get currentSourceRevision(): number {
     return this.sourceRevision
   }
-  private diagnosisLeases = new Map<string, { runToken: string; expiresAt: string }>()
-  private diagnosisGuard: {
-    runToken: string | null
-    expiresAt: string | null
-    lastStartedAt: string | null
-    usageDate: string
-    dailyCount: number
-  } = {
-    runToken: null,
-    expiresAt: null,
-    lastStartedAt: null,
-    usageDate: '1970-01-01',
-    dailyCount: 0,
-  }
+  readonly recordSqlite = createRecordsSqlite()
+  readonly aiSqlite = createHouseholdDataSqlite()
 
   constructor(rows: {
     incomes?: FakeIncomeRow[]
     expenses?: FakeExpenseRow[]
     carryovers?: FakeCarryoverRow[]
     loginAttempts?: FakeLoginAttemptRow[]
-    sessions?: FakeSessionRow[]
-    passkeys?: FakePasskeyRow[]
-    challenges?: FakeChallengeRow[]
     diagnoses?: FakeDiagnosisRow[]
     sourceRevision?: number
   } = {}) {
@@ -181,11 +129,47 @@ export class FakeD1Database implements D1DatabaseLike {
     this.expenseRows = rows.expenses ?? this.expenseRows
     this.carryoverRows = rows.carryovers ?? this.carryoverRows
     this.loginAttemptRows = rows.loginAttempts ?? this.loginAttemptRows
-    this.sessionRows = rows.sessions ?? this.sessionRows
-    this.passkeyRows = rows.passkeys ?? this.passkeyRows
-    this.challengeRows = rows.challenges ?? this.challengeRows
     this.diagnosisRows = rows.diagnoses ?? this.diagnosisRows
     this.sourceRevision = rows.sourceRevision ?? this.sourceRevision
+    this.recordSqlite.sqlite.prepare('INSERT INTO sessions VALUES(?,?,?,?,?,?)').run('a'.repeat(64),null,'password','2099-01-01','2026-01-01','A')
+    this.syncRecordsToSqlite()
+    this.aiSqlite.sqlite.exec("INSERT INTO households(id,created_at) VALUES('A','now'); INSERT INTO ai_execution_guard(household_id,id,usage_date,daily_count,updated_at) VALUES('A',1,'1970-01-01',0,'now'); INSERT INTO ai_diagnosis_source_revision(household_id,id,revision,updated_at) VALUES('A',1,0,'now');")
+    for (const row of this.diagnosisRows) {
+      this.aiSqlite.sqlite.prepare('INSERT INTO ai_diagnoses(household_id,id,month,result_json,input_hash,analysis_version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)').run('A',crypto.randomUUID(),row.month,row.result_json,row.input_hash,row.analysis_version,row.updated_at,row.updated_at)
+    }
+  }
+
+  private usesAiSqlite(query: string) {
+    return query.includes('ai_diagnos') || query.includes('ai_execution') || query.startsWith('WITH requested') || /SELECT (month, amount|id, month, label, amount, is_carryover, ai_category)/.test(query)
+  }
+  private syncAiInputs() {
+    for (const [table, rows] of [['incomes', this.incomeRows], ['expenses', this.expenseRows], ['carryovers', this.carryoverRows]] as const) {
+      this.aiSqlite.sqlite.exec(`DELETE FROM ${table}`)
+      for (const row of rows) {
+        const record = { ...row, household_id: row.household_id ?? 'A' }
+        const columns = new Set(this.aiSqlite.sqlite.prepare(`PRAGMA table_info(${table})`).all().map(row => row.name))
+        const keys = Object.keys(record).filter(key => columns.has(key))
+        this.aiSqlite.sqlite.prepare(`INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map(()=>'?').join(',')})`).run(...keys.map(key => (record as Record<string, string | number | null>)[key]))
+      }
+    }
+    this.aiSqlite.sqlite.prepare("UPDATE ai_diagnosis_source_revision SET revision=? WHERE household_id='A'").run(this.sourceRevision)
+  }
+
+
+  private syncRecordsToSqlite() {
+    for (const [table,rows] of [['incomes',this.incomeRows],['expenses',this.expenseRows],['carryovers',this.carryoverRows]] as const) {
+      this.recordSqlite.sqlite.exec(`DELETE FROM ${table}`)
+      for (const row of rows) {
+        const record = {...row,household_id:row.household_id ?? 'A'}
+        const keys = Object.keys(record)
+        this.recordSqlite.sqlite.prepare(`INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map(()=>'?').join(',')})`).run(...Object.values(record))
+      }
+    }
+  }
+  private syncRecordsFromSqlite() {
+    this.incomeRows = this.recordSqlite.sqlite.prepare('SELECT * FROM incomes').all() as FakeIncomeRow[]
+    this.expenseRows = this.recordSqlite.sqlite.prepare('SELECT * FROM expenses').all() as FakeExpenseRow[]
+    this.carryoverRows = this.recordSqlite.sqlite.prepare('SELECT * FROM carryovers').all() as FakeCarryoverRow[]
   }
 
   prepare(query: string): D1PreparedStatementLike {
@@ -201,6 +185,19 @@ export class FakeD1Database implements D1DatabaseLike {
       }
     })
     this.batched.push(batch)
+    if (batch.some(item => this.usesAiSqlite(item.query))) {
+      this.syncAiInputs()
+      this.executed.push(...batch)
+      return this.aiSqlite.db.batch(batch.map(item => this.aiSqlite.db.prepare(item.query).bind(...item.params)))
+    }
+    if (batch[0]?.query.startsWith('WITH selected')) {
+      this.syncRecordsToSqlite()
+      this.executed.push(...batch)
+      const results = await this.recordSqlite.db.batch(batch.map(item => this.recordSqlite.db.prepare(item.query).bind(...item.params)))
+      this.syncRecordsFromSqlite()
+      this.sourceRevision += results.reduce((sum,row)=>sum+(row.meta?.changes ?? 0),0)
+      return results
+    }
     const results: D1ResultLike[] = []
     for (const item of batch) {
       if (item.query.startsWith('SELECT')) {
@@ -214,23 +211,17 @@ export class FakeD1Database implements D1DatabaseLike {
 
   async first<T>(query: string, params: unknown[]): Promise<T | null> {
     this.executed.push({ query, params })
-    if (query.includes('FROM ai_diagnosis_source_revision')) {
-      return { revision: this.sourceRevision } as T
+    if (this.usesAiSqlite(query)) {
+      this.syncAiInputs()
+      const result = await this.aiSqlite.db.prepare(query).bind(...params).first<T>()
+      return result
     }
-    if (query.includes('FROM ai_execution_guard')) {
-      return {
-        run_token: this.diagnosisGuard.runToken,
-        run_expires_at: this.diagnosisGuard.expiresAt,
-        last_started_at: this.diagnosisGuard.lastStartedAt,
-        usage_date: this.diagnosisGuard.usageDate,
-        daily_count: this.diagnosisGuard.dailyCount,
-      } as T
+    if (query.includes('household_id') && !query.includes('ai_diagnos') && !query.includes('ai_execution')) {
+      this.syncRecordsToSqlite()
+      const result = await this.recordSqlite.db.prepare(query).bind(...params).first<T>()
+      return result
     }
-    if (query.includes('FROM ai_diagnoses')) {
-      return (
-        this.diagnosisRows.find((row) => row.month === params[0]) ?? null
-      ) as T | null
-    }
+
     if (query.includes('FROM incomes')) {
       return (this.incomeRows.find((row) => row.id === params[0]) ?? null) as T | null
     }
@@ -239,34 +230,24 @@ export class FakeD1Database implements D1DatabaseLike {
         this.loginAttemptRows.find((row) => row.attempt_key === params[0]) ?? null
       ) as T | null
     }
-    if (query.includes('FROM sessions')) {
-      return (
-        this.sessionRows.find((row) => row.token === params[0]) ?? null
-      ) as T | null
-    }
-    if (query.includes('FROM passkey_credentials')) {
-      return (
-        this.passkeyRows.find((row) => row.id === params[0]) ?? null
-      ) as T | null
-    }
-    if (query.includes('FROM webauthn_challenges')) {
-      const type = params[0] as 'registration' | 'authentication'
-      const person = query.includes('person IS NULL')
-        ? null
-        : (params[1] as 'husband' | 'wife')
-      const rows = this.challengeRows
-        .filter((row) => row.type === type && row.person === person)
-        .sort((a, b) => b.created_at.localeCompare(a.created_at))
-      return (rows[0] ?? null) as T | null
-    }
+
     return null
   }
 
   async all<T>(query: string, params: unknown[]): Promise<{ results: T[] }> {
     this.executed.push({ query, params })
-    if (query.includes('FROM ai_diagnosis_source_revision')) {
-      return { results: [{ revision: this.sourceRevision }] as T[] }
+    if (this.usesAiSqlite(query)) {
+      this.syncAiInputs()
+      const result = await this.aiSqlite.db.prepare(query).bind(...params).all<T>()
+      if (query.startsWith('WITH requested')) this.expenseRows = this.aiSqlite.sqlite.prepare('SELECT * FROM expenses').all() as FakeExpenseRow[]
+      return result
     }
+    if (query.includes('household_id') && !query.includes('ai_diagnos') && !query.includes('ai_execution')) {
+      this.syncRecordsToSqlite()
+      const result = await this.recordSqlite.db.prepare(query).bind(...params).all<T>()
+      return result
+    }
+
     if (query.includes('FROM incomes') && query.includes('WHERE month = ?')) {
       return {
         results: this.incomeRows.filter((row) => row.month === params[0]) as T[],
@@ -297,194 +278,24 @@ export class FakeD1Database implements D1DatabaseLike {
         : this.carryoverRows
       return { results: rows as T[] }
     }
-    if (query.includes('FROM passkey_credentials')) {
-      const rows = query.includes('WHERE person = ?')
-        ? this.passkeyRows.filter((row) => row.person === params[0])
-        : this.passkeyRows
-      return { results: rows as T[] }
-    }
     return { results: [] }
   }
 
   async run(query: string, params: unknown[]): Promise<D1ResultLike> {
     this.executed.push({ query, params })
-    if (query.startsWith('UPDATE ai_execution_guard\nSET run_token = ?')) {
-      const token = params[0] as string
-      const expiresAt = params[1] as string
-      const now = params[2] as string
-      const usageDate = params[3] as string
-      const cooldownCutoff = params[8] as string
-      const dailyLimit = params[10] as number
-      const month = params[11] as string
-      const active =
-        this.diagnosisGuard.runToken !== null &&
-        this.diagnosisGuard.expiresAt !== null &&
-        this.diagnosisGuard.expiresAt >= now
-      const coolingDown =
-        this.diagnosisGuard.lastStartedAt !== null &&
-        this.diagnosisGuard.lastStartedAt > cooldownCutoff
-      const dailyLimited =
-        this.diagnosisGuard.usageDate === usageDate &&
-        this.diagnosisGuard.dailyCount >= dailyLimit
-      const monthLease = this.diagnosisLeases.get(month)
-      const monthBusy = monthLease !== undefined && monthLease.expiresAt >= now
-      if (active || coolingDown || dailyLimited || monthBusy) {
-        return { success: true, meta: { changes: 0 } }
-      }
-      this.diagnosisGuard = {
-        runToken: token,
-        expiresAt,
-        lastStartedAt: now,
-        usageDate,
-        dailyCount:
-          this.diagnosisGuard.usageDate === usageDate
-            ? this.diagnosisGuard.dailyCount + 1
-            : 1,
-      }
-      return { success: true, meta: { changes: 1 } }
+    if (this.usesAiSqlite(query)) {
+      this.syncAiInputs()
+      const result = await this.aiSqlite.db.prepare(query).bind(...params).run()
+      return result
     }
-    if (query.startsWith('UPDATE ai_execution_guard\nSET run_token = NULL')) {
-      const token = params[1] as string
-      if (this.diagnosisGuard.runToken !== token) {
-        return { success: true, meta: { changes: 0 } }
-      }
-      this.diagnosisGuard = {
-        ...this.diagnosisGuard,
-        runToken: null,
-        expiresAt: null,
-      }
-      return { success: true, meta: { changes: 1 } }
+    if (query.includes('household_id') && !query.includes('ai_diagnos') && !query.includes('ai_execution')) {
+      this.syncRecordsToSqlite()
+      const result = await this.recordSqlite.db.prepare(query).bind(...params).run()
+      this.syncRecordsFromSqlite()
+      this.sourceRevision += result.meta?.changes ?? 0
+      return result
     }
-    if (query.startsWith('UPDATE ai_diagnoses\nSET result_json')) {
-      const month = params[4] as string
-      const runToken = params[5] as string
-      const now = params[6] as string
-      const current = this.diagnosisLeases.get(month)
-      const expectedSourceRevision = params[11] as number
-      if (
-        !current ||
-        current.runToken !== runToken ||
-        current.expiresAt < now ||
-        this.diagnosisGuard.runToken !== runToken ||
-        this.diagnosisGuard.expiresAt === null ||
-        this.diagnosisGuard.expiresAt < now ||
-        this.sourceRevision !== expectedSourceRevision
-      ) {
-        return { success: true, meta: { changes: 0 } }
-      }
-      this.diagnosisRows = [
-        ...this.diagnosisRows.filter((row) => row.month !== month),
-        {
-          month,
-          result_json: params[0] as string,
-          input_hash: params[1] as string,
-          analysis_version: params[2] as string,
-          updated_at: params[3] as string,
-        },
-      ]
-      this.diagnosisLeases.delete(month)
-      this.diagnosisGuard = {
-        ...this.diagnosisGuard,
-        runToken: null,
-        expiresAt: null,
-      }
-      return { success: true, meta: { changes: 1 } }
-    }
-    if (query.startsWith('UPDATE ai_diagnoses\nSET run_token = NULL')) {
-      const month = params[0] as string
-      const runToken = params[1] as string
-      const current = this.diagnosisLeases.get(month)
-      if (!current || current.runToken !== runToken) {
-        return { success: true, meta: { changes: 0 } }
-      }
-      this.diagnosisLeases.delete(month)
-      if (this.diagnosisGuard.runToken === runToken) {
-        this.diagnosisGuard = {
-          ...this.diagnosisGuard,
-          runToken: null,
-          expiresAt: null,
-        }
-      }
-      return { success: true, meta: { changes: 1 } }
-    }
-    if (query.startsWith('UPDATE ai_diagnoses\nSET run_token = ?, run_expires_at = ?')) {
-      const month = params[3] as string
-      const now = params[4] as string
-      const current = this.diagnosisLeases.get(month)
-      if (current && current.expiresAt >= now) {
-        return { success: true, meta: { changes: 0 } }
-      }
-      if (
-        this.diagnosisGuard.runToken !== params[6] ||
-        this.diagnosisGuard.expiresAt !== params[7]
-      ) {
-        return { success: true, meta: { changes: 0 } }
-      }
-      this.diagnosisLeases.set(month, {
-        runToken: params[0] as string,
-        expiresAt: params[1] as string,
-      })
-      return { success: true, meta: { changes: 1 } }
-    }
-    if (query.startsWith('INSERT OR IGNORE INTO ai_diagnoses')) {
-      const month = params[1] as string
-      return {
-        success: true,
-        meta: { changes: this.diagnosisRows.some((row) => row.month === month) ? 0 : 1 },
-      }
-    }
-    if (query.startsWith('WITH requested AS')) {
-      const requested = JSON.parse(params[0] as string) as Array<{
-        expenseId: string
-        category: string
-        expectedLabel: string
-      }>
-      const month = params[2] as string
-      const runToken = params[3] as string
-      const now = params[4] as string
-      const monthLease = this.diagnosisLeases.get(month)
-      const ownsRun =
-        monthLease?.runToken === runToken &&
-        monthLease.expiresAt >= now &&
-        this.diagnosisGuard.runToken === runToken &&
-        this.diagnosisGuard.expiresAt !== null &&
-        this.diagnosisGuard.expiresAt >= now
-      const eligible = requested.every(({ expenseId, expectedLabel }) =>
-        this.expenseRows.some(
-          (row) =>
-            row.id === expenseId &&
-            row.label === expectedLabel &&
-            row.ai_category == null
-        )
-      )
-      if (!ownsRun || !eligible) {
-        return { success: true, meta: { changes: 0 } }
-      }
-      const categoriesById = new Map(
-        requested.map(({ expenseId, category }) => [expenseId, category])
-      )
-      this.expenseRows = this.expenseRows.map((row) => {
-        const category = categoriesById.get(row.id)
-        return category === undefined
-          ? row
-          : {
-              ...row,
-              ai_category: category,
-              ai_category_source: 'ai',
-              ai_categorized_at: params[6] as string,
-              updated_at: params[7] as string,
-            }
-      })
-      return { success: true, meta: { changes: requested.length } }
-    }
-    if (query.startsWith('UPDATE expenses\nSET ai_category')) {
-      const expectedLabel = params.at(-1) as string
-      const expenseIds = params.slice(3, -1) as string[]
-      const changes = expenseIds.filter((expenseId) =>
-        this.expenseRows.some((row) => row.id === expenseId && row.label === expectedLabel)
-      ).length
-      return { success: true, meta: { changes } }
-    }
+
     if (query.startsWith('INSERT INTO incomes')) {
       this.incomeRows.push({
         id: params[0] as string,
@@ -548,64 +359,6 @@ export class FakeD1Database implements D1DatabaseLike {
         (row) => row.attempt_key !== params[0]
       )
     }
-    if (query.startsWith('INSERT INTO sessions')) {
-      this.sessionRows.push({
-        token: params[0] as string,
-        person: params[1] as 'husband' | 'wife' | null,
-        auth_method: params[2] as 'password' | 'passkey',
-        expires_at: params[3] as string,
-        created_at: params[4] as string,
-      })
-    }
-    if (query.startsWith('DELETE FROM sessions')) {
-      this.sessionRows = this.sessionRows.filter((row) => row.token !== params[0])
-    }
-    if (query.startsWith('INSERT INTO passkey_credentials')) {
-      this.passkeyRows.push({
-        id: params[0] as string,
-        person: params[1] as 'husband' | 'wife',
-        public_key_base64: params[2] as string,
-        counter: params[3] as number,
-        device_name: params[4] as string | null,
-        transports: params[5] as string,
-        created_at: params[6] as string,
-      })
-    }
-    if (query.startsWith('UPDATE passkey_credentials SET counter')) {
-      this.passkeyRows = this.passkeyRows.map((row) =>
-        row.id === params[1] ? { ...row, counter: params[0] as number } : row
-      )
-    }
-    if (query.startsWith('DELETE FROM passkey_credentials')) {
-      this.passkeyRows = this.passkeyRows.filter((row) => row.id !== params[0])
-    }
-    if (query.startsWith('INSERT INTO webauthn_challenges')) {
-      this.challengeRows.push({
-        id: params[0] as string,
-        challenge: params[1] as string,
-        type: params[2] as 'registration' | 'authentication',
-        person: params[3] as 'husband' | 'wife' | null,
-        expires_at: params[4] as string,
-        created_at: params[5] as string,
-      })
-    }
-    if (query.startsWith('DELETE FROM webauthn_challenges WHERE type')) {
-      const type = params[0] as 'registration' | 'authentication'
-      if (query.includes('person IS NULL')) {
-        this.challengeRows = this.challengeRows.filter(
-          (row) => !(row.type === type && row.person === null)
-        )
-      } else {
-        this.challengeRows = this.challengeRows.filter(
-          (row) => !(row.type === type && row.person === params[1])
-        )
-      }
-    }
-    if (query.startsWith('DELETE FROM webauthn_challenges WHERE expires_at')) {
-      this.challengeRows = this.challengeRows.filter(
-        (row) => row.expires_at >= (params[0] as string)
-      )
-    }
     if (
       /^(INSERT INTO|DELETE FROM) (incomes|expenses|carryovers)/.test(query) ||
       (/^UPDATE (incomes|expenses|carryovers)\s+SET/.test(query) &&
@@ -618,7 +371,9 @@ export class FakeD1Database implements D1DatabaseLike {
 }
 
 export function createRequest(path: string, init: RequestInit = {}) {
-  return new Request(`https://api.example.test${path}`, init)
+  const headers = new Headers(init.headers)
+  if (path.startsWith('/ai-diagnoses') && !headers.has('x-household-session')) headers.set('x-household-session', 'a'.repeat(64))
+  return new Request(`https://api.example.test${path}`, { ...init, headers })
 }
 
 export function createEnv(db = new FakeD1Database()) {

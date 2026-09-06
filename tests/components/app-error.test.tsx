@@ -83,7 +83,7 @@ describe('ErrorPage', () => {
   })
 
   it('設定画面を共通ヘッダーと本文幅のソリッドサーフェスで表示する', async () => {
-    vi.mocked(requireAuth).mockResolvedValue(undefined)
+    vi.mocked(requireAuth).mockResolvedValue({ householdId: 'A', person: null, authMethod: 'password' })
 
     const { container } = render(await SettingsPage())
 

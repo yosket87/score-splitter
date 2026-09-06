@@ -6,7 +6,7 @@ describe('モックDBのリセット', () => {
     const handlerDb = await import('@/mocks/db')
     handlerDb.initStore()
     handlerDb.insertRows('incomes', [
-      { month: '202612', label: 'テスト給料', amount: 300000, person: 'husband' },
+      { household_id: '3975b870-bbfa-49fd-ae3d-d273c9f6e107', month: '202612', label: 'テスト給料', amount: 300000, person: 'husband' },
     ])
     handlerDb.deleteRows('expenses', { label: 'eq.家賃' })
     handlerDb.updateRows('carryovers', { label: 'eq.前月繰越' }, { is_cleared: true })
@@ -19,9 +19,9 @@ describe('モックDBのリセット', () => {
     const resetDb = await import('@/mocks/db')
     resetDb.initStore()
 
-    expect(handlerDb.getTable('incomes')).toEqual(seedData.incomes)
-    expect(handlerDb.getTable('expenses')).toEqual(seedData.expenses)
-    expect(handlerDb.getTable('carryovers')).toEqual(seedData.carryovers)
+    expect(handlerDb.getTable('incomes')).toEqual(seedData.incomes.map(row=>({...row,household_id:'3975b870-bbfa-49fd-ae3d-d273c9f6e107'})))
+    expect(handlerDb.getTable('expenses')).toEqual(seedData.expenses.map(row=>({...row,household_id:'3975b870-bbfa-49fd-ae3d-d273c9f6e107'})))
+    expect(handlerDb.getTable('carryovers')).toEqual(seedData.carryovers.map(row=>({...row,household_id:'3975b870-bbfa-49fd-ae3d-d273c9f6e107'})))
     expect(handlerDb.getTable('sessions')).toEqual([])
     expect(handlerDb.getTable('ai_diagnoses')).toEqual([])
     expect(handlerDb.getTable('ai_diagnosis_source_revision')[0].revision).toBe(0)
@@ -31,7 +31,7 @@ describe('モックDBのリセット', () => {
     expect(handlerDb.getTable('sessions')).toEqual([
       expect.objectContaining({ token: 'new-session' }),
     ])
-    resetDb.insertRows('incomes', [{ month: '202612', amount: 100 }])
+    resetDb.insertRows('incomes', [{ household_id: '3975b870-bbfa-49fd-ae3d-d273c9f6e107', month: '202612', amount: 100 }])
     expect(handlerDb.getTable('ai_diagnosis_source_revision')[0].revision).toBe(1)
   })
 })

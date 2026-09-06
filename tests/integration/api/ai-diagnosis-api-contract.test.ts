@@ -1,3 +1,4 @@
+vi.mock('@/lib/api/household-session', () => ({ householdSessionToken: vi.fn().mockResolvedValue('a'.repeat(64)) }))
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -67,17 +68,17 @@ const diagnosisView = {
 
 describe('lib/api ai-diagnosis contract', () => {
   it.each([
-    ['context', '202613', () => getDiagnosisContext('202613')],
-    ['saved', '202600', () => getSavedDiagnosis('202600')],
-    ['acquire', '202613', () => acquireDiagnosisLease('202613', 'run-1')],
-    ['save', '202600', () => saveDiagnosis('202600', {
+    ['context', '202613', () => getDiagnosisContext({ householdId: 'A' }, '202613')],
+    ['saved', '202600', () => getSavedDiagnosis({ householdId: 'A' }, '202600')],
+    ['acquire', '202613', () => acquireDiagnosisLease({ householdId: 'A' }, '202613', 'run-1')],
+    ['save', '202600', () => saveDiagnosis({ householdId: 'A' }, '202600', {
       runToken: 'run-1',
       inputHash: 'hash-1',
       analysisVersion: 'v1',
       diagnosis: { ...diagnosisView, month: '202600' },
       expectedSourceRevision: 1,
     })],
-    ['release', '202613', () => releaseDiagnosisLease('202613', 'run-1')],
+    ['release', '202613', () => releaseDiagnosisLease({ householdId: 'A' }, '202613', 'run-1')],
   ])('実在しない月を%sクライアントからWorkerへ送信する前に拒否する', async (
     _operation,
     _month,
@@ -103,7 +104,7 @@ describe('lib/api ai-diagnosis contract', () => {
       )
     )
 
-    await expect(getDiagnosisContext('202601')).rejects.toEqual(
+    await expect(getDiagnosisContext({ householdId: 'A' }, '202601')).rejects.toEqual(
       new ApiError('Worker APIレスポンスの形式が不正です', 502)
     )
   })
@@ -122,7 +123,7 @@ describe('lib/api ai-diagnosis contract', () => {
       )
     )
 
-    await expect(getSavedDiagnosis('202601')).rejects.toEqual(
+    await expect(getSavedDiagnosis({ householdId: 'A' }, '202601')).rejects.toEqual(
       new ApiError('Worker APIレスポンスの形式が不正です', 502)
     )
   })
@@ -152,7 +153,7 @@ describe('lib/api ai-diagnosis contract', () => {
       })
     )
 
-    await expect(getDiagnosisContext('202601')).resolves.toEqual(
+    await expect(getDiagnosisContext({ householdId: 'A' }, '202601')).resolves.toEqual(
       expect.objectContaining({ targetMonth: '202601' })
     )
     expect(capturedRequests[0]).toEqual(
@@ -180,10 +181,10 @@ describe('lib/api ai-diagnosis contract', () => {
       )
     )
 
-    await expect(getSavedDiagnosis('202601')).resolves.toEqual(
+    await expect(getSavedDiagnosis({ householdId: 'A' }, '202601')).resolves.toEqual(
       expect.objectContaining({ diagnosis: diagnosisView, inputHash: 'hash-1' })
     )
-    await expect(getSavedDiagnosis('202602')).resolves.toBeNull()
+    await expect(getSavedDiagnosis({ householdId: 'A' }, '202602')).resolves.toBeNull()
   })
 
   it('診断リースを月別パスへJSON bodyで送る', async () => {
@@ -194,7 +195,7 @@ describe('lib/api ai-diagnosis contract', () => {
       })
     )
 
-    await expect(acquireDiagnosisLease('202601', 'run-1')).resolves.toBeUndefined()
+    await expect(acquireDiagnosisLease({ householdId: 'A' }, '202601', 'run-1')).resolves.toBeUndefined()
     expect(capturedRequests[0]).toEqual(
       expect.objectContaining({
         method: 'POST',
@@ -218,7 +219,7 @@ describe('lib/api ai-diagnosis contract', () => {
     ]
 
     await expect(
-      saveExpenseCategories('202601', 'run-1', assignments)
+      saveExpenseCategories({ householdId: 'A' }, '202601', 'run-1', assignments)
     ).resolves.toBeUndefined()
     expect(capturedRequests[0]).toEqual(
       expect.objectContaining({
@@ -250,7 +251,7 @@ describe('lib/api ai-diagnosis contract', () => {
     ]
 
     await expect(
-      saveExpenseCategories('202601', 'run-1', assignments)
+      saveExpenseCategories({ householdId: 'A' }, '202601', 'run-1', assignments)
     ).rejects.toBeDefined()
     expect(capturedRequests).toHaveLength(0)
   })
@@ -276,7 +277,7 @@ describe('lib/api ai-diagnosis contract', () => {
     ]
 
     await expect(
-      saveExpenseCategories('202601', 'run-1', assignments)
+      saveExpenseCategories({ householdId: 'A' }, '202601', 'run-1', assignments)
     ).resolves.toBeUndefined()
     expect(capturedRequests[0]?.body).toEqual({
       month: '202601',
@@ -301,7 +302,7 @@ describe('lib/api ai-diagnosis contract', () => {
       expectedSourceRevision: 7,
     }
 
-    await expect(saveDiagnosis('202601', input)).resolves.toEqual(diagnosisView)
+    await expect(saveDiagnosis({ householdId: 'A' }, '202601', input)).resolves.toEqual(diagnosisView)
     expect(capturedRequests[0]).toEqual(
       expect.objectContaining({
         method: 'PUT',
@@ -319,7 +320,7 @@ describe('lib/api ai-diagnosis contract', () => {
       })
     )
 
-    await expect(releaseDiagnosisLease('202601', 'run-1')).resolves.toBeUndefined()
+    await expect(releaseDiagnosisLease({ householdId: 'A' }, '202601', 'run-1')).resolves.toBeUndefined()
     expect(capturedRequests[0]).toEqual(
       expect.objectContaining({
         method: 'DELETE',
@@ -364,10 +365,10 @@ describe('lib/api ai-diagnosis contract', () => {
       )
     )
 
-    await expect(getDiagnosisContext('202601')).rejects.toEqual(
+    await expect(getDiagnosisContext({ householdId: 'A' }, '202601')).rejects.toEqual(
       new ApiError('Worker APIレスポンスの形式が不正です', 502)
     )
-    await expect(getSavedDiagnosis('202602')).rejects.toEqual(
+    await expect(getSavedDiagnosis({ householdId: 'A' }, '202602')).rejects.toEqual(
       new ApiError('Worker APIレスポンスの形式が不正です', 502)
     )
   })
@@ -379,9 +380,9 @@ describe('lib/api ai-diagnosis contract', () => {
       analysisVersion: 'v1',
       expectedSourceRevision: 7,
       diagnosis: { ...diagnosisView, person: 'husband' },
-    } as unknown as Parameters<typeof saveDiagnosis>[1]
+    } as unknown as Parameters<typeof saveDiagnosis>[2]
 
-    await expect(saveDiagnosis('202601', input)).rejects.toBeDefined()
+    await expect(saveDiagnosis({ householdId: 'A' }, '202601', input)).rejects.toBeDefined()
     expect(capturedRequests).toHaveLength(0)
   })
 
@@ -396,8 +397,8 @@ describe('lib/api ai-diagnosis contract', () => {
     )
 
     const operation = method === 'POST'
-      ? acquireDiagnosisLease('202601', 'run-1')
-      : saveExpenseCategories('202601', 'run-1', [
+      ? acquireDiagnosisLease({ householdId: 'A' }, '202601', 'run-1')
+      : saveExpenseCategories({ householdId: 'A' }, '202601', 'run-1', [
           { expenseIds: ['expense-1'], category: 'housing', expectedLabel: '家賃' },
         ])
     await expect(operation).rejects.toEqual(new ApiError('競合しました', 409))
@@ -414,7 +415,7 @@ describe('lib/api ai-diagnosis contract', () => {
     )
 
     await expect(
-      saveDiagnosis('202601', {
+      saveDiagnosis({ householdId: 'A' }, '202601', {
         runToken: 'run-1',
         inputHash: 'hash-1',
         analysisVersion: 'v1',

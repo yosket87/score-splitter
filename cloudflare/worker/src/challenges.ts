@@ -1,95 +1,63 @@
 import type { D1DatabaseLike, Runtime } from './d1'
 import { HttpError } from './http'
-import { assertObject, parseNullablePerson, parseString } from './validation'
+import { assertHouseholdContext, type HouseholdContext } from './households'
+import { assertObject, parsePerson, parseString } from './validation'
 
-type ChallengeType = 'registration' | 'authentication'
+export type ChallengeScope =
+  | Readonly<{ type: 'registration'; context: HouseholdContext }>
+  | Readonly<{ type: 'authentication' }>
 
 interface ChallengeRow {
   id: string
+  household_id: string | null
   challenge: string
-  type: ChallengeType
+  type: 'registration' | 'authentication'
   person: 'husband' | 'wife' | null
   expires_at: string
   created_at: string
 }
 
-export async function createChallenge(db: D1DatabaseLike, runtime: Runtime, body: unknown) {
+function scopeHousehold(scope: ChallengeScope) {
+  if (scope.type === 'authentication') return null
+  if (scope.type !== 'registration') throw new HttpError('typeが不正です', 400)
+  assertHouseholdContext(scope.context)
+  return scope.context.householdId
+}
+
+function scopePerson(scope: ChallengeScope, person: unknown) {
+  if (scope.type === 'registration') return parsePerson(person)
+  if (person !== null) throw new HttpError('認証前challengeのpersonはNULLです', 400)
+  return null
+}
+
+export async function createChallenge(db: D1DatabaseLike, runtime: Runtime, scope: ChallengeScope, body: unknown) {
+  const householdId = scopeHousehold(scope)
   const input = assertObject(body)
   const id = runtime.randomUUID()
   const challenge = parseString(input.challenge, 'challenge')
-  const type = parseChallengeType(input.type)
-  const person = parseNullablePerson(input.person)
-  const expiresAt = parseDate(input.expiresAt)
+  const person = scopePerson(scope, input.person)
+  const expiresAt = parseString(input.expiresAt, 'expiresAt')
+  if (!Number.isFinite(Date.parse(expiresAt))) throw new HttpError('expiresAtが不正です', 400)
   const createdAt = runtime.now().toISOString()
-
-  await db
-    .prepare(
-      'INSERT INTO webauthn_challenges (id, challenge, type, person, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)'
-    )
-    .bind(id, challenge, type, person, expiresAt, createdAt)
-    .run()
-
-  return {
-    id,
-    challenge,
-    type,
-    person,
-    expiresAt,
-    createdAt,
-  }
+  await db.prepare('INSERT INTO webauthn_challenges (id, challenge, type, person, expires_at, created_at, household_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, challenge, scope.type, person, expiresAt, createdAt, householdId).run()
+  return { id, challenge, type: scope.type, person, expiresAt, createdAt, householdId }
 }
 
-export async function getLatestChallenge(
-  db: D1DatabaseLike,
-  type: ChallengeType,
-  person: string | null
-) {
-  const base =
-    'SELECT * FROM webauthn_challenges WHERE type = ? AND ' +
-    (person ? 'person = ?' : 'person IS NULL') +
-    ' ORDER BY created_at DESC LIMIT 1'
-  const statement = person ? db.prepare(base).bind(type, person) : db.prepare(base).bind(type)
-  const row = await statement.first<ChallengeRow>()
-  return row ? mapChallenge(row) : null
-}
-
-export async function deleteChallenges(
-  db: D1DatabaseLike,
-  type: ChallengeType,
-  person: string | null
-) {
-  const query = person
-    ? 'DELETE FROM webauthn_challenges WHERE type = ? AND person = ?'
-    : 'DELETE FROM webauthn_challenges WHERE type = ? AND person IS NULL'
-  const statement = person ? db.prepare(query).bind(type, person) : db.prepare(query).bind(type)
-  await statement.run()
+// 取得と削除を単一SQLにし、同じブラウザ試行からの二重検証を拒否する。
+export async function consumeChallenge(db: D1DatabaseLike, runtime: Runtime, scope: ChallengeScope, id: string, person: 'husband' | 'wife' | null) {
+  const householdId = scopeHousehold(scope)
+  const scopedPerson = scopePerson(scope, person)
+  const row = await db.prepare(`DELETE FROM webauthn_challenges
+    WHERE id = ? AND type = ? AND household_id IS ? AND person IS ?
+      AND julianday(expires_at) > julianday(?) RETURNING *`)
+    .bind(id, scope.type, householdId, scopedPerson, runtime.now().toISOString()).first<ChallengeRow>()
+  return row ? {
+    id: row.id, challenge: row.challenge, type: row.type, person: row.person,
+    expiresAt: row.expires_at, createdAt: row.created_at, householdId: row.household_id,
+  } : null
 }
 
 export async function deleteExpiredChallenges(db: D1DatabaseLike, before: string) {
-  await db.prepare('DELETE FROM webauthn_challenges WHERE expires_at < ?').bind(before).run()
-}
-
-export function parseChallengeType(value: unknown): ChallengeType {
-  if (value !== 'registration' && value !== 'authentication') {
-    throw new HttpError('typeが不正です', 400)
-  }
-  return value
-}
-
-function parseDate(value: unknown): string {
-  if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
-    throw new HttpError('expiresAtが不正です', 400)
-  }
-  return value
-}
-
-function mapChallenge(row: ChallengeRow) {
-  return {
-    id: row.id,
-    challenge: row.challenge,
-    type: row.type,
-    person: row.person,
-    expiresAt: row.expires_at,
-    createdAt: row.created_at,
-  }
+  await db.prepare('DELETE FROM webauthn_challenges WHERE expires_at <= ?').bind(before).run()
 }

@@ -1,35 +1,16 @@
 import type { D1DatabaseLike, D1PreparedStatementLike, Runtime } from './d1'
 import { HttpError } from './http'
+import { assertHouseholdContext, type HouseholdContext } from './households'
 import {
-  assertRecordAmount,
-  assertObject,
-  parseBoolean,
-  parseInteger,
-  parseMonth,
-  parsePerson,
-  parseString,
+  assertRecordAmount, assertObject, parseBoolean, parseInteger,
+  parseMonth, parsePerson, parseString,
 } from './validation'
-import { insertRecordStatement } from './records'
+import { carryoverFingerprint, copyValidation, loadCarryoverSnapshot } from './copy-month-guard'
+import { listRecordsByMonth } from './records'
 
 type CopyMode = 'add' | 'skip' | 'replace'
 type ItemCopyMode = 'withAmount' | 'labelOnly'
-
-interface SourceItem {
-  id: string
-  label: string
-  amount: number
-  person: 'husband' | 'wife'
-  type: 'income' | 'expense'
-  is_carryover?: number
-}
-
-interface CarryoverSourceItem {
-  label: string
-  amount: number
-  person: 'husband' | 'wife'
-  is_cleared?: number
-}
-
+type CopyTable = 'incomes' | 'expenses' | 'carryovers'
 interface SelectedCopyItem {
   id: string
   label: string
@@ -39,203 +20,141 @@ interface SelectedCopyItem {
   itemCopyMode: ItemCopyMode
 }
 
-function getCarryoverCopyKey(item: Pick<CarryoverSourceItem, 'label' | 'amount' | 'person'>) {
-  return `${item.label}|${item.amount}|${item.person}`
-}
-
 export async function getCopyMonthPreview(
   db: D1DatabaseLike,
+  context: HouseholdContext,
   sourceMonth: string,
   targetMonth: string
 ) {
-  const [incomes, expenses, carryovers, targetIncomes, targetExpenses, targetCarryovers] =
-    await Promise.all([
-      db
-        .prepare('SELECT id, label, amount, person FROM incomes WHERE month = ? ORDER BY amount DESC, id ASC')
-        .bind(sourceMonth)
-        .all<SourceItem>(),
-      db
-        .prepare(
-          'SELECT id, label, amount, person, is_carryover FROM expenses WHERE month = ? ORDER BY amount ASC, id ASC'
-        )
-        .bind(sourceMonth)
-        .all<SourceItem>(),
-      db.prepare('SELECT id FROM carryovers WHERE month = ?').bind(sourceMonth).all<{ id: string }>(),
-      db.prepare('SELECT id FROM incomes WHERE month = ?').bind(targetMonth).all<{ id: string }>(),
-      db.prepare('SELECT id FROM expenses WHERE month = ?').bind(targetMonth).all<{ id: string }>(),
-      db.prepare('SELECT id FROM carryovers WHERE month = ?').bind(targetMonth).all<{ id: string }>(),
-    ])
-
-  const regularExpenses = expenses.results.filter((item) => item.is_carryover !== 1)
-  const carryoverExpenseCount = expenses.results.length - regularExpenses.length
-
+  assertHouseholdContext(context)
+  parseMonth(sourceMonth)
+  parseMonth(targetMonth)
+  const [incomes, expenses, snapshot, ...targets] = await Promise.all([
+    listRecordsByMonth(db, context, 'income', sourceMonth),
+    listRecordsByMonth(db, context, 'expense', sourceMonth),
+    loadCarryoverSnapshot(db, context, sourceMonth),
+    ...(['income', 'expense', 'carryover'] as const).map(type =>
+      listRecordsByMonth(db, context, type, targetMonth)
+    ),
+  ])
+  const items = [
+    ...incomes.map(({ id, label, amount, person }) => ({
+      id, label, amount, person, type: 'income' as const,
+    })),
+    ...expenses.filter(item => !('isCarryover' in item) || !item.isCarryover)
+      .map(({ id, label, amount, person }) => ({
+        id, label, amount, person, type: 'expense' as const,
+      })),
+  ]
   return {
     sourceMonth,
     targetMonth,
-    items: [
-      ...incomes.results.map((item) => ({ ...item, type: 'income' as const })),
-      ...regularExpenses.map((item) => ({
-        id: item.id,
-        label: item.label,
-        amount: item.amount,
-        person: item.person,
-        type: 'expense' as const,
-      })),
-    ],
-    carryoverCount: carryovers.results.length + carryoverExpenseCount,
-    existingCount:
-      targetIncomes.results.length + targetExpenses.results.length + targetCarryovers.results.length,
+    items,
+    carryoverCount: snapshot.length,
+    carryoverFingerprint: await carryoverFingerprint(snapshot),
+    existingCount: targets.reduce((sum, rows) => sum + rows.length, 0),
   }
 }
 
-export async function copyMonthData(db: D1DatabaseLike, runtime: Runtime, body: unknown) {
+export async function copyMonthData(
+  db: D1DatabaseLike,
+  runtime: Runtime,
+  context: HouseholdContext,
+  body: unknown
+) {
+  assertHouseholdContext(context)
   const input = assertObject(body)
   const targetMonth = parseMonth(input.targetMonth)
   const sourceMonth = parseMonth(input.sourceMonth)
+  if (sourceMonth === targetMonth) throw new HttpError('同じ月にはコピーできません', 400)
   const mode = parseCopyMode(input.mode)
   const includeCarryover = parseBoolean(input.includeCarryover, 'includeCarryover')
   const selectedItems = parseSelectedItems(input.selectedItems)
+  const snapshot = includeCarryover ? await loadCarryoverSnapshot(db, context, sourceMonth) : null
+  const fingerprintMatches = snapshot === null || (
+    typeof input.carryoverFingerprint === 'string' &&
+    await carryoverFingerprint(snapshot) === input.carryoverFingerprint
+  )
+  const guard = copyValidation(context, sourceMonth, selectedItems, snapshot, fingerprintMatches)
+  const guarded = (sql: string, ...params: unknown[]) =>
+    db.prepare(`${guard.sql} ${sql}`).bind(...guard.params, ...params)
 
+  // 全ガードはコピー元だけを参照し、コピー先の更新やrevisionトリガーでは変化しない。
+  const statements: D1PreparedStatementLike[] = [guarded('SELECT status FROM validation')]
+  const mutations: Array<{ index: number; type: CopyTable }> = []
   const result = {
     success: true,
     copied: { incomes: 0, expenses: 0, carryovers: 0 },
     skipped: { incomes: 0, expenses: 0, carryovers: 0 },
   }
-
-  const statements: D1PreparedStatementLike[] = []
-
   if (mode === 'replace') {
-    if (selectedItems.some((item) => item.type === 'income')) {
-      statements.push(db.prepare('DELETE FROM incomes WHERE month = ?').bind(targetMonth))
-    }
-    if (selectedItems.some((item) => item.type === 'expense')) {
-      statements.push(db.prepare('DELETE FROM expenses WHERE month = ?').bind(targetMonth))
-    }
-    if (includeCarryover) {
-      statements.push(db.prepare('DELETE FROM carryovers WHERE month = ?').bind(targetMonth))
+    for (const [type, table] of [
+      ['income', 'incomes'], ['expense', 'expenses'], ['carryover', 'carryovers'],
+    ] as const) {
+      if (type === 'carryover' ? includeCarryover : selectedItems.some(item => item.type === type)) {
+        statements.push(guarded(
+          `DELETE FROM ${table} WHERE household_id=? AND month=? AND (SELECT status FROM validation)=200`,
+          context.householdId, targetMonth
+        ))
+      }
     }
   }
 
-  const existing = mode === 'skip' ? await loadExistingKeys(db, targetMonth) : null
-
-  for (const item of selectedItems) {
-    const key = `${item.label}|${item.person}`
-    if (existing?.[item.type].has(key)) {
-      if (item.type === 'income') result.skipped.incomes++
-      else result.skipped.expenses++
+  // 通常項目のskipは、入力中の同キー項目を従来どおり別々にコピーする。
+  // 今回発行するIDを既存判定から除外し、事前読取後からbatch開始前のコピー先変更は反映する。
+  const selectedIds = selectedItems.map(() => runtime.randomUUID())
+  const insert = (
+    table: CopyTable,
+    item: { label: string; amount: number; person: string },
+    skip: boolean,
+    id: string
+  ) => {
+    const flag = table === 'incomes' ? '' : table === 'expenses' ? ',is_carryover' : ',is_cleared'
+    const duplicateCondition = table === 'carryovers'
+      ? ' AND amount=?'
+      : ' AND id NOT IN (SELECT value FROM json_each(?))'
+    const exists = skip
+      ? ` AND NOT EXISTS (SELECT 1 FROM ${table} WHERE household_id=? AND month=? AND label=? AND person=?${duplicateCondition})`
+      : ''
+    const now = runtime.now().toISOString()
+    const duplicateParams = skip ? [
+      context.householdId, targetMonth, item.label, item.person,
+      table === 'carryovers' ? item.amount : JSON.stringify(selectedIds),
+    ] : []
+    mutations.push({ index: statements.length, type: table })
+    statements.push(guarded(
+      `INSERT INTO ${table} (household_id,id,month,label,amount,person,created_at,updated_at${flag})
+      SELECT ?,?,?,?,?,?,?,?${flag ? ',0' : ''} WHERE (SELECT status FROM validation)=200${exists} RETURNING id`,
+      context.householdId, id, targetMonth, item.label, item.amount, item.person, now, now,
+      ...duplicateParams
+    ))
+  }
+  for (const [index, item] of selectedItems.entries()) {
+    const amount = item.itemCopyMode === 'labelOnly' ? (item.type === 'income' ? 1 : -1) : item.amount
+    insert(item.type === 'income' ? 'incomes' : 'expenses',
+      { ...item, amount }, mode === 'skip', selectedIds[index])
+  }
+  for (const item of snapshot ?? []) {
+    if (item.type === 'carryover' && item.flag === 1) {
+      result.skipped.carryovers++
       continue
     }
-
-    const amount =
-      item.itemCopyMode === 'labelOnly' ? (item.type === 'income' ? 1 : -1) : item.amount
-    statements.push(
-      insertRecordStatement(db, runtime, item.type, {
-        month: targetMonth,
-        label: item.label,
-        amount,
-        person: item.person,
-      })
-    )
-    if (item.type === 'income') result.copied.incomes++
-    else result.copied.expenses++
+    // 繰越は先行INSERTも含めて重複を排除する。
+    insert('carryovers', item, true, runtime.randomUUID())
   }
 
-  if (includeCarryover) {
-    const carryoverResult = await buildCarryoverStatements(
-      db,
-      runtime,
-      sourceMonth,
-      targetMonth,
-      mode,
-      statements
-    )
-    result.copied.carryovers = carryoverResult.copied
-    result.skipped.carryovers = carryoverResult.skipped
+  const results = await db.batch(statements)
+  const status = (results[0].results?.[0] as { status: number } | undefined)?.status
+  if (status === 404) throw new HttpError('データが見つかりません', 404)
+  if (status === 409) throw new HttpError('コピー元が変更されています。プレビューを再取得してください', 409)
+  if (status !== 200) throw new Error('コピーの検証結果を取得できません')
+  // D1のmeta.changesはtriggerの書込も含むため、実際の挿入行をRETURNINGで数える。
+  for (const { index, type } of mutations) {
+    if (results[index].results?.length === 1) result.copied[type]++
+    else result.skipped[type]++
   }
-
-  if (statements.length > 0) {
-    await db.batch(statements)
-  }
-
   return result
 }
-
-async function loadExistingKeys(db: D1DatabaseLike, targetMonth: string) {
-  const [incomes, expenses] = await Promise.all([
-    db.prepare('SELECT label, person FROM incomes WHERE month = ?').bind(targetMonth).all<{
-      label: string
-      person: string
-    }>(),
-    db.prepare('SELECT label, person FROM expenses WHERE month = ?').bind(targetMonth).all<{
-      label: string
-      person: string
-    }>(),
-  ])
-
-  return {
-    income: new Set(incomes.results.map((item) => `${item.label}|${item.person}`)),
-    expense: new Set(expenses.results.map((item) => `${item.label}|${item.person}`)),
-  }
-}
-
-async function buildCarryoverStatements(
-  db: D1DatabaseLike,
-  runtime: Runtime,
-  sourceMonth: string,
-  targetMonth: string,
-  mode: CopyMode,
-  statements: D1PreparedStatementLike[]
-) {
-  const [carryovers, carryoverExpenses] = await Promise.all([
-    db
-      .prepare('SELECT label, amount, person, is_cleared FROM carryovers WHERE month = ?')
-      .bind(sourceMonth)
-      .all<CarryoverSourceItem>(),
-    db
-      .prepare('SELECT label, amount, person FROM expenses WHERE month = ? AND is_carryover = 1')
-      .bind(sourceMonth)
-      .all<CarryoverSourceItem>(),
-  ])
-
-  const existingKeys =
-    mode !== 'replace'
-      ? new Set(
-          (
-            await db
-              .prepare('SELECT label, amount, person FROM carryovers WHERE month = ?')
-              .bind(targetMonth)
-              .all<Pick<CarryoverSourceItem, 'label' | 'amount' | 'person'>>()
-          ).results.map(getCarryoverCopyKey)
-        )
-      : new Set<string>()
-  const insertingKeys = new Set<string>()
-
-  let copied = 0
-  let skipped = 0
-  for (const item of [...carryovers.results, ...carryoverExpenses.results]) {
-    if (item.is_cleared === 1) {
-      skipped++
-      continue
-    }
-    const key = getCarryoverCopyKey(item)
-    if (existingKeys.has(key) || insertingKeys.has(key)) {
-      skipped++
-      continue
-    }
-    insertingKeys.add(key)
-    statements.push(
-      insertRecordStatement(db, runtime, 'carryover', {
-        month: targetMonth,
-        label: item.label,
-        amount: item.amount,
-        person: item.person,
-      })
-    )
-    copied++
-  }
-  return { copied, skipped }
-}
-
 function parseCopyMode(value: unknown): CopyMode {
   if (value !== 'add' && value !== 'skip' && value !== 'replace') {
     throw new HttpError('modeが不正です', 400)

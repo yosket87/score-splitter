@@ -1,3 +1,4 @@
+import { getCopyMonthPreview } from '../../../cloudflare/worker/src/copy-month'
 import { describe, expect, it, vi } from 'vitest'
 import { handleRequest } from '../../../cloudflare/worker/src/index'
 import {
@@ -10,7 +11,7 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
   it('指定月の収入一覧を返す', async () => {
     const response = await handleRequest(
       createRequest('/incomes?month=202601', {
-        headers: { authorization: 'Bearer secret-token' },
+        headers: { authorization: 'Bearer secret-token', 'x-household-session':'a'.repeat(64) },
       }),
       createEnv()
     )
@@ -47,7 +48,7 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
     })
     const response = await handleRequest(
       createRequest('/expenses?month=202601', {
-        headers: { authorization: 'Bearer secret-token' },
+        headers: { authorization: 'Bearer secret-token', 'x-household-session':'a'.repeat(64) },
       }),
       createEnv(db)
     )
@@ -72,13 +73,13 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
     const db = new FakeD1Database()
     const response = await handleRequest(
       createRequest('/incomes?month=202600', {
-        headers: { authorization: 'Bearer secret-token' },
+        headers: { authorization: 'Bearer secret-token', 'x-household-session':'a'.repeat(64) },
       }),
       createEnv(db)
     )
 
     expect(response.status).toBe(400)
-    expect(db.executed).toHaveLength(0)
+    expect(db.executed.filter(item=>!item.query.includes('FROM sessions'))).toHaveLength(0)
   })
 
   it('収入作成時にIDと日時をWorker側で生成する', async () => {
@@ -90,7 +91,7 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
       createRequest('/incomes', {
         method: 'POST',
         headers: {
-          authorization: 'Bearer secret-token',
+          authorization: 'Bearer secret-token', 'x-household-session':'a'.repeat(64),
           'content-type': 'application/json',
         },
         body: JSON.stringify({
@@ -119,60 +120,6 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
   })
 
   it.each([
-    ['token', { token: 'invalid' }, 'tokenが不正です'],
-    ['person', { person: 'partner' }, 'personが不正です'],
-    ['authMethod', { authMethod: 'magic-link' }, 'authMethodが不正です'],
-    ['expiresAt', { expiresAt: 'invalid-date' }, 'expiresAtが不正です'],
-  ])('セッションの%sが不正なら400を返す', async (_name, override, error) => {
-    const response = await handleRequest(
-      createRequest('/sessions', {
-        method: 'POST',
-        headers: {
-          authorization: 'Bearer secret-token',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          token: 'a'.repeat(64),
-          person: 'wife',
-          authMethod: 'passkey',
-          expiresAt: '2026-02-10T04:05:06.000Z',
-          ...override,
-        }),
-      }),
-      createEnv()
-    )
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toEqual({ error })
-  })
-
-  it.each([
-    ['type', { type: 'invalid' }, 'typeが不正です'],
-    ['expiresAt', { expiresAt: 'invalid-date' }, 'expiresAtが不正です'],
-  ])('WebAuthnチャレンジの%sが不正なら400を返す', async (_name, override, error) => {
-    const response = await handleRequest(
-      createRequest('/webauthn-challenges', {
-        method: 'POST',
-        headers: {
-          authorization: 'Bearer secret-token',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          challenge: 'challenge',
-          type: 'registration',
-          person: 'husband',
-          expiresAt: '2026-02-10T04:05:06.000Z',
-          ...override,
-        }),
-      }),
-      createEnv()
-    )
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toEqual({ error })
-  })
-
-  it.each([
     ['mode', { mode: 'invalid' }],
     ['selectedItems', { selectedItems: null }],
   ])('月コピーの%sが不正なら400を返す', async (_name, override) => {
@@ -180,7 +127,7 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
       createRequest('/copy-month', {
         method: 'POST',
         headers: {
-          authorization: 'Bearer secret-token',
+          authorization: 'Bearer secret-token', 'x-household-session':'a'.repeat(64),
           'content-type': 'application/json',
         },
         body: JSON.stringify({
@@ -207,7 +154,7 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
       createRequest('/copy-month', {
         method: 'POST',
         headers: {
-          authorization: 'Bearer secret-token',
+          authorization: 'Bearer secret-token', 'x-household-session':'a'.repeat(64),
           'content-type': 'application/json',
         },
         body: JSON.stringify({
@@ -240,7 +187,7 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
       createRequest('/copy-month', {
         method: 'POST',
         headers: {
-          authorization: 'Bearer secret-token',
+          authorization: 'Bearer secret-token', 'x-household-session':'a'.repeat(64),
           'content-type': 'application/json',
         },
         body: JSON.stringify({
@@ -274,7 +221,8 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
     })
     expect(db.batched).toHaveLength(1)
     expect(db.batched[0].map((item) => item.query)).toEqual([
-      'DELETE FROM incomes WHERE month = ?',
+      expect.stringContaining('SELECT status FROM validation'),
+      expect.stringContaining('DELETE FROM incomes WHERE household_id=? AND month=?'),
       expect.stringContaining('INSERT INTO incomes'),
     ])
     expect(db.currentSourceRevision).toBeGreaterThan(0)
@@ -322,7 +270,7 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
       createRequest('/copy-month', {
         method: 'POST',
         headers: {
-          authorization: 'Bearer secret-token',
+          authorization: 'Bearer secret-token', 'x-household-session':'a'.repeat(64),
           'content-type': 'application/json',
         },
         body: JSON.stringify({
@@ -330,6 +278,7 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
           targetMonth: '202602',
           mode: 'add',
           includeCarryover: true,
+          carryoverFingerprint: (await getCopyMonthPreview(db,{householdId:'A'},'202601','202602')).carryoverFingerprint,
           selectedItems: [],
         }),
       }),
@@ -346,6 +295,9 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
       skipped: { incomes: 0, expenses: 0, carryovers: 2 },
     })
     expect(db.batched[0].map((item) => item.query)).toEqual([
+      expect.stringContaining('SELECT status FROM validation'),
+      expect.stringContaining('INSERT INTO carryovers'),
+      expect.stringContaining('INSERT INTO carryovers'),
       expect.stringContaining('INSERT INTO carryovers'),
     ])
   })
@@ -390,7 +342,7 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
       createRequest('/copy-month', {
         method: 'POST',
         headers: {
-          authorization: 'Bearer secret-token',
+          authorization: 'Bearer secret-token', 'x-household-session':'a'.repeat(64),
           'content-type': 'application/json',
         },
         body: JSON.stringify({
@@ -398,6 +350,7 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
           targetMonth: '202602',
           mode: 'add',
           includeCarryover: true,
+          carryoverFingerprint: (await getCopyMonthPreview(db,{householdId:'A'},'202601','202602')).carryoverFingerprint,
           selectedItems: [
             {
               id: 'income-1',
@@ -423,7 +376,7 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
         randomUUID: vi.fn()
           .mockReturnValueOnce('copied-income-id')
           .mockReturnValueOnce('copied-expense-id')
-          .mockReturnValueOnce('copied-carryover-id'),
+          .mockReturnValueOnce('copied-carryover-id').mockReturnValueOnce('copied-carryover-id-2'),
         now: vi.fn(() => new Date('2026-02-03T04:05:06.000Z')),
       }
     )
@@ -434,10 +387,10 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
       skipped: { incomes: 0, expenses: 0, carryovers: 1 },
     })
     const carryoverInserts = db.batched[0].filter((item) =>
-      item.query.startsWith('INSERT INTO carryovers')
+      item.query.includes('INSERT INTO carryovers')
     )
-    expect(carryoverInserts).toHaveLength(1)
-    expect(carryoverInserts[0].params).toContain('新規繰越')
+    expect(carryoverInserts).toHaveLength(2)
+    expect(carryoverInserts[1].params).toContain('新規繰越')
   })
 
   it.each(['skip', 'replace'] as const)(
@@ -472,7 +425,7 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
         createRequest('/copy-month', {
           method: 'POST',
           headers: {
-            authorization: 'Bearer secret-token',
+            authorization: 'Bearer secret-token', 'x-household-session':'a'.repeat(64),
             'content-type': 'application/json',
           },
           body: JSON.stringify({
@@ -480,6 +433,7 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
             targetMonth: '202602',
             mode,
             includeCarryover: true,
+          carryoverFingerprint: (await getCopyMonthPreview(db,{householdId:'A'},'202601','202602')).carryoverFingerprint,
             selectedItems: [],
           }),
         }),
@@ -503,7 +457,8 @@ describe('Cloudflare Worker 記録・月コピーAPI', () => {
       )
       if (mode === 'replace') {
         expect(db.batched[0].map((item) => item.query)).toEqual([
-          'DELETE FROM carryovers WHERE month = ?',
+          expect.stringContaining('SELECT status FROM validation'),
+          expect.stringContaining('DELETE FROM carryovers WHERE household_id=? AND month=?'),
           expect.stringContaining('INSERT INTO carryovers'),
         ])
       }

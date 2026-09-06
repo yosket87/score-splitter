@@ -121,8 +121,20 @@ Next.js 16のApp Routerを使用し、Server ComponentsとServer Actionsを中�
 ```
 リクエスト
     ↓
-middleware.ts（認証チェック）
+middleware.ts（Cookie等による画面入口の確認）
     ↓
-├── 認証済み → ページ表示
-└── 未認証 → /login へリダイレクト
+Server Action / RSC の認証境界
+    ↓
+D1 sessionのtoken・期限・実在householdを検証
+    ↓
+├── 有効 → householdId/person/authMethodの不変snapshot
+└── 無効 → 認証拒否 / loginへ誘導
 ```
+
+世帯対応の共通入口は `src/lib/household-context.ts`。middlewareやlayoutだけを認可境界とみなさず、データ操作ごとに認証済み世帯を渡す。householdIdは家計担当者のpersonとは別概念。Cookieのtokenや内部Bearerはクライアントコンポーネントへ渡さない。
+
+認証前の内部HTTPは `/internal/auth/*`、パスキー管理と登録challengeはDB session必須の管理ルートへ分ける。認証challengeはNULL所属で、登録challengeは認証済み世帯に属する。短期httpOnly cookieで試行IDをブラウザへ紐づけ、期限・type・世帯/personと照合して原子的に消費する。署名検証失敗後はoptionsを取り直す。
+
+全家計経路へのcontext伝播と0011は実装済み。月・年・設定画面はサーバー由来の世帯keyで状態を分け、非同期処理は画面の寿命を確認してからstorage・toast・再取得を更新する。振込pendingは世帯＋月のsessionStorageへ保存する。旧月キーは移管・再送せず、DBから解決した既存世帯との一致をサーバーが確認した画面だけで結果照会・解消する。
+
+最終DB制約0012と全体検証は段階実装中。[認可設計](adr/0001-household-isolation.md)、[SQL台帳](household-data-paths.md)、[段階リリース手順](household-release-runbook.md)を参照。

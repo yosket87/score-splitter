@@ -3,6 +3,9 @@ import '../../../tests/mocks/next'
 import { mockHeaders, mockRedirect } from '../../../tests/mocks/next'
 import { createFormData } from '../../../tests/mocks/helpers'
 
+const householdMocks = vi.hoisted(() => ({ getLegacyHouseholdContext: vi.fn(async () => ({ householdId: 'A' })) }))
+vi.mock('@/lib/api/households', () => householdMocks)
+
 vi.mock('bcryptjs', () => ({
   default: {
     compare: vi.fn(),
@@ -66,8 +69,9 @@ describe('auth actions', () => {
       ).rejects.toThrow('NEXT_REDIRECT:/')
 
       expect(bcrypt.compare).toHaveBeenCalledWith('correct-password', mockHash)
+      expect(vi.mocked(bcrypt.compare).mock.invocationCallOrder[0]).toBeLessThan(householdMocks.getLegacyHouseholdContext.mock.invocationCallOrder[0])
       expect(loginAttemptMocks.resetLoginAttempts).toHaveBeenCalledWith(expect.any(String))
-      expect(createSession).toHaveBeenCalledWith(null, 'password')
+      expect(createSession).toHaveBeenCalledWith({ householdId: 'A' }, null, 'password')
     })
 
     it('環境変数からハッシュを取得して認証失敗', async () => {
@@ -85,6 +89,7 @@ describe('auth actions', () => {
         expect.any(String)
       )
       expect(createSession).not.toHaveBeenCalled()
+      expect(householdMocks.getLegacyHouseholdContext).not.toHaveBeenCalled()
     })
 
     it('試行上限時はbcrypt.compareに到達せずロック文言を返す', async () => {
@@ -106,6 +111,7 @@ describe('auth actions', () => {
       expect(bcrypt.compare).not.toHaveBeenCalled()
       expect(loginAttemptMocks.recordFailedLoginAttempt).not.toHaveBeenCalled()
       expect(createSession).not.toHaveBeenCalled()
+      expect(householdMocks.getLegacyHouseholdContext).not.toHaveBeenCalled()
     })
 
     it('環境変数がない場合は認証設定エラーを返す', async () => {

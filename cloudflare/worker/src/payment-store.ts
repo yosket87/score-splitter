@@ -1,3 +1,4 @@
+import { assertHouseholdContext, type HouseholdContext } from './households'
 import type { D1DatabaseLike, Runtime } from './d1'
 import type { Session } from '../../../src/types'
 import type {
@@ -31,20 +32,22 @@ interface PaymentMonthData {
 
 export async function readPaymentMonth(
   db: D1DatabaseLike,
+  context: HouseholdContext,
   month: string
 ): Promise<PaymentMonthData> {
+  assertHouseholdContext(context)
   const result = await db.batch([
-    db.prepare('SELECT revision FROM month_payment_revisions WHERE month = ?').bind(month),
+    db.prepare('SELECT revision FROM month_payment_revisions WHERE household_id = ? AND month = ?').bind(context.householdId, month),
     ...['incomes', 'expenses', 'carryovers'].map(table =>
-      db.prepare(`SELECT * FROM ${table} WHERE month = ? ORDER BY id`).bind(month)
+      db.prepare(`SELECT * FROM ${table} WHERE household_id = ? AND month = ? ORDER BY id`).bind(context.householdId, month)
     ),
     db.prepare(`
       SELECT p.*, o.actor_person, o.actor_auth_method, v.created_at AS voided_at, v.reason
       FROM payment_records p
-      JOIN payment_operations o ON o.id = p.operation_id
-      LEFT JOIN payment_voids v ON v.payment_id = p.id
-      WHERE p.month = ? ORDER BY p.created_at DESC, p.id DESC
-    `).bind(month),
+      JOIN payment_operations o ON o.household_id = p.household_id AND o.id = p.operation_id
+      LEFT JOIN payment_voids v ON v.household_id = p.household_id AND v.payment_id = p.id
+      WHERE p.household_id = ? AND p.month = ? ORDER BY p.created_at DESC, p.id DESC
+    `).bind(context.householdId, month),
   ])
   if (result.some(statement => !statement.success)) {
     throw new HttpError('振込状況を取得できませんでした', 500)
@@ -70,19 +73,22 @@ export async function readPaymentMonth(
   }
 }
 
-export async function findOperation(db: D1DatabaseLike, id: string) {
+export async function findOperation(db: D1DatabaseLike, context: HouseholdContext, id: string) {
+  assertHouseholdContext(context)
   return db
-    .prepare('SELECT month, input_json, result_json FROM payment_operations WHERE id = ?')
-    .bind(id)
+    .prepare('SELECT month, input_json, result_json FROM payment_operations WHERE household_id = ? AND id = ?')
+    .bind(context.householdId, id)
     .first<{ month: string; input_json: string; result_json: string }>()
 }
 
 export async function replayOperation(
   db: D1DatabaseLike,
+  context: HouseholdContext,
   id: string,
   inputJson: string
 ): Promise<PaymentOperationResult | null> {
-  const existing = await findOperation(db, id)
+  assertHouseholdContext(context)
+  const existing = await findOperation(db, context, id)
   if (!existing) return null
   if (existing.input_json !== inputJson) {
     throw new HttpError('同じ操作キーで異なる内容は記録できません', 409)
@@ -110,9 +116,11 @@ interface WriteOperation {
 /** 操作・取消・置換を一つのbatchで確定する。途中失敗では全件ロールバックする。 */
 export async function writeOperation(
   db: D1DatabaseLike,
+  context: HouseholdContext,
   runtime: Runtime,
   input: WriteOperation
 ): Promise<PaymentOperationResult> {
+  assertHouseholdContext(context)
   const now = runtime.now().toISOString()
   const paymentId = input.payment ? runtime.randomUUID() : null
   const result: PaymentOperationResult = {
@@ -125,40 +133,40 @@ export async function writeOperation(
   const statements = [
     db.prepare(`
       INSERT INTO payment_operations(
-        id,month,kind,expected_revision,input_json,result_json,
+        household_id,id,month,kind,expected_revision,input_json,result_json,
         actor_person,actor_auth_method,created_at
-      ) VALUES(?,?,?,?,?,?,?,?,?)
+      ) VALUES(?,?,?,?,?,?,?,?,?,?)
     `).bind(
-      input.operationId, input.month, input.kind, input.expectedRevision,
+      context.householdId, input.operationId, input.month, input.kind, input.expectedRevision,
       input.inputJson, JSON.stringify(result), input.actor.person,
       input.actor.authMethod, now
     ),
   ]
   if (input.voidPayment) {
     statements.push(db.prepare(`
-      INSERT INTO payment_voids(id,operation_id,payment_id,reason,created_at)
-      VALUES(?,?,?,?,?)
+      INSERT INTO payment_voids(household_id,id,operation_id,payment_id,reason,created_at)
+      VALUES(?,?,?,?,?,?)
     `).bind(
-      runtime.randomUUID(), input.operationId, input.voidPayment.id,
+      context.householdId, runtime.randomUUID(), input.operationId, input.voidPayment.id,
       input.voidPayment.reason, now
     ))
   }
   if (input.payment) {
     statements.push(db.prepare(`
       INSERT INTO payment_records(
-        id,operation_id,month,signed_yen,paid_on,created_at,
+        household_id,id,operation_id,month,signed_yen,paid_on,created_at,
         snapshot_json,calculation_version,rounding_version
-      ) VALUES(?,?,?,?,?,?,?,?,?)
+      ) VALUES(?,?,?,?,?,?,?,?,?,?)
     `).bind(
-      paymentId, input.operationId, input.month, input.payment.signedYen,
+      context.householdId, paymentId, input.operationId, input.month, input.payment.signedYen,
       input.payment.paidOn, now, JSON.stringify(input.payment.snapshot),
       'equal-surplus-v1', 'toward-zero-yen-v1'
     ))
   }
   statements.push(db.prepare(`
-    INSERT INTO month_payment_revisions(month,revision) VALUES(?,1)
-    ON CONFLICT(month) DO UPDATE SET revision=revision+1
-  `).bind(input.month))
+    INSERT INTO month_payment_revisions(household_id,month,revision) VALUES(?,?,1)
+    ON CONFLICT(household_id,month) DO UPDATE SET revision=revision+1
+  `).bind(context.householdId, input.month))
   try {
     const results = await db.batch(statements)
     if (results.some(statement => !statement.success)) {
@@ -166,9 +174,9 @@ export async function writeOperation(
     }
     return result
   } catch (error) {
-    const replay = await replayOperation(db, input.operationId, input.inputJson)
+    const replay = await replayOperation(db, context, input.operationId, input.inputJson)
     if (replay) return replay
-    const conflictPattern = /PAYMENT_REVISION_CONFLICT|UNIQUE constraint failed: payment_voids.payment_id/
+    const conflictPattern = /PAYMENT_REVISION_CONFLICT|UNIQUE constraint failed: payment_voids.household_id, payment_voids.payment_id/
     if (error instanceof Error && conflictPattern.test(error.message)) {
       throw new HttpError('確認後にデータが変更されました。最新の振込状況を確認してください', 409)
     }

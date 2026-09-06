@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
+import { useRequestGuard } from '@/hooks/use-request-guard'
 import { Loader2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -39,6 +40,7 @@ export function DeleteButton({
   trigger,
   onCloseAutoFocus,
 }: DeleteButtonProps) {
+  const captureRequest = useRequestGuard()
   const [internalOpen, setInternalOpen] = useState(false)
   const open = controlledOpen ?? internalOpen
   function setOpen(nextOpen: boolean) {
@@ -49,9 +51,11 @@ export function DeleteButton({
   const accessibleLabel = label ?? `${itemName}を削除`
 
   async function handleDelete() {
+    const isCurrent = captureRequest()
     setPending(true)
     try {
       const result = await onDelete()
+      if (!isCurrent()) return
       if (isFailedActionResult(result)) {
         toast.error(result.error ?? '削除に失敗しました')
         return
@@ -59,9 +63,9 @@ export function DeleteButton({
       setOpen(false)
       onDeleted?.()
     } catch {
-      toast.error('削除に失敗しました')
+      if (isCurrent()) toast.error('削除に失敗しました')
     } finally {
-      setPending(false)
+      if (isCurrent()) setPending(false)
     }
   }
 

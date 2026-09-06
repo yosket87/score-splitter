@@ -42,7 +42,7 @@ describe('carryover actions', () => {
 
     const result = await getCarryoversByMonth('202601')
 
-    expect(mockRecordsApi.getCarryoversByMonth).toHaveBeenCalledWith('202601')
+    expect(mockRecordsApi.getCarryoversByMonth).toHaveBeenCalledWith({householdId:'A',person:null,authMethod:'password'}, '202601')
     expect(result).toEqual({ success: true, data: carryovers })
   })
 
@@ -79,7 +79,7 @@ describe('carryover actions', () => {
       })
     )
 
-    expect(mockRecordsApi.createCarryover).toHaveBeenCalledWith({
+    expect(mockRecordsApi.createCarryover).toHaveBeenCalledWith({householdId:'A',person:null,authMethod:'password'}, {
       month: '202601',
       label: '立替',
       amount: -10000,
@@ -129,7 +129,7 @@ describe('carryover actions', () => {
       })
     )
 
-    expect(mockRecordsApi.updateCarryover).toHaveBeenCalledWith('carryover-1', {
+    expect(mockRecordsApi.updateCarryover).toHaveBeenCalledWith({householdId:'A',person:null,authMethod:'password'}, 'carryover-1', {
       month: '202601',
       label: '更新後',
       amount: -5000,
@@ -144,7 +144,7 @@ describe('carryover actions', () => {
 
     const result = await toggleCarryoverCleared('carryover-1', true, '202601')
 
-    expect(mockRecordsApi.toggleCarryoverCleared).toHaveBeenCalledWith('carryover-1', true)
+    expect(mockRecordsApi.toggleCarryoverCleared).toHaveBeenCalledWith({householdId:'A',person:null,authMethod:'password'}, 'carryover-1', true)
     expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/01')
     expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
     expect(result).toEqual({ success: true })
@@ -155,7 +155,7 @@ describe('carryover actions', () => {
 
     const result = await deleteCarryover('carryover-1', '202601')
 
-    expect(mockRecordsApi.deleteCarryover).toHaveBeenCalledWith('carryover-1')
+    expect(mockRecordsApi.deleteCarryover).toHaveBeenCalledWith({householdId:'A',person:null,authMethod:'password'}, 'carryover-1')
     expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/01')
     expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
     expect(result).toEqual({ success: true })

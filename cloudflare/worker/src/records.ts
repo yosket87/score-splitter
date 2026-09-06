@@ -1,3 +1,4 @@
+import { assertHouseholdContext, type HouseholdContext } from './households'
 import type { D1DatabaseLike, D1PreparedStatementLike, Runtime } from './d1'
 import { HttpError } from './http'
 import {
@@ -81,9 +82,11 @@ export function mapRecord(type: RecordType, row: RecordRow) {
 
 export async function listRecordsByMonth(
   db: D1DatabaseLike,
+  context: HouseholdContext,
   type: RecordType,
   month: string
 ) {
+  assertHouseholdContext(context)
   const table = TABLE_BY_TYPE[type]
   const order =
     type === 'income'
@@ -92,16 +95,17 @@ export async function listRecordsByMonth(
         ? 'amount ASC, id ASC'
         : 'created_at ASC, id ASC'
   const { results } = await db
-    .prepare(`SELECT * FROM ${table} WHERE month = ? ORDER BY ${order}`)
-    .bind(month)
+    .prepare(`SELECT * FROM ${table} WHERE household_id = ? AND month = ? ORDER BY ${order}`)
+    .bind(context.householdId, month)
     .all<RecordRow>()
   return results.map((row) => mapRecord(type, row))
 }
 
-export async function listMonthlyAmounts(db: D1DatabaseLike) {
+export async function listMonthlyAmounts(db: D1DatabaseLike, context: HouseholdContext) {
+  assertHouseholdContext(context)
   const [incomes, expenses] = await Promise.all([
-    db.prepare('SELECT month, amount FROM incomes').all<{ month: string; amount: number }>(),
-    db.prepare('SELECT month, amount FROM expenses').all<{ month: string; amount: number }>(),
+    db.prepare('SELECT month, amount FROM incomes WHERE household_id = ?').bind(context.householdId).all<{ month: string; amount: number }>(),
+    db.prepare('SELECT month, amount FROM expenses WHERE household_id = ?').bind(context.householdId).all<{ month: string; amount: number }>(),
   ])
 
   return {
@@ -113,9 +117,11 @@ export async function listMonthlyAmounts(db: D1DatabaseLike) {
 export async function createRecord(
   db: D1DatabaseLike,
   runtime: Runtime,
+  context: HouseholdContext,
   type: RecordType,
   body: unknown
 ) {
+  assertHouseholdContext(context)
   const input = assertObject(body)
   const id = runtime.randomUUID()
   const now = runtime.now().toISOString()
@@ -129,9 +135,9 @@ export async function createRecord(
     const isCarryover = parseBoolean(input.isCarryover ?? false, 'isCarryover')
     await db
       .prepare(
-        'INSERT INTO expenses (id, month, label, amount, person, is_carryover, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO expenses (household_id, id, month, label, amount, person, is_carryover, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
       )
-      .bind(id, month, label, amount, person, isCarryover ? 1 : 0, now, now)
+      .bind(context.householdId, id, month, label, amount, person, isCarryover ? 1 : 0, now, now)
       .run()
     return {
       id,
@@ -148,9 +154,9 @@ export async function createRecord(
     const isCleared = parseBoolean(input.isCleared ?? false, 'isCleared')
     await db
       .prepare(
-        'INSERT INTO carryovers (id, month, label, amount, person, is_cleared, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO carryovers (household_id, id, month, label, amount, person, is_cleared, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
       )
-      .bind(id, month, label, amount, person, isCleared ? 1 : 0, now, now)
+      .bind(context.householdId, id, month, label, amount, person, isCleared ? 1 : 0, now, now)
       .run()
     return {
       id,
@@ -165,9 +171,9 @@ export async function createRecord(
 
   await db
     .prepare(
-      'INSERT INTO incomes (id, month, label, amount, person, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO incomes (household_id, id, month, label, amount, person, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     )
-    .bind(id, month, label, amount, person, now, now)
+    .bind(context.householdId, id, month, label, amount, person, now, now)
     .run()
   return { id, month, label, amount, person, createdAt: now }
 }
@@ -175,10 +181,12 @@ export async function createRecord(
 export async function updateRecord(
   db: D1DatabaseLike,
   runtime: Runtime,
+  context: HouseholdContext,
   type: RecordType,
   id: string,
   body: unknown
 ) {
+  assertHouseholdContext(context)
   const input = assertObject(body)
   const now = runtime.now().toISOString()
   const label = parseString(input.label, 'label')
@@ -195,11 +203,11 @@ ai_category = CASE WHEN label = ? THEN ai_category ELSE NULL END,
 ai_category_source = CASE WHEN label = ? THEN ai_category_source ELSE NULL END,
 ai_categorized_at = CASE WHEN label = ? THEN ai_categorized_at ELSE NULL END,
 label = ?, amount = ?, person = ?, is_carryover = ?, updated_at = ?
-WHERE id = ?`
+WHERE id = ? AND household_id = ?`
       )
-      .bind(label, label, label, label, amount, person, isCarryover ? 1 : 0, now, id)
+      .bind(label, label, label, label, amount, person, isCarryover ? 1 : 0, now, id, context.householdId)
       .run()
-    const row = await getRecordRow(db, 'expenses', id)
+    const row = await getRecordRow(db, context, 'expenses', id)
     return mapExpense(row)
   }
 
@@ -207,55 +215,62 @@ WHERE id = ?`
     const isCleared = parseBoolean(input.isCleared ?? false, 'isCleared')
     await db
       .prepare(
-        'UPDATE carryovers SET label = ?, amount = ?, person = ?, is_cleared = ?, updated_at = ? WHERE id = ?'
+        'UPDATE carryovers SET label = ?, amount = ?, person = ?, is_cleared = ?, updated_at = ? WHERE id = ? AND household_id = ?'
       )
-      .bind(label, amount, person, isCleared ? 1 : 0, now, id)
+      .bind(label, amount, person, isCleared ? 1 : 0, now, id, context.householdId)
       .run()
-    const row = await getRecordRow(db, 'carryovers', id)
+    const row = await getRecordRow(db, context, 'carryovers', id)
     return mapCarryover(row)
   }
 
   await db
-    .prepare('UPDATE incomes SET label = ?, amount = ?, person = ?, updated_at = ? WHERE id = ?')
-    .bind(label, amount, person, now, id)
+    .prepare('UPDATE incomes SET label = ?, amount = ?, person = ?, updated_at = ? WHERE id = ? AND household_id = ?')
+    .bind(label, amount, person, now, id, context.householdId)
     .run()
-  const row = await getRecordRow(db, 'incomes', id)
+  const row = await getRecordRow(db, context, 'incomes', id)
   return mapIncome(row)
 }
 
 export async function patchRecordFlag(
   db: D1DatabaseLike,
   runtime: Runtime,
+  context: HouseholdContext,
   type: 'expense' | 'carryover',
   id: string,
   body: unknown
 ) {
+  assertHouseholdContext(context)
   const input = assertObject(body)
   const now = runtime.now().toISOString()
   if (type === 'expense') {
     const isCarryover = parseBoolean(input.isCarryover, 'isCarryover')
-    await db
-      .prepare('UPDATE expenses SET is_carryover = ?, updated_at = ? WHERE id = ?')
-      .bind(isCarryover ? 1 : 0, now, id)
+    const result = await db
+      .prepare('UPDATE expenses SET is_carryover = ?, updated_at = ? WHERE id = ? AND household_id = ?')
+      .bind(isCarryover ? 1 : 0, now, id, context.householdId)
       .run()
+    assertChanged(result)
     return
   }
 
   const isCleared = parseBoolean(input.isCleared, 'isCleared')
-  await db
-    .prepare('UPDATE carryovers SET is_cleared = ?, updated_at = ? WHERE id = ?')
-    .bind(isCleared ? 1 : 0, now, id)
+  const result = await db
+    .prepare('UPDATE carryovers SET is_cleared = ?, updated_at = ? WHERE id = ? AND household_id = ?')
+    .bind(isCleared ? 1 : 0, now, id, context.householdId)
     .run()
+  assertChanged(result)
 }
 
-export async function deleteRecord(db: D1DatabaseLike, type: RecordType, id: string) {
+export async function deleteRecord(db: D1DatabaseLike, context: HouseholdContext, type: RecordType, id: string) {
+  assertHouseholdContext(context)
   const table = TABLE_BY_TYPE[type]
-  await db.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id).run()
+  const result = await db.prepare(`DELETE FROM ${table} WHERE id = ? AND household_id = ?`).bind(id, context.householdId).run()
+  assertChanged(result)
 }
 
 export function insertRecordStatement(
   db: D1DatabaseLike,
   runtime: Runtime,
+  context: HouseholdContext,
   type: RecordType,
   item: {
     month: string
@@ -266,33 +281,39 @@ export function insertRecordStatement(
     isCleared?: boolean
   }
 ): D1PreparedStatementLike {
+  assertHouseholdContext(context)
   const id = runtime.randomUUID()
   const now = runtime.now().toISOString()
   if (type === 'expense') {
     return db
       .prepare(
-        'INSERT INTO expenses (id, month, label, amount, person, is_carryover, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO expenses (household_id, id, month, label, amount, person, is_carryover, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
       )
-      .bind(id, item.month, item.label, item.amount, item.person, item.isCarryover ? 1 : 0, now, now)
+      .bind(context.householdId, id, item.month, item.label, item.amount, item.person, item.isCarryover ? 1 : 0, now, now)
   }
   if (type === 'carryover') {
     return db
       .prepare(
-        'INSERT INTO carryovers (id, month, label, amount, person, is_cleared, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO carryovers (household_id, id, month, label, amount, person, is_cleared, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
       )
-      .bind(id, item.month, item.label, item.amount, item.person, item.isCleared ? 1 : 0, now, now)
+      .bind(context.householdId, id, item.month, item.label, item.amount, item.person, item.isCleared ? 1 : 0, now, now)
   }
   return db
     .prepare(
-      'INSERT INTO incomes (id, month, label, amount, person, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO incomes (household_id, id, month, label, amount, person, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     )
-    .bind(id, item.month, item.label, item.amount, item.person, now, now)
+    .bind(context.householdId, id, item.month, item.label, item.amount, item.person, now, now)
 }
 
-async function getRecordRow(db: D1DatabaseLike, table: TableName, id: string): Promise<RecordRow> {
-  const row = await db.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(id).first<RecordRow>()
+async function getRecordRow(db: D1DatabaseLike, context: HouseholdContext, table: TableName, id: string): Promise<RecordRow> {
+  assertHouseholdContext(context)
+  const row = await db.prepare(`SELECT * FROM ${table} WHERE id = ? AND household_id = ?`).bind(id, context.householdId).first<RecordRow>()
   if (!row) {
     throw new HttpError('データが見つかりません', 404)
   }
   return row
+}
+
+function assertChanged(result: { meta?: { changes?: number } }) {
+  if (!result.meta?.changes) throw new HttpError('データが見つかりません', 404)
 }

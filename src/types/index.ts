@@ -97,6 +97,7 @@ export interface SelectedCopyItem extends CopyItem {
 
 // 月コピーのオプション
 export interface CopyMonthOptions {
+  carryoverFingerprint?: string
   sourceMonth: string // コピー元月
   targetMonth: string // コピー先月
   mode: CopyMode // 重複時の処理モード
@@ -122,6 +123,7 @@ export interface CopyMonthResult {
 
 // 月コピーのプレビュー
 export interface CopyMonthPreview {
+  carryoverFingerprint: string
   sourceMonth: string
   targetMonth: string
   items: CopyItem[] // 収入・支出の項目リスト

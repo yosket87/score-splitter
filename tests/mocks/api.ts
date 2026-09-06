@@ -1,5 +1,7 @@
 import { vi } from 'vitest'
 
+vi.mock('server-only', () => ({}))
+
 const recordsApiMock = vi.hoisted(() => ({
   getIncomesByMonth: vi.fn(),
   createIncome: vi.fn(),
@@ -39,8 +41,8 @@ const passkeysApiMock = vi.hoisted(() => ({
   updatePasskeyCounter: vi.fn(),
   deletePasskey: vi.fn(),
   createChallenge: vi.fn(),
-  getLatestChallenge: vi.fn(),
-  deleteChallenges: vi.fn(),
+  consumeChallenge: vi.fn(),
+  findAuthenticationCredential: vi.fn(),
   deleteExpiredChallenges: vi.fn(),
 }))
 

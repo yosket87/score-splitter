@@ -1,3 +1,6 @@
+import 'server-only'
+import { assertHouseholdContext, type HouseholdContext } from '../../../cloudflare/worker/src/households'
+import { householdSessionToken } from './household-session'
 import { z } from 'zod'
 import { getDatabase, isWorkerApiMockEnabled, runD1Operation } from './backend'
 import { apiRequest } from './client'
@@ -17,16 +20,17 @@ const monthlyAmountsSchema = z.object({
 
 const monthlyAmountsEnvelopeSchema = apiEnvelopeSchema(monthlyAmountsSchema)
 
-export async function getMonthlyAmounts(): Promise<{
+export async function getMonthlyAmounts(context: HouseholdContext): Promise<{
   incomes: MonthlyAmountRow[]
   expenses: MonthlyAmountRow[]
 }> {
+  assertHouseholdContext(context)
   if (!isWorkerApiMockEnabled()) {
-    return runD1Operation(() => listMonthlyAmounts(getDatabase()))
+    return runD1Operation(() => listMonthlyAmounts(getDatabase(), context))
   }
 
   const response = await apiRequest<
     ApiEnvelope<{ incomes: MonthlyAmountRow[]; expenses: MonthlyAmountRow[] }>
-  >('/monthly-amounts', { responseSchema: monthlyAmountsEnvelopeSchema })
+  >('/monthly-amounts', { responseSchema: monthlyAmountsEnvelopeSchema, sessionToken: await householdSessionToken(context) })
   return response.data
 }

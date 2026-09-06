@@ -1,3 +1,6 @@
+import 'server-only'
+import { assertHouseholdContext, type HouseholdContext } from '../../../cloudflare/worker/src/households'
+import { householdSessionToken } from './household-session'
 import { z } from 'zod'
 import { apiRequest } from './client'
 import { getDatabase, getRuntime, isWorkerApiMockEnabled, runD1Operation } from './backend'
@@ -112,40 +115,45 @@ const saveDiagnosisInputSchema: z.ZodType<SaveDiagnosisInput> = z.object({
 }).strict()
 const diagnosisViewEnvelopeSchema = z.object({ data: aiDiagnosisViewSchema }).strict()
 
-export async function getDiagnosisContext(month: string): Promise<DiagnosisContext> {
+export async function getDiagnosisContext(context: HouseholdContext, month: string): Promise<DiagnosisContext> {
+  assertHouseholdContext(context)
   const validatedMonth = monthSchema.parse(month)
   if (!isWorkerApiMockEnabled()) {
     return runD1Operation(async () =>
-      diagnosisContextSchema.parse(await store.getDiagnosisContext(getDatabase(), validatedMonth))
+      diagnosisContextSchema.parse(await store.getDiagnosisContext(getDatabase(), context, validatedMonth))
     )
   }
   const response = await apiRequest(`/ai-diagnoses/${encodeURIComponent(validatedMonth)}/context`, {
+    sessionToken: await householdSessionToken(context),
     responseSchema: diagnosisContextEnvelopeSchema,
   })
   return response.data
 }
 
-export async function getSavedDiagnosis(month: string): Promise<SavedDiagnosis | null> {
+export async function getSavedDiagnosis(context: HouseholdContext, month: string): Promise<SavedDiagnosis | null> {
+  assertHouseholdContext(context)
   const validatedMonth = monthSchema.parse(month)
   if (!isWorkerApiMockEnabled()) {
     return runD1Operation(async () => {
-      const saved = await store.getSavedDiagnosis(getDatabase(), validatedMonth)
+      const saved = await store.getSavedDiagnosis(getDatabase(), context, validatedMonth)
       if (saved === null) return null
       return savedDiagnosisSchema.parse({ ...saved, diagnosis: parseDiagnosisView(saved.diagnosis) })
     })
   }
   const response = await apiRequest(`/ai-diagnoses/${encodeURIComponent(validatedMonth)}`, {
+    sessionToken: await householdSessionToken(context),
     responseSchema: savedDiagnosisEnvelopeSchema,
   })
   return response.data
 }
 
-export async function acquireDiagnosisLease(month: string, runToken: string): Promise<void> {
+export async function acquireDiagnosisLease(context: HouseholdContext, month: string, runToken: string): Promise<void> {
+  assertHouseholdContext(context)
   const validatedMonth = monthSchema.parse(month)
   if (!isWorkerApiMockEnabled()) {
     return runDiagnosisMutation(async () => {
       const input = parseRunTokenInput({ runToken })
-      const lease = await store.acquireDiagnosisLease(getDatabase(), getRuntime(), validatedMonth, input.runToken)
+      const lease = await store.acquireDiagnosisLease(getDatabase(), getRuntime(), context, validatedMonth, input.runToken)
       if (!lease.acquired) {
         throw new HttpError(
           lease.reason === 'busy' ? '診断を実行中です' : 'AI診断の利用上限に達しました',
@@ -157,22 +165,25 @@ export async function acquireDiagnosisLease(month: string, runToken: string): Pr
   await apiRequest(`/ai-diagnoses/${encodeURIComponent(validatedMonth)}/lease`, {
     method: 'POST',
     body: { runToken },
+    sessionToken: await householdSessionToken(context),
     responseSchema: successSchema,
   })
 }
 
 export async function saveExpenseCategories(
+  context: HouseholdContext,
   month: string,
   runToken: string,
   assignments: ExpenseCategoryAssignment[]
 ): Promise<void> {
+  assertHouseholdContext(context)
   const validatedMonth = monthSchema.parse(month)
   const validatedRunToken = z.string().min(1).parse(runToken)
   const validatedAssignments = expenseCategoryAssignmentsSchema.parse(assignments)
   if (!isWorkerApiMockEnabled()) {
     return runDiagnosisMutation(async () => {
       const input = parseCategoryAssignments({ month: validatedMonth, runToken: validatedRunToken, assignments: validatedAssignments })
-      await store.saveExpenseCategories(getDatabase(), getRuntime(), input.month, input.runToken, input.assignments)
+      await store.saveExpenseCategories(getDatabase(), getRuntime(), context, input.month, input.runToken, input.assignments)
     })
   }
   await apiRequest('/ai-diagnoses/categories', {
@@ -182,43 +193,49 @@ export async function saveExpenseCategories(
       runToken: validatedRunToken,
       assignments: validatedAssignments,
     },
+    sessionToken: await householdSessionToken(context),
     responseSchema: successSchema,
   })
 }
 
 export async function saveDiagnosis(
+  context: HouseholdContext,
   month: string,
   input: SaveDiagnosisInput
 ): Promise<AiDiagnosisView> {
+  assertHouseholdContext(context)
   const validatedMonth = monthSchema.parse(month)
   const validatedInput = saveDiagnosisInputSchema.parse(input)
   if (!isWorkerApiMockEnabled()) {
     return runDiagnosisMutation(async () => {
       const parsedInput = parseSaveDiagnosisInput(validatedInput)
       if (parsedInput.diagnosis.month !== validatedMonth) throw new HttpError('診断月が不正です', 400)
-      await store.saveDiagnosis(getDatabase(), getRuntime(), validatedMonth, parsedInput)
+      await store.saveDiagnosis(getDatabase(), getRuntime(), context, validatedMonth, parsedInput)
       return parsedInput.diagnosis
     })
   }
   const response = await apiRequest(`/ai-diagnoses/${encodeURIComponent(validatedMonth)}`, {
     method: 'PUT',
     body: validatedInput,
+    sessionToken: await householdSessionToken(context),
     responseSchema: diagnosisViewEnvelopeSchema,
   })
   return response.data
 }
 
-export async function releaseDiagnosisLease(month: string, runToken: string): Promise<void> {
+export async function releaseDiagnosisLease(context: HouseholdContext, month: string, runToken: string): Promise<void> {
+  assertHouseholdContext(context)
   const validatedMonth = monthSchema.parse(month)
   if (!isWorkerApiMockEnabled()) {
     return runDiagnosisMutation(async () => {
       const input = parseRunTokenInput({ runToken })
-      await store.releaseDiagnosisLease(getDatabase(), validatedMonth, input.runToken)
+      await store.releaseDiagnosisLease(getDatabase(), context, validatedMonth, input.runToken)
     })
   }
   await apiRequest(`/ai-diagnoses/${encodeURIComponent(validatedMonth)}/lease`, {
     method: 'DELETE',
     body: { runToken },
+    sessionToken: await householdSessionToken(context),
     responseSchema: successSchema,
   })
 }

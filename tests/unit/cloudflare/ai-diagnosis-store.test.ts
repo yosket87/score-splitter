@@ -39,6 +39,10 @@ class SpyStatement implements D1PreparedStatementLike {
 
   all<T>(): Promise<{ results: T[] }> {
     this.db.executions.push({ query: this.query, params: this.params, method: 'all' })
+    if (this.query.startsWith('WITH requested')) {
+      const result = this.db.resolveRun(this.query, this.params)
+      return Promise.resolve({ results: Array.from({ length: result.meta?.changes ?? 0 }, (_, id) => ({ id })) as T[] })
+    }
     return Promise.resolve({ results: this.db.resolveAll(this.query) as T[] })
   }
 
@@ -175,7 +179,7 @@ const runtime: Runtime = {
 
 describe('AI家計診断D1ストア', () => {
   it('3種データとsource revisionを同じtransactional batch snapshotで返す', async () => {
-    const result = await getDiagnosisContext(new SnapshotDatabase(), '202604')
+    const result = await getDiagnosisContext(new SnapshotDatabase(), { householdId: 'A' }, '202604')
 
     expect(result).toMatchObject({
       targetMonth: '202604',
@@ -187,7 +191,7 @@ describe('AI家計診断D1ストア', () => {
   it('診断コンテキストから担当者を除外する', async () => {
     const db = new SpyDatabase()
 
-    const result = await getDiagnosisContext(db, '202604')
+    const result = await getDiagnosisContext(db, { householdId: 'A' }, '202604')
 
     expect(result.expenses[0]).toEqual({
       id: 'expense-1',
@@ -206,11 +210,11 @@ describe('AI家計診断D1ストア', () => {
   it('対象月と直前3か月を年境界を跨いで取得する', async () => {
     const db = new SpyDatabase()
 
-    await getDiagnosisContext(db, '202601')
+    await getDiagnosisContext(db, { householdId: 'A' }, '202601')
 
     expect(db.executions).toHaveLength(4)
     expect(db.executions.slice(0, 3).every(({ params }) => {
-      return params.join(',') === '202601,202512,202511,202510'
+      return params.join(',') === 'A,202601,202512,202511,202510'
     })).toBe(true)
   })
 
@@ -225,7 +229,7 @@ describe('AI家計診断D1ストア', () => {
       daily_count: 1,
     }
 
-    await expect(acquireDiagnosisLease(db, runtime, '202604', 'run-2')).resolves.toEqual({
+    await expect(acquireDiagnosisLease(db, runtime, { householdId: 'A' }, '202604', 'run-2')).resolves.toEqual({
       acquired: false,
       reason: 'busy',
       retryAfterSeconds: 120,
@@ -236,7 +240,7 @@ describe('AI家計診断D1ストア', () => {
     const db = new SpyDatabase()
     db.nextRunChanges = [1, 1, 1]
 
-    await expect(acquireDiagnosisLease(db, runtime, '202604', 'run-1')).resolves.toEqual({
+    await expect(acquireDiagnosisLease(db, runtime, { householdId: 'A' }, '202604', 'run-1')).resolves.toEqual({
       acquired: true,
     })
 
@@ -252,15 +256,15 @@ describe('AI家計診断D1ストア', () => {
     const db = new SpyDatabase()
     db.nextRunChanges = [1, 1, 0, 1]
 
-    await expect(acquireDiagnosisLease(db, runtime, '202604', 'run-1')).resolves.toEqual(
+    await expect(acquireDiagnosisLease(db, runtime, { householdId: 'A' }, '202604', 'run-1')).resolves.toEqual(
       expect.objectContaining({ acquired: false })
     )
 
     expect(db.executions[3]).toEqual({
       query: `UPDATE ai_execution_guard
 SET run_token = NULL, run_expires_at = NULL
-WHERE id = ? AND run_token = ?`,
-      params: [1, 'run-1'],
+WHERE household_id = ? AND run_token = ?`,
+      params: ['A', 'run-1'],
       method: 'run',
     })
   })
@@ -269,7 +273,7 @@ WHERE id = ? AND run_token = ?`,
     const db = new SpyDatabase()
     db.nextRunChanges = [3]
 
-    await saveExpenseCategories(db, runtime, '202604', 'run-1', [
+    await saveExpenseCategories(db, runtime, { householdId: 'A' }, '202604', 'run-1', [
       { expenseIds: ['expense-1', 'expense-2'], category: 'dining', expectedLabel: '外食' },
       { expenseIds: ['expense-3'], category: 'healthcare', expectedLabel: '通院' },
     ])
@@ -277,7 +281,7 @@ WHERE id = ? AND run_token = ?`,
     expect(db.executions).toHaveLength(1)
     expect(db.executions[0].query).toContain("ai_category_source = 'ai'")
     expect(db.executions[0].query).toContain('expenses.ai_category IS NULL')
-    expect(db.executions[0].params.slice(1, 4)).toEqual([1, '202604', 'run-1'])
+    expect(db.executions[0].params.slice(1, 5)).toEqual(['A', 'A', '202604', 'run-1'])
   })
 
   it('同一カテゴリ100件を各statementのbind上限内で保存する', async () => {
@@ -286,13 +290,13 @@ WHERE id = ? AND run_token = ?`,
     const expenseIds = Array.from({ length: 100 }, (_, index) => `expense-${index}`)
 
     await expect(
-      saveExpenseCategories(db, runtime, '202604', 'run-1', [
+      saveExpenseCategories(db, runtime, { householdId: 'A' }, '202604', 'run-1', [
         { expenseIds, category: 'dining', expectedLabel: '外食' },
       ])
     ).resolves.toBeUndefined()
 
     expect(db.executions).toHaveLength(1)
-    expect(db.executions[0].params).toHaveLength(8)
+    expect(db.executions[0].params).toHaveLength(11)
   })
 
   it('ラベル変更後に古い分類を復活させず競合として拒否する', async () => {
@@ -300,7 +304,7 @@ WHERE id = ? AND run_token = ?`,
     db.categoryRows.set('expense-1', { label: '通院', category: null })
 
     await expect(
-      saveExpenseCategories(db, runtime, '202604', 'run-1', [
+      saveExpenseCategories(db, runtime, { householdId: 'A' }, '202604', 'run-1', [
         { expenseIds: ['expense-1'], category: 'dining', expectedLabel: '外食' },
       ])
     ).rejects.toThrow('分類中に支出が変更')
@@ -314,7 +318,7 @@ WHERE id = ? AND run_token = ?`,
     db.categoryRows.set('expense-1', { label: '家賃', category: 'housing' })
 
     await expect(
-      saveExpenseCategories(db, runtime, '202604', 'run-2', [
+      saveExpenseCategories(db, runtime, { householdId: 'A' }, '202604', 'run-2', [
         { expenseIds: ['expense-1'], category: 'dining', expectedLabel: '家賃' },
       ])
     ).rejects.toThrow('分類中に支出が変更')
@@ -327,7 +331,7 @@ WHERE id = ? AND run_token = ?`,
     db.nextRunChanges = [0]
 
     await expect(
-      saveExpenseCategories(db, runtime, '202604', 'expired-run', [
+      saveExpenseCategories(db, runtime, { householdId: 'A' }, '202604', 'expired-run', [
         { expenseIds: ['expense-1'], category: 'dining', expectedLabel: '外食' },
       ])
     ).rejects.toThrow('分類中に支出が変更')
@@ -340,12 +344,12 @@ WHERE id = ? AND run_token = ?`,
     const db = new SpyDatabase()
 
     await expect(
-      saveExpenseCategories(db, runtime, '202604', 'run-1', [
+      saveExpenseCategories(db, runtime, { householdId: 'A' }, '202604', 'run-1', [
         { expenseIds: ['expense-1'], category: 'unknown', expectedLabel: '不明' },
       ])
     ).rejects.toThrow('許可されていない')
     await expect(
-      saveExpenseCategories(db, runtime, '202604', 'run-1', [
+      saveExpenseCategories(db, runtime, { householdId: 'A' }, '202604', 'run-1', [
         {
           expenseIds: Array.from({ length: 101 }, (_, index) => `expense-${index}`),
           category: 'other',
@@ -365,7 +369,7 @@ WHERE id = ? AND run_token = ?`,
       updated_at: NOW,
     }
 
-    await expect(getSavedDiagnosis(db, '202604')).resolves.toBeNull()
+    await expect(getSavedDiagnosis(db, { householdId: 'A' }, '202604')).resolves.toBeNull()
   })
 
   it('保存済み診断のJSONをunknownとして返す', async () => {
@@ -377,7 +381,7 @@ WHERE id = ? AND run_token = ?`,
       updated_at: NOW,
     }
 
-    await expect(getSavedDiagnosis(db, '202604')).resolves.toEqual({
+    await expect(getSavedDiagnosis(db, { householdId: 'A' }, '202604')).resolves.toEqual({
       diagnosis: { month: '202604', summaryText: '診断結果' },
       inputHash: 'hash-1',
       analysisVersion: 'v1',
@@ -390,28 +394,29 @@ WHERE id = ? AND run_token = ?`,
     db.nextRunChanges = [changes]
     const diagnosis = { month: '202604', summaryText: '診断結果' }
 
-    await saveDiagnosis(db, runtime, '202604', {
+    await saveDiagnosis(db, runtime, { householdId: 'A' }, '202604', {
       runToken: 'run-1',
       inputHash: 'hash-1',
       analysisVersion: 'v1',
       diagnosis,
       expectedSourceRevision: 7,
-    } as Parameters<typeof saveDiagnosis>[3])
+    } as Parameters<typeof saveDiagnosis>[4])
 
-    expect(db.executions[0].query).toContain('WHERE month = ? AND run_token = ?')
+    expect(db.executions[0].query).toContain('WHERE household_id = ? AND month = ? AND run_token = ?')
     expect(db.executions[0].query).toContain('ai_diagnosis_source_revision')
     expect(db.executions[0].params).toEqual([
       JSON.stringify(diagnosis),
       'hash-1',
       'v1',
       NOW,
+      'A',
       '202604',
       'run-1',
       NOW,
-      1,
+      'A',
       'run-1',
       NOW,
-      1,
+      'A',
       7,
     ])
   })
@@ -422,7 +427,7 @@ WHERE id = ? AND run_token = ?`,
     db.firstResult = { revision: 8 }
 
     await expect(
-      saveDiagnosis(db, runtime, '202604', {
+      saveDiagnosis(db, runtime, { householdId: 'A' }, '202604', {
         runToken: 'run-1',
         inputHash: 'hash-1',
         analysisVersion: 'v1',
@@ -437,7 +442,7 @@ WHERE id = ? AND run_token = ?`,
     db.nextRunChanges = [0]
 
     await expect(
-      saveDiagnosis(db, runtime, '202604', {
+      saveDiagnosis(db, runtime, { householdId: 'A' }, '202604', {
         runToken: 'expired-run',
         inputHash: 'hash-1',
         analysisVersion: 'v1',
@@ -451,13 +456,13 @@ WHERE id = ? AND run_token = ?`,
     const db = new SpyDatabase()
     db.nextRunChanges = [changes]
 
-    await releaseDiagnosisLease(db, '202604', 'run-1')
+    await releaseDiagnosisLease(db, { householdId: 'A' }, '202604', 'run-1')
 
     expect(db.executions[0]).toEqual({
       query: `UPDATE ai_diagnoses
 SET run_token = NULL, run_expires_at = NULL
-WHERE month = ? AND run_token = ?`,
-      params: ['202604', 'run-1'],
+WHERE household_id = ? AND month = ? AND run_token = ?`,
+      params: ['A', '202604', 'run-1'],
       method: 'run',
     })
   })
@@ -471,7 +476,7 @@ WHERE month = ? AND run_token = ?`,
     const db = new SpyDatabase()
     db.nextRunResults = [result]
 
-    await expect(releaseDiagnosisLease(db, '202604', 'expired-run')).rejects.toThrow(
+    await expect(releaseDiagnosisLease(db, { householdId: 'A' }, '202604', 'expired-run')).rejects.toThrow(
       'リースが失効'
     )
   })
@@ -483,7 +488,7 @@ WHERE month = ? AND run_token = ?`,
   ])('成功した更新が確認できない診断保存は拒否する %#', async (result) => {
     const db = new SpyDatabase()
     db.nextRunResults = [result]
-    await expect(saveDiagnosis(db, runtime, '202604', {
+    await expect(saveDiagnosis(db, runtime, { householdId: 'A' }, '202604', {
       runToken: 'run-1', inputHash: 'hash-1', analysisVersion: 'v1',
       diagnosis: {}, expectedSourceRevision: 7,
     })).rejects.toThrow('リースが失効')

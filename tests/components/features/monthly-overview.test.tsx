@@ -91,7 +91,7 @@ function renderOverview(
   }
 ) {
   return render(
-    <MonthlyOverview
+    <MonthlyOverview householdId="A"
       year={2026}
       month={4}
       summary={overviewSummary}
@@ -240,7 +240,7 @@ describe('MonthlyOverview', () => {
 
   it('AIプロバイダーが利用できない場合は診断起点を表示しない', () => {
     render(
-      <MonthlyOverview
+      <MonthlyOverview householdId="A"
         year={2026}
         month={4}
         summary={{ incomes, expenses, carryovers: [] }}

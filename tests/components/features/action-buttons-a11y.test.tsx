@@ -17,7 +17,7 @@ vi.mock('next/navigation', () => ({
 describe('月次アクションボタンのアクセシビリティ', () => {
   it('前月コピーのアイコンボタンにアクセシブルネームがある', () => {
     render(
-      <CopyMonthDialog
+      <CopyMonthDialog householdId="A"
         currentMonth="202604"
         previousMonth="202603"
       />

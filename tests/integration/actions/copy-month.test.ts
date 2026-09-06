@@ -36,6 +36,7 @@ describe('copy-month actions', () => {
           type: 'income' as const,
         },
       ],
+      carryoverFingerprint: "fingerprint",
       carryoverCount: 1,
       existingCount: 2,
     }
@@ -43,7 +44,7 @@ describe('copy-month actions', () => {
 
     const result = await getCopyMonthPreview('202601', '202602')
 
-    expect(mockCopyMonthApi.getCopyMonthPreview).toHaveBeenCalledWith('202601', '202602')
+    expect(mockCopyMonthApi.getCopyMonthPreview).toHaveBeenCalledWith({householdId:'A',person:null,authMethod:'password'}, '202601', '202602')
     expect(result).toEqual({ success: true, data: preview })
   })
 
@@ -84,7 +85,7 @@ describe('copy-month actions', () => {
 
     const result = await copyMonthData(options)
 
-    expect(mockCopyMonthApi.copyMonthData).toHaveBeenCalledWith(options)
+    expect(mockCopyMonthApi.copyMonthData).toHaveBeenCalledWith({householdId:'A',person:null,authMethod:'password'}, options)
     expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/02')
     expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
     expect(result).toEqual({ success: true, data: copyResult })

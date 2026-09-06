@@ -3,10 +3,10 @@ import { Header } from '@/components/layout/header'
 import { requireAuth } from '@/lib/webauthn/session'
 
 export default async function SettingsPage() {
-  await requireAuth()
+  const { householdId } = await requireAuth()
 
   return (
-    <div className="app-shell flex min-h-screen flex-col">
+    <div key={householdId} className="app-shell flex min-h-screen flex-col">
       <Header backHref="/" backLabel="トップへ戻る" />
       <main
         id="main"
@@ -22,7 +22,7 @@ export default async function SettingsPage() {
               パスキー管理
             </h1>
           </div>
-          <PasskeySettings />
+          <PasskeySettings householdId={householdId} />
         </section>
       </main>
     </div>

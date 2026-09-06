@@ -1,5 +1,8 @@
 'use server'
 
+import { cookies } from 'next/headers'
+import { assertExistingLoginHousehold } from '@/lib/api/households'
+import { assertHouseholdContext } from '@/lib/household-context'
 import {
   generateRegistrationOptions as generateRegOptions,
   verifyRegistrationResponse,
@@ -14,17 +17,16 @@ import type {
 import {
   createChallenge,
   createPasskey as createPasskeyByApi,
-  deleteChallenges,
   deleteExpiredChallenges,
   deletePasskey as deletePasskeyByApi,
-  getLatestChallenge,
-  getPasskey,
+  consumeChallenge,
+  findAuthenticationCredential,
   listPasskeys as listPasskeysByApi,
   updatePasskeyCounter,
 } from '@/lib/api/passkeys'
 import { PERSON_LABELS } from '@/lib/constants'
 import { getWebAuthnConfig } from '@/lib/webauthn/config'
-import { createSession, isAuthenticated } from '@/lib/webauthn/session'
+import { createSession, getSession } from '@/lib/webauthn/session'
 import type { ActionResult, Person } from '@/types'
 
 const CHALLENGE_TTL_MINUTES = 5
@@ -42,13 +44,14 @@ export async function generateRegistrationOptions(
   person: Person
 ): Promise<ActionResult<PublicKeyCredentialCreationOptionsJSON>> {
   try {
-    if (!(await isAuthenticated())) {
+    const context = await getSession()
+    if (!context) {
       return { success: false, error: '認証が必要です' }
     }
 
     const config = getWebAuthnConfig()
-    const existingCredentials = await listPasskeysByApi(person)
-    const userID = new TextEncoder().encode(person)
+    const existingCredentials = await listPasskeysByApi(context, person)
+    const userID = new TextEncoder().encode(`${context.householdId}:${person}`)
 
     const options = await generateRegOptions({
       rpName: config.rpName,
@@ -67,12 +70,12 @@ export async function generateRegistrationOptions(
       },
     })
 
-    await createChallenge({
+    const challenge = await createChallenge({ type: 'registration', context }, {
       challenge: options.challenge,
-      type: 'registration',
       person,
       expiresAt: createChallengeExpiry(),
     })
+    await setChallengeCookie('registration', challenge.id)
     await deleteExpiredChallenges(new Date().toISOString())
 
     return { success: true, data: JSON.parse(JSON.stringify(options)) }
@@ -91,21 +94,20 @@ export async function verifyRegistration(
   deviceName?: string
 ): Promise<ActionResult<{ credentialId: string }>> {
   try {
-    if (!(await isAuthenticated())) {
+    const context = await getSession()
+    if (!context) {
       return { success: false, error: '認証が必要です' }
     }
 
     const config = getWebAuthnConfig()
-    const challengeRecord = await getLatestChallenge({
-      type: 'registration',
-      person,
-    })
+    const id = await takeChallengeCookie('registration')
+    const challengeRecord = id ? await consumeChallenge({ type: 'registration', context }, id, person) : null
 
     if (!challengeRecord) {
       return { success: false, error: 'チャレンジが見つかりません。もう一度お試しください' }
     }
 
-    if (new Date(challengeRecord.expiresAt) < new Date()) {
+    if (!Number.isFinite(Date.parse(challengeRecord.expiresAt)) || Date.parse(challengeRecord.expiresAt) <= Date.now()) {
       return { success: false, error: 'チャレンジの有効期限が切れました。もう一度お試しください' }
     }
 
@@ -124,7 +126,7 @@ export async function verifyRegistration(
     const { credential: registeredCredential, credentialBackedUp } =
       verification.registrationInfo
 
-    await createPasskeyByApi({
+    await createPasskeyByApi(context, {
       id: registeredCredential.id,
       person,
       publicKeyBase64: Buffer.from(registeredCredential.publicKey).toString('base64'),
@@ -133,7 +135,6 @@ export async function verifyRegistration(
       transports: credential.response.transports ?? [],
     })
 
-    await deleteChallenges({ type: 'registration', person })
 
     return { success: true, data: { credentialId: registeredCredential.id } }
   } catch (err) {
@@ -157,12 +158,12 @@ export async function generateAuthenticationOptions(): Promise<
       userVerification: 'preferred',
     })
 
-    await createChallenge({
+    const challenge = await createChallenge({ type: 'authentication' }, {
       challenge: options.challenge,
-      type: 'authentication',
       person: null,
       expiresAt: createChallengeExpiry(),
     })
+    await setChallengeCookie('authentication', challenge.id)
     await deleteExpiredChallenges(new Date().toISOString())
 
     return { success: true, data: JSON.parse(JSON.stringify(options)) }
@@ -180,22 +181,20 @@ export async function verifyAuthentication(
 ): Promise<ActionResult<{ person: Person }>> {
   try {
     const config = getWebAuthnConfig()
-    const storedCredential = await getPasskey(credential.id)
+    const storedCredential = await findAuthenticationCredential(credential.id)
 
     if (!storedCredential) {
       return { success: false, error: '登録されていないパスキーです' }
     }
 
-    const challengeRecord = await getLatestChallenge({
-      type: 'authentication',
-      person: null,
-    })
+    const id = await takeChallengeCookie('authentication')
+    const challengeRecord = id ? await consumeChallenge({ type: 'authentication' }, id, null) : null
 
     if (!challengeRecord) {
       return { success: false, error: 'チャレンジが見つかりません。もう一度お試しください' }
     }
 
-    if (new Date(challengeRecord.expiresAt) < new Date()) {
+    if (!Number.isFinite(Date.parse(challengeRecord.expiresAt)) || Date.parse(challengeRecord.expiresAt) <= Date.now()) {
       return { success: false, error: 'チャレンジの有効期限が切れました。もう一度お試しください' }
     }
 
@@ -218,14 +217,16 @@ export async function verifyAuthentication(
       return { success: false, error: 'パスキーの認証に失敗しました' }
     }
 
+    const context = { householdId: storedCredential.householdId }
+    assertHouseholdContext(context)
+    await assertExistingLoginHousehold(context)
     await updatePasskeyCounter(
-      storedCredential.id,
+      context, storedCredential.id,
       verification.authenticationInfo.newCounter
     )
-    await deleteChallenges({ type: 'authentication', person: null })
 
     const person = storedCredential.person
-    await createSession(person, 'passkey')
+    await createSession(context, person, 'passkey')
 
     return { success: true, data: { person } }
   } catch (err) {
@@ -240,12 +241,13 @@ export async function verifyAuthentication(
 // --- 管理 ---
 
 export async function listPasskeys(): Promise<ActionResult<PasskeyInfo[]>> {
-  if (!(await isAuthenticated())) {
+  const context = await getSession()
+  if (!context) {
     return { success: false, error: '認証が必要です' }
   }
 
   try {
-    const passkeys = await listPasskeysByApi()
+    const passkeys = await listPasskeysByApi(context)
     return {
       success: true,
       data: passkeys.map((row) => ({
@@ -267,12 +269,13 @@ export async function listPasskeys(): Promise<ActionResult<PasskeyInfo[]>> {
 export async function deletePasskey(
   credentialId: string
 ): Promise<ActionResult> {
-  if (!(await isAuthenticated())) {
+  const context = await getSession()
+  if (!context) {
     return { success: false, error: '認証が必要です' }
   }
 
   try {
-    await deletePasskeyByApi(credentialId)
+    await deletePasskeyByApi(context, credentialId)
     return { success: true }
   } catch (error) {
     console.error('[deletePasskey]', error)
@@ -285,4 +288,19 @@ export async function deletePasskey(
 
 function createChallengeExpiry(): string {
   return new Date(Date.now() + CHALLENGE_TTL_MINUTES * 60 * 1000).toISOString()
+}
+
+async function setChallengeCookie(type: 'registration' | 'authentication', id: string) {
+  (await cookies()).set(`webauthn_${type}`, id, {
+    httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax',
+    maxAge: CHALLENGE_TTL_MINUTES * 60, path: '/',
+  })
+}
+
+async function takeChallengeCookie(type: 'registration' | 'authentication') {
+  const store = await cookies()
+  const name = `webauthn_${type}`
+  const id = store.get(name)?.value
+  store.delete(name)
+  return id
 }

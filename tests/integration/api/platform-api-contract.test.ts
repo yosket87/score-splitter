@@ -1,6 +1,10 @@
+vi.mock('@/lib/api/household-session', () => ({householdSessionToken:vi.fn().mockResolvedValue('a'.repeat(64))}))
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { mockCookies } from '../../mocks/next'
+const household = { householdId: 'A' }
 
 vi.mock('server-only', () => ({}))
 
@@ -48,7 +52,7 @@ import { createSession, getSession } from '@/lib/api/sessions'
 import {
   createChallenge,
   createPasskey,
-  getLatestChallenge,
+  consumeChallenge,
   getPasskey,
   listPasskeys,
 } from '@/lib/api/passkeys'
@@ -78,6 +82,7 @@ describe('lib/api copy-month contract', () => {
                 type: 'income',
               },
             ],
+            carryoverFingerprint: "fingerprint",
             carryoverCount: 1,
             existingCount: 0,
           },
@@ -85,7 +90,7 @@ describe('lib/api copy-month contract', () => {
       })
     )
 
-    const preview = await getCopyMonthPreview('202602', '202603')
+    const preview = await getCopyMonthPreview(household, '202602', '202603')
 
     expect(preview).toEqual({
       sourceMonth: '202602',
@@ -99,6 +104,7 @@ describe('lib/api copy-month contract', () => {
           type: 'income',
         },
       ],
+      carryoverFingerprint: "fingerprint",
       carryoverCount: 1,
       existingCount: 0,
     })
@@ -149,7 +155,7 @@ describe('lib/api copy-month contract', () => {
       ],
     }
 
-    const result = await copyMonthData(options)
+    const result = await copyMonthData(household, options)
 
     expect(result).toEqual({
       success: true,
@@ -175,7 +181,7 @@ describe('lib/api copy-month contract', () => {
     )
 
     await expect(
-      copyMonthData({
+      copyMonthData(household, {
         sourceMonth: '202602',
         targetMonth: '202603',
         mode: 'add',
@@ -189,21 +195,22 @@ describe('lib/api copy-month contract', () => {
 describe('lib/api sessions contract', () => {
   it('セッションレスポンスを検証し、未検出のnullを許可する', async () => {
     server.use(
-      http.post(`${WORKER_URL}/sessions`, () =>
+      http.post(`${WORKER_URL}/internal/auth/sessions`, () =>
         HttpResponse.json({
           data: {
             token: 'session-token',
+            householdId: 'A',
             person: 'husband',
             authMethod: 'passkey',
             expiresAt: '2026-03-01T00:00:00.000Z',
           },
         })
       ),
-      http.get(`${WORKER_URL}/sessions/:token`, () => HttpResponse.json({ data: null }))
+      http.get(`${WORKER_URL}/internal/auth/sessions/:token`, () => HttpResponse.json({ data: null }))
     )
 
     await expect(
-      createSession({
+      createSession(household, {
         token: 'session-token',
         person: 'husband',
         authMethod: 'passkey',
@@ -215,7 +222,7 @@ describe('lib/api sessions contract', () => {
 
   it('セッションレスポンスが契約外なら502を返す', async () => {
     server.use(
-      http.get(`${WORKER_URL}/sessions/:token`, () =>
+      http.get(`${WORKER_URL}/internal/auth/sessions/:token`, () =>
         HttpResponse.json({ data: { token: 'broken-session' } })
       )
     )
@@ -226,9 +233,16 @@ describe('lib/api sessions contract', () => {
   })
 })
 describe('lib/api passkeys contract', () => {
+  beforeEach(() => {
+    mockCookies.get.mockReturnValue({ value: 'a'.repeat(64) })
+    server.use(http.get(`${WORKER_URL}/internal/auth/sessions/:token`, () => HttpResponse.json({ data: {
+      token: 'a'.repeat(64), householdId: 'A', person: null, authMethod: 'password', expiresAt: '2099-01-01T00:00:00.000Z',
+    } })))
+  })
   it('パスキーとチャレンジのレスポンスを検証し、未検出のnullを許可する', async () => {
     const passkey = {
       id: 'credential-1',
+      householdId: 'A',
       person: 'wife' as const,
       publicKeyBase64: 'public-key',
       counter: 1,
@@ -238,6 +252,7 @@ describe('lib/api passkeys contract', () => {
     }
     const challenge = {
       id: 'challenge-1',
+      householdId: 'A',
       challenge: 'challenge-value',
       type: 'registration' as const,
       person: 'wife' as const,
@@ -251,14 +266,14 @@ describe('lib/api passkeys contract', () => {
       http.post(`${WORKER_URL}/webauthn-challenges`, () =>
         HttpResponse.json({ data: challenge })
       ),
-      http.get(`${WORKER_URL}/webauthn-challenges/latest`, () =>
+      http.post(`${WORKER_URL}/internal/auth/challenges/:id/consume`, () =>
         HttpResponse.json({ data: null })
       )
     )
 
-    await expect(listPasskeys('wife')).resolves.toEqual([passkey])
+    await expect(listPasskeys(household, 'wife')).resolves.toEqual([passkey])
     await expect(
-      createPasskey({
+      createPasskey(household, {
         id: passkey.id,
         person: passkey.person,
         publicKeyBase64: passkey.publicKeyBase64,
@@ -267,17 +282,16 @@ describe('lib/api passkeys contract', () => {
         transports: passkey.transports,
       })
     ).resolves.toEqual(passkey)
-    await expect(getPasskey('missing')).resolves.toBeNull()
+    await expect(getPasskey(household, 'missing')).resolves.toBeNull()
     await expect(
-      createChallenge({
+      createChallenge({ type: 'registration', context: household }, {
         challenge: challenge.challenge,
-        type: challenge.type,
         person: challenge.person,
         expiresAt: challenge.expiresAt,
       })
     ).resolves.toEqual(challenge)
     await expect(
-      getLatestChallenge({ type: 'authentication', person: null })
+      consumeChallenge({ type: 'authentication' }, 'id', null)
     ).resolves.toBeNull()
   })
 
@@ -288,7 +302,7 @@ describe('lib/api passkeys contract', () => {
       )
     )
 
-    await expect(listPasskeys()).rejects.toEqual(
+    await expect(listPasskeys(household)).rejects.toEqual(
       new ApiError('Worker APIレスポンスの形式が不正です', 502)
     )
   })
@@ -307,7 +321,7 @@ describe('lib/api monthly-summary contract', () => {
       )
     )
 
-    await expect(getMonthlyAmounts()).resolves.toEqual({
+    await expect(getMonthlyAmounts(household)).resolves.toEqual({
       incomes: [{ month: '202603', amount: 300000 }],
       expenses: [{ month: '202603', amount: -120000 }],
     })
@@ -320,7 +334,7 @@ describe('lib/api monthly-summary contract', () => {
       )
     )
 
-    await expect(getMonthlyAmounts()).rejects.toEqual(
+    await expect(getMonthlyAmounts(household)).rejects.toEqual(
       new ApiError('Worker APIレスポンスの形式が不正です', 502)
     )
   })

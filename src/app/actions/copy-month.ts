@@ -5,7 +5,7 @@ import {
   getCopyMonthPreview as getCopyMonthPreviewByApi,
 } from '@/lib/api/copy-month'
 import { revalidateHouseholdData } from './revalidation'
-import { requireAuth } from '@/lib/webauthn/session'
+import { requireHouseholdContext } from '@/lib/household-context'
 import type {
   ActionResult,
   CopyMonthOptions,
@@ -21,10 +21,10 @@ export async function getCopyMonthPreview(
   sourceMonth: string,
   targetMonth: string
 ): Promise<ActionResult<CopyMonthPreview>> {
-  await requireAuth()
+  const context = await requireHouseholdContext()
 
   try {
-    const data = await getCopyMonthPreviewByApi(sourceMonth, targetMonth)
+    const data = await getCopyMonthPreviewByApi(context, sourceMonth, targetMonth)
     return { success: true, data }
   } catch (error) {
     console.error('月コピープレビュー取得エラー:', error)
@@ -38,10 +38,10 @@ export async function getCopyMonthPreview(
 export async function copyMonthData(
   options: CopyMonthOptions
 ): Promise<ActionResult<CopyMonthResult>> {
-  await requireAuth()
+  const context = await requireHouseholdContext()
 
   try {
-    const result = await copyMonthDataByApi(options)
+    const result = await copyMonthDataByApi(context, options)
     if (!result.success) {
       return {
         success: false,

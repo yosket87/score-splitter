@@ -8,22 +8,22 @@ import {
 } from '@/lib/api/records'
 import { readEntryFormData, runEntryMutation, runEntryQuery } from './entry-helpers'
 import { incomeSchema } from '@/lib/validations/income'
-import { requireAuth } from '@/lib/webauthn/session'
+import { requireHouseholdContext } from '@/lib/household-context'
 import type { Income, ActionResult } from '@/types'
 
 export async function getIncomesByMonth(month: string): Promise<ActionResult<Income[]>> {
-  await requireAuth()
+  const context = await requireHouseholdContext()
 
   return runEntryQuery(
     { log: '収入取得エラー:', error: '収入データの取得に失敗しました' },
-    () => getIncomeRecordsByMonth(month)
+    () => getIncomeRecordsByMonth(context, month)
   )
 }
 
 export async function createIncome(
   formData: FormData
 ): Promise<ActionResult<Income>> {
-  await requireAuth()
+  const context = await requireHouseholdContext()
 
   const parsed = incomeSchema.safeParse(readEntryFormData(formData))
   if (!parsed.success) {
@@ -33,7 +33,7 @@ export async function createIncome(
   return runEntryMutation(
     { log: '収入作成エラー:', error: '収入の作成に失敗しました' },
     parsed.data.month,
-    () => createIncomeRecord({
+    () => createIncomeRecord(context, {
       month: parsed.data.month,
       label: parsed.data.label,
       amount: parsed.data.amount,
@@ -46,7 +46,7 @@ export async function updateIncome(
   id: string,
   formData: FormData
 ): Promise<ActionResult<Income>> {
-  await requireAuth()
+  const context = await requireHouseholdContext()
 
   const parsed = incomeSchema.safeParse(readEntryFormData(formData))
   if (!parsed.success) {
@@ -56,7 +56,7 @@ export async function updateIncome(
   return runEntryMutation(
     { log: '収入更新エラー:', error: '収入の更新に失敗しました' },
     parsed.data.month,
-    () => updateIncomeRecord(id, {
+    () => updateIncomeRecord(context, id, {
       month: parsed.data.month,
       label: parsed.data.label,
       amount: parsed.data.amount,
@@ -66,11 +66,11 @@ export async function updateIncome(
 }
 
 export async function deleteIncome(id: string, month?: string): Promise<ActionResult> {
-  await requireAuth()
+  const context = await requireHouseholdContext()
 
   return runEntryMutation(
     { log: '収入削除エラー:', error: '収入の削除に失敗しました' },
     month,
-    () => deleteIncomeRecord(id)
+    () => deleteIncomeRecord(context, id)
   )
 }

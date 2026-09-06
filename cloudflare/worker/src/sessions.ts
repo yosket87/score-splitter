@@ -1,18 +1,21 @@
 import type { D1DatabaseLike, Runtime } from './d1'
 import { HttpError } from './http'
+import { assertExistingLoginHousehold, type HouseholdContext } from './households'
 import { assertObject } from './validation'
 
 export type AuthMethod = 'password' | 'passkey'
 
 interface SessionRow {
   token: string
+  household_id: string
   person: 'husband' | 'wife' | null
   auth_method: AuthMethod
   expires_at: string
   created_at: string
 }
 
-export async function createSession(db: D1DatabaseLike, runtime: Runtime, body: unknown) {
+export async function createSession(db: D1DatabaseLike, runtime: Runtime, context: HouseholdContext, body: unknown) {
+  await assertExistingLoginHousehold(db, context)
   const input = assertObject(body)
   const token = parseToken(input.token)
   const person = input.person === null ? null : parsePerson(input.person)
@@ -22,24 +25,29 @@ export async function createSession(db: D1DatabaseLike, runtime: Runtime, body: 
 
   await db
     .prepare(
-      'INSERT INTO sessions (token, person, auth_method, expires_at, created_at) VALUES (?, ?, ?, ?, ?)'
+      'INSERT INTO sessions (token, person, auth_method, expires_at, created_at, household_id) VALUES (?, ?, ?, ?, ?, ?)'
     )
-    .bind(token, person, authMethod, expiresAt, createdAt)
+    .bind(token, person, authMethod, expiresAt, createdAt, context.householdId)
     .run()
 
-  return { token, person, authMethod, expiresAt }
+  return { token, person, authMethod, expiresAt, householdId: context.householdId }
 }
 
-export async function getSession(db: D1DatabaseLike, token: string) {
+export async function getSession(db: D1DatabaseLike, token: string, now: Date = new Date()) {
+  if (!/^[a-f0-9]{64}$/.test(token)) return null
   const row = await db
-    .prepare('SELECT token, person, auth_method, expires_at, created_at FROM sessions WHERE token = ?')
+    .prepare('SELECT s.* FROM sessions s INNER JOIN households h ON h.id = s.household_id WHERE s.token = ?')
     .bind(token)
     .first<SessionRow>()
-  if (!row) {
+  if (!row || !row.household_id?.trim() ||
+    !['password', 'passkey'].includes(row.auth_method) ||
+    !Number.isFinite(Date.parse(row.expires_at)) || Date.parse(row.expires_at) <= now.getTime() ||
+    (row.person !== null && row.person !== 'husband' && row.person !== 'wife')) {
     return null
   }
   return {
     token: row.token,
+    householdId: row.household_id,
     person: row.person,
     authMethod: row.auth_method,
     expiresAt: row.expires_at,

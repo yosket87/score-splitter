@@ -1,19 +1,17 @@
 'use server'
 
-// 単一世帯前提: household_session Cookie + middleware で認証境界を担保している。
-// 将来マルチテナント化する際は世帯IDによるスコープ条件を追加すること。
 import { getMonthlyAmounts } from '@/lib/api/monthly-summary'
 import { aggregateMonthlySummaries } from '@/lib/utils/monthly-summary'
-import { requireAuth } from '@/lib/webauthn/session'
+import { requireHouseholdContext } from '@/lib/household-context'
 import type { ActionResult, MonthlySummary } from '@/types'
 
 export async function getMonthlySummaries(): Promise<
   ActionResult<MonthlySummary[]>
 > {
-  await requireAuth()
+  const context = await requireHouseholdContext()
 
   try {
-    const { incomes, expenses } = await getMonthlyAmounts()
+    const { incomes, expenses } = await getMonthlyAmounts(context)
     return {
       success: true,
       data: aggregateMonthlySummaries(incomes, expenses),

@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState, useTransition } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useRequestGuard } from '@/hooks/use-request-guard'
 import { listPasskeys } from '@/app/actions/passkeys'
 import { PasskeyList } from './components/passkey-list'
 import { RegisterPasskeyForm } from './components/register-passkey-form'
@@ -8,25 +9,38 @@ import type { PasskeyInfo } from './types'
 
 export { PasskeyLoginButton } from './components/passkey-login-button'
 
-export function PasskeySettings() {
+export function PasskeySettings({ householdId }: { householdId: string }) {
+  return <ScopedPasskeySettings key={householdId} />
+}
+
+function ScopedPasskeySettings() {
+  const captureRequest = useRequestGuard()
   const [passkeys, setPasskeys] = useState<PasskeyInfo[]>([])
   const [loadError, setLoadError] = useState(false)
-  const [isPending, startTransition] = useTransition()
+  const [isPending, setIsPending] = useState(true)
 
-  const fetchPasskeys = useCallback(() => {
-    startTransition(async () => {
+  const fetchPasskeys = useCallback(async () => {
+    const isCurrent = captureRequest()
+    if (!isCurrent()) return
+    setIsPending(true)
+    try {
       const result = await listPasskeys()
+      if (!isCurrent()) return
       if (result.success && result.data) {
         setPasskeys(result.data)
         setLoadError(false)
       } else {
         setLoadError(true)
       }
-    })
-  }, [])
+    } catch {
+      if (isCurrent()) setLoadError(true)
+    } finally {
+      if (isCurrent()) setIsPending(false)
+    }
+  }, [captureRequest])
 
   useEffect(() => {
-    fetchPasskeys()
+    void fetchPasskeys()
   }, [fetchPasskeys])
 
   return (

@@ -28,7 +28,7 @@ describe('MSW AI診断source revision', () => {
 
     updateRows('incomes', { id: `eq.${incomeId}` }, { amount: 1 })
     updateRows('expenses', { id: `eq.${expenseId}` }, { label: '診断対象変更' })
-    insertRows('carryovers', [{ month: '202604', amount: -1, is_cleared: false }])
+    insertRows('carryovers', [{ household_id: '3975b870-bbfa-49fd-ae3d-d273c9f6e107', month: '202604', amount: -1, is_cleared: false }])
     deleteRows('carryovers', { month: 'eq.202604' })
 
     expect(revision()).toBe(4)

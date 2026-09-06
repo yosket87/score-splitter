@@ -9,22 +9,22 @@ import {
 } from '@/lib/api/records'
 import { readEntryFormData, runEntryMutation, runEntryQuery } from './entry-helpers'
 import { expenseSchema } from '@/lib/validations/expense'
-import { requireAuth } from '@/lib/webauthn/session'
+import { requireHouseholdContext } from '@/lib/household-context'
 import type { Expense, ActionResult } from '@/types'
 
 export async function getExpensesByMonth(month: string): Promise<ActionResult<Expense[]>> {
-  await requireAuth()
+  const context = await requireHouseholdContext()
 
   return runEntryQuery(
     { log: '支出取得エラー:', error: '支出データの取得に失敗しました' },
-    () => getExpenseRecordsByMonth(month)
+    () => getExpenseRecordsByMonth(context, month)
   )
 }
 
 export async function createExpense(
   formData: FormData
 ): Promise<ActionResult<Expense>> {
-  await requireAuth()
+  const context = await requireHouseholdContext()
 
   const parsed = expenseSchema.safeParse({
     ...readEntryFormData(formData),
@@ -38,7 +38,7 @@ export async function createExpense(
   return runEntryMutation(
     { log: '支出作成エラー:', error: '支出の作成に失敗しました' },
     parsed.data.month,
-    () => createExpenseRecord({
+    () => createExpenseRecord(context, {
       month: parsed.data.month,
       label: parsed.data.label,
       amount: -parsed.data.amount,
@@ -52,7 +52,7 @@ export async function updateExpense(
   id: string,
   formData: FormData
 ): Promise<ActionResult<Expense>> {
-  await requireAuth()
+  const context = await requireHouseholdContext()
 
   const parsed = expenseSchema.safeParse({
     ...readEntryFormData(formData),
@@ -66,7 +66,7 @@ export async function updateExpense(
   return runEntryMutation(
     { log: '支出更新エラー:', error: '支出の更新に失敗しました' },
     parsed.data.month,
-    () => updateExpenseRecord(id, {
+    () => updateExpenseRecord(context, id, {
       month: parsed.data.month,
       label: parsed.data.label,
       amount: -parsed.data.amount,
@@ -81,21 +81,21 @@ export async function toggleExpenseCarryover(
   isCarryover: boolean,
   month?: string
 ): Promise<ActionResult> {
-  await requireAuth()
+  const context = await requireHouseholdContext()
 
   return runEntryMutation(
     { log: '支出繰越フラグ更新エラー:', error: '繰越フラグの更新に失敗しました' },
     month,
-    () => toggleExpenseCarryoverRecord(id, isCarryover)
+    () => toggleExpenseCarryoverRecord(context, id, isCarryover)
   )
 }
 
 export async function deleteExpense(id: string, month?: string): Promise<ActionResult> {
-  await requireAuth()
+  const context = await requireHouseholdContext()
 
   return runEntryMutation(
     { log: '支出削除エラー:', error: '支出の削除に失敗しました' },
     month,
-    () => deleteExpenseRecord(id)
+    () => deleteExpenseRecord(context, id)
   )
 }

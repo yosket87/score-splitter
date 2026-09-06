@@ -42,7 +42,7 @@ describe('expense actions', () => {
 
     const result = await getExpensesByMonth('202601')
 
-    expect(mockRecordsApi.getExpensesByMonth).toHaveBeenCalledWith('202601')
+    expect(mockRecordsApi.getExpensesByMonth).toHaveBeenCalledWith({householdId:'A',person:null,authMethod:'password'}, '202601')
     expect(result).toEqual({ success: true, data: expenses })
   })
 
@@ -79,7 +79,7 @@ describe('expense actions', () => {
       })
     )
 
-    expect(mockRecordsApi.createExpense).toHaveBeenCalledWith({
+    expect(mockRecordsApi.createExpense).toHaveBeenCalledWith({householdId:'A',person:null,authMethod:'password'}, {
       month: '202601',
       label: '家賃',
       amount: -120000,
@@ -129,7 +129,7 @@ describe('expense actions', () => {
       })
     )
 
-    expect(mockRecordsApi.updateExpense).toHaveBeenCalledWith('expense-1', {
+    expect(mockRecordsApi.updateExpense).toHaveBeenCalledWith({householdId:'A',person:null,authMethod:'password'}, 'expense-1', {
       month: '202601',
       label: '更新後',
       amount: -10000,
@@ -144,7 +144,7 @@ describe('expense actions', () => {
 
     const result = await toggleExpenseCarryover('expense-1', true, '202601')
 
-    expect(mockRecordsApi.toggleExpenseCarryover).toHaveBeenCalledWith('expense-1', true)
+    expect(mockRecordsApi.toggleExpenseCarryover).toHaveBeenCalledWith({householdId:'A',person:null,authMethod:'password'}, 'expense-1', true)
     expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/01')
     expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
     expect(result).toEqual({ success: true })
@@ -155,7 +155,7 @@ describe('expense actions', () => {
 
     const result = await deleteExpense('expense-1', '202601')
 
-    expect(mockRecordsApi.deleteExpense).toHaveBeenCalledWith('expense-1')
+    expect(mockRecordsApi.deleteExpense).toHaveBeenCalledWith({householdId:'A',person:null,authMethod:'password'}, 'expense-1')
     expect(mockRevalidatePath).toHaveBeenCalledWith('/2026/01')
     expect(mockRevalidatePath).toHaveBeenCalledWith('/2026')
     expect(result).toEqual({ success: true })

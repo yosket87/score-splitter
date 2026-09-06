@@ -34,7 +34,7 @@ export default async function MonthPage({ params }: MonthPageProps) {
     getExpensesByMonth(month),
     getCarryoversByMonth(month),
     getMonthlySummaries(),
-    getPaymentStatus(month),
+    getPaymentStatus(month, householdId),
     getLegacyHouseholdContext(),
   ])
 

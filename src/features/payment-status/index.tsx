@@ -72,7 +72,7 @@ function ScopedPaymentStatusPanel({ householdId, canCheckLegacyPayment = false, 
   }, [storageKey, legacyKey, month])
 
   async function refresh(isCurrent: () => boolean) {
-    const next = await getPaymentStatus(month)
+    const next = await getPaymentStatus(month, householdId)
     if (!isCurrent()) return next
     setLoaded({ source: initialResult, value: next })
     return next
@@ -103,12 +103,12 @@ function ScopedPaymentStatusPanel({ householdId, canCheckLegacyPayment = false, 
     // 応答が失われても、操作番号だけでなく確定時の全入力をそのまま再送する。
     sessionStorage.setItem(storageKey, JSON.stringify(operation))
     setPending(operation)
-    const response = operation.kind === 'record' ? await recordPayment(operation.input) : await correctPayment(operation.input)
+    const response = operation.kind === 'record' ? await recordPayment(operation.input, householdId) : await correctPayment(operation.input, householdId)
     if (!isCurrent()) return
     if (response.success) await complete(isCurrent)
     else {
       setError(response.error)
-      if (response.code >= 400 && response.code < 500) {
+      if (response.code >= 400 && response.code < 500 && response.code !== 401 && response.code !== 403) {
         clearPending()
         setQuote(null)
         setEditing(null)
@@ -159,7 +159,7 @@ function ScopedPaymentStatusPanel({ householdId, canCheckLegacyPayment = false, 
       </div> : <div role="alert" className="rounded-xl border border-destructive/30 p-4 text-sm">{result.success ? '' : result.error}<Button variant="outline" className="mt-2 block" disabled={busy} onClick={() => run(async (isCurrent) => { await refresh(isCurrent) })}>再取得</Button></div>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {pending && <div className="space-y-2 rounded-xl border p-3 text-sm"><p>記録の結果が未確認です。新しい記録を作る前に確認してください。</p><div className="flex flex-wrap gap-2"><Button variant="outline" disabled={busy} onClick={() => run(async (isCurrent) => {
-        const response = await getPaymentOperation(month, pending.input.operationId)
+        const response = await getPaymentOperation(month, pending.input.operationId, householdId)
         if (!isCurrent()) return
         if (response.success && response.data) await complete(isCurrent)
         else setError(response.success ? '記録はまだ確認できません。同じ内容で再送できます。' : response.error)
@@ -167,7 +167,7 @@ function ScopedPaymentStatusPanel({ householdId, canCheckLegacyPayment = false, 
       {legacyOperationId && !pending && <div className="space-y-2 rounded-xl border p-3 text-sm">
         <p>以前の記録の結果が未確認です。振込記録と照らし合わせて確認してください。</p>
         {canCheckLegacyPayment ? <Button variant="outline" disabled={busy} onClick={() => run(async (isCurrent) => {
-          const response = await getPaymentOperation(month, legacyOperationId)
+          const response = await getPaymentOperation(month, legacyOperationId, householdId)
           if (!isCurrent()) return
           if (response.success && response.data) {
             sessionStorage.removeItem(legacyKey)

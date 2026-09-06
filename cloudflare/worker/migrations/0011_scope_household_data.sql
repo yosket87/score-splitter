@@ -1,4 +1,5 @@
 -- 全入口停止・旧AI処理drain・停止後snapshot確認後に適用する。0012は別段階。
+-- D1のremote SQL分割でトリガー内のENDを終端と誤認しないよう、CASE式を括弧で囲む。
 -- 通常CHECK作業表を同じmigration内で作成・削除する。実行単位の原子性はWranglerが管理する。
 CREATE TABLE _household_migration_assert (ok INTEGER NOT NULL CHECK (ok = 1));
 INSERT INTO _household_migration_assert (ok)
@@ -209,7 +210,7 @@ END;
 CREATE TRIGGER increment_ai_revision_after_income_insert
 AFTER INSERT ON incomes
 BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END);
   UPDATE ai_diagnosis_source_revision
   SET revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   WHERE household_id = NEW.household_id;
@@ -219,7 +220,7 @@ CREATE TRIGGER increment_ai_revision_after_income_update
 AFTER UPDATE OF month, amount ON incomes
 WHEN OLD.month IS NOT NEW.month OR OLD.amount IS NOT NEW.amount
 BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END);
   UPDATE ai_diagnosis_source_revision
   SET revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   WHERE household_id = NEW.household_id;
@@ -228,7 +229,7 @@ END;
 CREATE TRIGGER increment_ai_revision_after_income_delete
 AFTER DELETE ON incomes
 BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=OLD.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=OLD.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END);
   UPDATE ai_diagnosis_source_revision
   SET revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   WHERE household_id = OLD.household_id;
@@ -237,7 +238,7 @@ END;
 CREATE TRIGGER increment_ai_revision_after_expense_insert
 AFTER INSERT ON expenses
 BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END);
   UPDATE ai_diagnosis_source_revision
   SET revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   WHERE household_id = NEW.household_id;
@@ -250,7 +251,7 @@ WHEN OLD.month IS NOT NEW.month
   OR OLD.amount IS NOT NEW.amount
   OR OLD.is_carryover IS NOT NEW.is_carryover
 BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END);
   UPDATE ai_diagnosis_source_revision
   SET revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   WHERE household_id = NEW.household_id;
@@ -259,7 +260,7 @@ END;
 CREATE TRIGGER increment_ai_revision_after_expense_delete
 AFTER DELETE ON expenses
 BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=OLD.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=OLD.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END);
   UPDATE ai_diagnosis_source_revision
   SET revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   WHERE household_id = OLD.household_id;
@@ -268,7 +269,7 @@ END;
 CREATE TRIGGER increment_ai_revision_after_carryover_insert
 AFTER INSERT ON carryovers
 BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END);
   UPDATE ai_diagnosis_source_revision
   SET revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   WHERE household_id = NEW.household_id;
@@ -280,7 +281,7 @@ WHEN OLD.month IS NOT NEW.month
   OR OLD.amount IS NOT NEW.amount
   OR OLD.is_cleared IS NOT NEW.is_cleared
 BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=NEW.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END);
   UPDATE ai_diagnosis_source_revision
   SET revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   WHERE household_id = NEW.household_id;
@@ -289,22 +290,22 @@ END;
 CREATE TRIGGER increment_ai_revision_after_carryover_delete
 AFTER DELETE ON carryovers
 BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=OLD.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM ai_diagnosis_source_revision WHERE household_id=OLD.household_id) THEN RAISE(ABORT,'AI_REVISION_MISSING') END);
   UPDATE ai_diagnosis_source_revision
   SET revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   WHERE household_id = OLD.household_id;
 END;
 
 CREATE TRIGGER payment_operation_revision BEFORE INSERT ON payment_operations BEGIN
- SELECT CASE WHEN COALESCE((SELECT revision FROM month_payment_revisions WHERE household_id = NEW.household_id AND month = NEW.month),0) != NEW.expected_revision THEN RAISE(ABORT,'PAYMENT_REVISION_CONFLICT') END;
+ SELECT (CASE WHEN COALESCE((SELECT revision FROM month_payment_revisions WHERE household_id = NEW.household_id AND month = NEW.month),0) != NEW.expected_revision THEN RAISE(ABORT,'PAYMENT_REVISION_CONFLICT') END);
 END;
 
 CREATE TRIGGER payment_record_operation BEFORE INSERT ON payment_records BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM payment_operations WHERE household_id = NEW.household_id AND id = NEW.operation_id AND month = NEW.month AND kind IN ('record','correct')) THEN RAISE(ABORT,'PAYMENT_OPERATION_INVALID') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM payment_operations WHERE household_id = NEW.household_id AND id = NEW.operation_id AND month = NEW.month AND kind IN ('record','correct')) THEN RAISE(ABORT,'PAYMENT_OPERATION_INVALID') END);
 END;
 
 CREATE TRIGGER payment_void_operation BEFORE INSERT ON payment_voids BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM payment_operations o JOIN payment_records p ON p.household_id = o.household_id AND p.month = o.month WHERE o.household_id = NEW.household_id AND o.id = NEW.operation_id AND p.id = NEW.payment_id AND o.kind IN ('correct','void')) THEN RAISE(ABORT,'PAYMENT_OPERATION_INVALID') END;
+ SELECT (CASE WHEN NOT EXISTS(SELECT 1 FROM payment_operations o JOIN payment_records p ON p.household_id = o.household_id AND p.month = o.month WHERE o.household_id = NEW.household_id AND o.id = NEW.operation_id AND p.id = NEW.payment_id AND o.kind IN ('correct','void')) THEN RAISE(ABORT,'PAYMENT_OPERATION_INVALID') END);
 END;
 
 CREATE TRIGGER payment_operations_immutable_update BEFORE UPDATE ON payment_operations BEGIN SELECT RAISE(ABORT,'PAYMENT_IMMUTABLE'); END;

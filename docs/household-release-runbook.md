@@ -32,7 +32,7 @@ Dashboardの読取確認では、旧APIの「設定 → ビルド → 非本番�
 1. 本番root Worker、旧API Worker、開発Workerの実稼働Versionと配分を取得する。設定ファイルだけでなく各VersionのDB bindingを照合する。
 2. 同じD1に到達するCustom Domain・workers.dev・versioned Preview・Branch Alias・service bindingを列挙する。Git連携の本番Deploy commandと実行中/待機中Buildを記録する。
 3. 適用済みmigration、業務表集合、世帯集合、所属NULL/不明所属/越境FKの件数を確認する。ログへtoken・公開鍵・家計明細・Secretを出力しない。
-4. 最終対象HEADで全量バックアップを取得し、schemaVersion 3のPASSを確認する。取得値と移行後の件数・金額・revision・台帳JSONの保持を照合できるよう、比較資料はバックアップと同じprivate領域に置く。
+4. 最終対象HEADで全量バックアップを取得し、schemaVersion 4のPASSを確認する。取得値と移行後の件数・金額・revision・台帳JSONの保持を照合できるよう、比較資料はバックアップと同じprivate領域に置く。
 
 ## 段階3の停止と切替
 

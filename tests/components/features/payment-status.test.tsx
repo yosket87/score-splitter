@@ -16,7 +16,7 @@ describe('振込状況', () => {
     await userEvent.click(screen.getByRole('button', { name: '振込済みにする' }))
     expect(await screen.findByRole('dialog')).toHaveTextContent('15,500')
     await userEvent.click(screen.getByRole('button', { name: '振込済みとして記録' }))
-    await waitFor(() => expect(actions.recordPayment).toHaveBeenCalledWith(expect.objectContaining({ confirmedSignedYen: 15500, expectedRevision: 1 })))
+    await waitFor(() => expect(actions.recordPayment).toHaveBeenCalledWith(expect.objectContaining({ confirmedSignedYen: 15500, expectedRevision: 1 }), 'A'))
   })
   it('逆方向の差額を表示する', () => {
     render(<PaymentStatusPanel householdId="A" month="202609" initialResult={{ success: true, data: { ...status, state: 'difference', netPaidSignedYen: 15500, remainingSignedYen: -5500 } }} />)
@@ -56,7 +56,7 @@ describe('振込状況', () => {
     actions.getPaymentOperation.mockResolvedValue({ success: true, data: { operationId: 'persisted-id' } })
     render(<PaymentStatusPanel householdId="A" month="202609" initialResult={{ success: true, data: status }} />)
     await userEvent.click(await screen.findByRole('button', { name: '結果を確認' }))
-    await waitFor(() => expect(actions.getPaymentOperation).toHaveBeenCalledWith('202609', 'persisted-id'))
+    await waitFor(() => expect(actions.getPaymentOperation).toHaveBeenCalledWith('202609', 'persisted-id', 'A'))
     expect(actions.recordPayment).not.toHaveBeenCalled()
     await waitFor(() => expect(sessionStorage.getItem('payment-operation:A:202609')).toBeNull())
   })
@@ -73,7 +73,7 @@ describe('振込状況', () => {
     await userEvent.type(amount, '15000')
     await userEvent.type(screen.getByRole('textbox', { name: '訂正理由' }), '金額の誤記')
     await userEvent.click(screen.getByRole('button', { name: '訂正を記録する' }))
-    await waitFor(() => expect(actions.correctPayment).toHaveBeenCalledWith(expect.objectContaining({ paymentId: 'payment-id', reason: '金額の誤記', replacement: { signedYen: 15000, paidOn: '2026-09-01' } })))
+    await waitFor(() => expect(actions.correctPayment).toHaveBeenCalledWith(expect.objectContaining({ paymentId: 'payment-id', reason: '金額の誤記', replacement: { signedYen: 15000, paidOn: '2026-09-01' } }), 'A'))
   })
 
 })
@@ -112,7 +112,7 @@ it('既存世帯の旧操作は入力を移管せず結果照会だけを許し�
   expect(screen.queryByRole('button', { name: '同じ内容で再送' })).not.toBeInTheDocument()
   expect(screen.queryByText(/99,999/)).not.toBeInTheDocument()
   await userEvent.click(await screen.findByRole('button', { name: '結果を確認' }))
-  expect(actions.getPaymentOperation).toHaveBeenCalledWith('202609', 'old-operation')
+  expect(actions.getPaymentOperation).toHaveBeenCalledWith('202609', 'old-operation', 'A')
   expect(actions.recordPayment).not.toHaveBeenCalled()
   expect(sessionStorage.getItem('payment-operation:A:202609')).toBeNull()
   expect(sessionStorage.getItem('payment-operation:202609')).toBe(legacy)
@@ -150,7 +150,7 @@ it('壊れた旧キーがあっても現在の世帯の未確認操作を復元�
   actions.getPaymentOperation.mockResolvedValue({ success: true, data: null })
   render(<PaymentStatusPanel householdId="A" month="202609" initialResult={{ success: true, data: status }} />)
   await userEvent.click(await screen.findByRole('button', { name: '結果を確認' }))
-  expect(actions.getPaymentOperation).toHaveBeenCalledWith('202609', 'current-operation')
+  expect(actions.getPaymentOperation).toHaveBeenCalledWith('202609', 'current-operation', 'A')
   expect(screen.getByRole('button', { name: '振込済みにする' })).toBeDisabled()
 })
 
@@ -175,4 +175,16 @@ it.each([false, undefined])('旧キーは別世帯の同ID成功で消さず、�
   expect(actions.getPaymentOperation).toHaveBeenCalledOnce()
   expect(actions.recordPayment).not.toHaveBeenCalled()
   expect(sessionStorage.getItem('payment-operation:A:202609')).toBeNull()
+})
+
+
+it.each([401, 403])('認証失敗%sで未確認操作を消さず再送の手掛かりを残す', async (code) => {
+  const pending = JSON.stringify({ kind: 'record', input: { month: '202609', operationId: 'pending', expectedRevision: 1, confirmedSignedYen: 15500, paidOn: '2026-09-01' } })
+  sessionStorage.setItem('payment-operation:A:202609', pending)
+  actions.recordPayment.mockResolvedValue({ success: false, code, error: 'ログインし直してください' })
+  render(<PaymentStatusPanel householdId="A" month="202609" initialResult={{ success: true, data: status }} />)
+  await userEvent.click(await screen.findByRole('button', { name: '同じ内容で再送' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('ログインし直してください')
+  expect(sessionStorage.getItem('payment-operation:A:202609')).toBe(pending)
+  expect(actions.getPaymentStatus).not.toHaveBeenCalled()
 })

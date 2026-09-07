@@ -87,4 +87,10 @@ FIREBASE_AUTH_MOCK=true npm run dev:mock
 
 開発D1 `51457bd5-8e0e-4645-ad34-86634285af2c`のexportをSQLiteへ復元して整合性を確認後、0014を適用しpending 0件を確認した。開発Worker version `1e3ef9d9-8709-4d37-9776-4090cb98dcbb`へ配備し、Googleボタンの表示を確認した。本番D1・Worker・Firebase設定は変更していない。
 
-内蔵ブラウザからのGoogle popup完了は確認できず、実ログインは利用者の普段のブラウザで確認待ち。家計への本人承認・連携、Apple Developer設定・Apple実ログインも未完了。Appleフラグは無効のまま。
+初回の実Googleログインで下記のWorkers互換性問題が判明したため修正し、開発Worker version `7cdc562a-1680-435f-bb0d-6cc208e7b6f9`へ再配備した。実ログインは利用者の普段のブラウザで再確認待ち。家計への本人承認・連携、Apple Developer設定・Apple実ログインも未完了。Appleフラグは無効のまま。
+
+### 実Google検証で見つかった互換性の問題
+
+初回の実ログインでは署名鍵取得段階で失敗した。Cloudflare Workersのnative fetchは`redirect: "error"`を受理せず、通信前にTypeErrorとなる。`redirect: "manual"`でリダイレクト先へ追従せず、3xxを含む非2xx応答を拒否する実装へ修正した。外部通信を関数mockへ直接差し替える試験ではruntimeのRequestInit検査を通らないため、workerdのnative fetchを通す回帰試験で確認する。診断ログは固定の段階名のみで、token・メール・外部エラー本文は記録しない。
+
+修正後は実Google公開証明書4件の取得・読み込みをworkerdで確認。native fetch経路の回帰試験、鍵取得・lookupの301/302/303/307/308拒否、全1,679テスト、型検査、開発ビルド・配備に成功した。

@@ -83,6 +83,6 @@ getFirebaseAccount(db, token)
 
 ### 2026-09-07 検証状況
 
-実装と独立レビューは完了。最終修正後の1,672テスト、typecheck、lint（既存警告1件）、実D1での同時要求制限・移行/復元/失効、OpenNext build、本番成果物のモック封鎖に成功。既存E2E78件は統合後に成功。Firebase専用E2Eは最終修正後に再検証する。
+実装と独立レビューは完了。最終修正後の1,672テスト、typecheck、lint（既存警告1件）、実D1での同時要求制限・移行/復元/失効、OpenNext build、本番成果物のモック封鎖に成功。既存E2E78件は統合後に成功。Firebase専用E2E3件も最終修正後に成功。
 
 実Firebase管理アカウントのログイン待ち。Firebase project/provider/許可ドメインとApple Developer設定、開発WorkerへのFirebase版配備、実Google/Appleログインは未完了。本番変更・旧認証の終了は実施しない。

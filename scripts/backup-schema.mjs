@@ -25,6 +25,10 @@ export const BACKUP_MIGRATIONS = Object.freeze([
   { name: '0010_backfill_households.sql', tables: [] },
   { name: '0011_scope_household_data.sql', tables: [] },
   { name: '0012_enforce_household_constraints.sql', tables: [] },
+  {
+    name: '0013_add_google_identities.sql',
+    tables: ['users', 'google_identities', 'household_memberships', 'oauth_login_attempts', 'google_migration_requests'],
+  },
 ].map((migration) => Object.freeze({ ...migration, tables: Object.freeze(migration.tables) })))
 
 // SQLite予約表と、D1が使用する既知の内部表だけを除外する。
@@ -236,7 +240,8 @@ export function createExpectedBackupSchema(migrations, databasePath, commandRunn
     }
     commandRunner('sqlite3', ['-safe', '-bail', databasePath], {
       // macOS等のCLI既定値に依存せず、D1と同じ改名時のFK更新を使う。
-      input: Buffer.concat([Buffer.from('PRAGMA legacy_alter_table=OFF;\n'), readFileSync(migrationPath)]), label: `期待schema生成: ${name}`,
+      // D1と同じmigration単位で確定し、文ごとのディスク同期と途中状態の残留を避ける。
+      input: Buffer.concat([Buffer.from('PRAGMA legacy_alter_table=OFF;\nBEGIN;\n'), readFileSync(migrationPath), Buffer.from('\nCOMMIT;\n')]), label: `期待schema生成: ${name}`,
     })
   }
   commandRunner('sqlite3', ['-safe', databasePath, 'CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY, name TEXT);'], { label: '期待migration表生成' })

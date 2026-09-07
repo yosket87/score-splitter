@@ -29,6 +29,28 @@ AI3表・振込4表のhousehold_idはNOT NULL。明細3表と認証3表は0011�
 
 0012は明細3表・sessions・passkey_credentialsのhousehold_idをNOT NULL/FKへ再構築し、webauthn_challengesは種別CHECKでauthenticationだけ所属NULLを許す。NULLの追補は行わず、不明所属や必要所属NULLがあれば停止する。全列比較で既存値を保持し、索引・トリガーを復元する。ローカルの最終制約・失敗rollback・再適用・別D1復元は検証済み。本番適用は別承認で、0011から0012完了まで全入口の停止を維持する。
 
+## Google個人認証の互換追加（0013）
+
+Googleの本人確認結果と世帯への所属を分離する。互換段階では既存の家計・旧session・振込履歴を保持し、既存のpersonからuserを推定しない。本番適用や利用者の移行完了を意味しない。
+
+| 追加表 | 責務と主な制約 |
+|---|---|
+| users | アプリ内の個人。有効状態、単調増加session_epoch、失効時点のOAuth試行上限oauth_attempt_floor |
+| google_identities | canonical issuer/subとuserの対応。解除済みも含め主体を一意に保持し、有効主体はuserにつき1件 |
+| household_memberships | userと世帯と会計上の既定person。解除後の再所属は新しいIDを使う |
+| oauth_login_attempts | ブラウザ紐づけ・stateのハッシュ、nonce、PKCE verifier、短い期限、一度きりのclaim。sequenceはAUTOINCREMENT |
+| google_migration_requests | 検証済み主体への一度きりの運営許可。本人確認参照、専用移行slot、期限、消費・復旧の記録 |
+
+Google sessionはuser、membership、session_epoch、oauth_attempt_sequenceを必須にする。所属と世帯の複合外部キーに加え、発行時に有効user・有効所属・検証完了した試行と主体・失効世代を検査する。旧方式は追加列をNULLのまま保持する。過去のsessionを新しいuserや世代へ付け替えない。
+
+本人の全端末失効はepochとOAuth試行上限を同時に進める。認証開始時にはuserがまだ不明なため、callback時のepoch照合だけでなく試行sequenceも確認する。所属解除時も同じ境界を使う。期限切れ試行を清掃した後やバックアップ復元後も、次のsequenceが失効上限を超えることを検証する。
+
+振込操作にはGoogle方式とactor_user_idを追加するが、既存のactor・JSON・revisionは変更しない。歴史的なactorには現在の有効所属を要求しない。
+
+householdsのlegacy_auth_disabled_atがNULLの間は旧方式を維持する。停止日時の設定は後段の運営finalizeで行い、同じDB操作で旧sessionを削除する。停止後の旧session発行・パスキー登録をDB制約でも拒否する。legacy_auth_keyは過去の振込チェックの対象世帯識別に必要なため保持する。
+
+DDLの追加は空DBから再現可能にし、2名の実利用確認をmigrationの実行条件にしない。新schemaの登録・非空復元・表再構築の途中失敗検証を同じ段階で追加する。[認証ADR](adr/0002-google-authentication.md)、[段階リリース手順](google-auth-release-runbook.md)
+
 ## テーブル構造
 
 ### incomes（収入テーブル）

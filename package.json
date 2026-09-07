@@ -33,6 +33,7 @@
     "test:d1:ai-payment": "node scripts/test-ai-payment-household-d1.mjs",
     "test:d1:backup": "node scripts/test-backup-d1.mjs",
     "test:d1:household-migrations": "node scripts/test-household-migrations.mjs",
+    "test:d1:identity-migrations": "node scripts/test-identity-migrations.mjs",
     "test:google-oidc:worker": "node scripts/test-google-oidc-worker.mjs"
   },
   "dependencies": {

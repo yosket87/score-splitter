@@ -2,20 +2,24 @@ import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import { BACKUP_MIGRATIONS, createExpectedBackupSchema, readBackupSchema, verifyMatchingSchemaObjects } from '../../../scripts/backup-schema.mjs'
 import { restoreAndInspectBackup } from '../../../scripts/backup-sqlite.mjs'
+import { createSqliteFixture } from '../../helpers/backup-sqlite-fixtures'
 
-function inspect(sql: string) {
+function inspect(sql: string, afterInspect?: (databasePath: string) => void) {
   const directory = mkdtempSync(path.join(tmpdir(), 'backup-sqlite-test-'))
+  const databasePath = path.join(directory, 'restored.sqlite')
   try {
-    return restoreAndInspectBackup(Buffer.from(sql), path.join(directory, 'restored.sqlite'),
+    const inspected = restoreAndInspectBackup(Buffer.from(sql), databasePath,
       (executable: string, args: string[], options: { input?: Buffer } = {}) => {
         expect(executable).toBe('sqlite3')
         const result = spawnSync(executable, args, { input: options.input, encoding: 'utf8' })
         if (result.status !== 0) throw new Error(String(result.stderr))
         return result.stdout
       })
+    afterInspect?.(databasePath)
+    return inspected
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
@@ -23,13 +27,32 @@ function inspect(sql: string) {
 
 const snapshot = (stage: number) => [
   'PRAGMA legacy_alter_table=OFF;',
+  'BEGIN;',
   ...BACKUP_MIGRATIONS.slice(0, stage).map(({ name }) => readFileSync(path.join(process.cwd(), 'cloudflare/worker/migrations', name), 'utf8')),
   'CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY, name TEXT);',
   ...BACKUP_MIGRATIONS.slice(0, stage).map(({ name }, index) => `INSERT INTO d1_migrations VALUES (${index + 1}, '${name}');`),
+  'COMMIT;',
 ].join('\n')
 
 describe('実SQLiteによるバックアップschema検証', () => {
-  it.each([4, 5, 6, 7, 8, 9, 10, 11])('実migrationの000%sまで復元し全対象表を検査する', (stage) => {
+  it('fixtureの同じ生成SQLを再利用しても各試験の変更は別のコピーへ伝わらない', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'backup-fixture-isolation-'))
+    const first = path.join(directory, 'first.sqlite')
+    const second = path.join(directory, 'second.sqlite')
+    const sql = 'CREATE TABLE sample(id INTEGER); INSERT INTO sample VALUES(1);'
+    try {
+      createSqliteFixture(sql, first)
+      const changed = spawnSync('sqlite3', ['-safe', first, 'UPDATE sample SET id=2;'], { encoding: 'utf8' })
+      expect(changed.status, changed.stderr).toBe(0)
+      createSqliteFixture(sql, second)
+      const read = spawnSync('sqlite3', ['-safe', second, 'SELECT id FROM sample;'], { encoding: 'utf8' })
+      expect(read.status, read.stderr).toBe(0)
+      expect(read.stdout.trim()).toBe('1')
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+  it.each([4, 5, 6, 7, 8, 9, 10, 11, 12, 13])('実migrationの000%sまで復元し全対象表を検査する', (stage) => {
     const result = inspect(snapshot(stage))
     expect(result.schema.stage).toBe(String(stage).padStart(4, '0'))
     expect(Object.keys(result.countRows[0]).sort()).toEqual(result.schema.tables)
@@ -139,6 +162,29 @@ describe('実SQLiteによるバックアップschema検証', () => {
       rmSync(directory, { recursive: true, force: true })
     }
   })
+  it('期待schemaのmigration途中で失敗したら直前stageのDDLと行へ戻る', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'backup-expected-rollback-'))
+    const databasePath = path.join(directory, 'expected.sqlite')
+    let beforeFailure = ''
+    const dump = () => spawnSync('sqlite3', ['-safe', databasePath, '.dump'], { encoding: 'utf8' }).stdout
+    const run = (executable: string, args: string[], options: { input?: Buffer; label?: string } = {}) => {
+      let input = options.input
+      if (options.label?.endsWith('0013_add_google_identities.sql')) {
+        beforeFailure = dump()
+        input = Buffer.from(input!.toString().replace('CREATE TABLE users (', 'INSERT INTO _identity_migration_assert VALUES(0);\nCREATE TABLE users ('))
+      }
+      const result = spawnSync(executable, args, { input, encoding: 'utf8' })
+      if (result.status !== 0) throw new Error(result.stderr)
+      return result.stdout
+    }
+    try {
+      expect(() => createExpectedBackupSchema(BACKUP_MIGRATIONS.map(({ name }) => name), databasePath, run)).toThrow(/CHECK/)
+      expect(beforeFailure).not.toBe('')
+      expect(dump()).toBe(beforeFailure)
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
   it('履歴・AI状態入りsourceをdumpして正常復元する', () => {
     const directory = mkdtempSync(path.join(tmpdir(), 'backup-state-test-'))
     const sourcePath = path.join(directory, 'source.sqlite')
@@ -169,4 +215,86 @@ describe('実SQLiteによるバックアップschema検証', () => {
       (filePath) => !String(filePath).endsWith('0009_add_households.sql'),
     )).toThrow(/リポジトリにありません/)
   })
+})
+
+describe('Google認証の復元後の採番保証', () => {
+  let dump: string
+  const sequenceRow = "INSERT INTO sqlite_sequence VALUES('oauth_login_attempts',100);"
+  beforeAll(() => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'backup-oauth-high-water-'))
+    const sourcePath = path.join(directory, 'source.sqlite')
+    try {
+      const setup = spawnSync('sqlite3', ['-safe', '-bail', sourcePath], {
+        input: [snapshot(13), ...['google-identity.sql', 'google-oauth-high-water.sql'].map((name) =>
+          readFileSync(path.join(process.cwd(), 'tests/fixtures', name), 'utf8'))].join('\n'),
+        encoding: 'utf8',
+      })
+      expect(setup.status, setup.stderr).toBe(0)
+      const exported = spawnSync('sqlite3', ['-safe', sourcePath, '.dump'], { encoding: 'utf8' })
+      expect(exported.status, exported.stderr).toBe(0)
+      // macOSの.dumpは内部表の初期化を省くため、Wranglerと同じ一意復元をfixtureで明示する。
+      dump = exported.stdout.replace(sequenceRow, `DELETE FROM sqlite_sequence;\n${sequenceRow}`)
+      expect(dump).toContain(sequenceRow)
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('清掃前の高水位100と残存MAX12を読み取り、試行も番号も変更しない', () => {
+    const restored = inspect(dump, (databasePath) => {
+      const queried = spawnSync('sqlite3', ['-safe', '-json', databasePath, `
+        SELECT (SELECT seq FROM sqlite_sequence WHERE name='oauth_login_attempts') AS high_water,
+          (SELECT MAX(sequence) FROM oauth_login_attempts) AS latest_attempt,
+          (SELECT MAX(oauth_attempt_floor) FROM users) AS floor;
+      `], { encoding: 'utf8' })
+      expect(queried.status, queried.stderr).toBe(0)
+      expect(JSON.parse(queried.stdout)).toEqual([{ high_water: 100, latest_attempt: 12, floor: 100 }])
+    })
+    expect(restored.schema.stage).toBe('0013')
+    expect(restored.countRows[0].oauth_login_attempts).toBe(2)
+    expect(restored.countRows[0].users).toBe(2)
+  })
+
+  it.each([
+    ['欠落', ''],
+    ['floor未満', sequenceRow.replace(',100)', ',99)')],
+    ['残存試行未満', sequenceRow.replace(',100)', ',11)')],
+    ['NULL', sequenceRow.replace(',100)', ',NULL)')],
+    ['文字列', sequenceRow.replace(',100)', ",'100')")],
+    ['小数', sequenceRow.replace(',100)', ',100.5)')],
+    ['負数', sequenceRow.replace(',100)', ',-1)')],
+    ['重複', `${sequenceRow}\n${sequenceRow}`],
+    ['安全整数上限', sequenceRow.replace(',100)', ',9007199254740991)')],
+    ['安全整数範囲外', sequenceRow.replace(',100)', ',9007199254740992)')],
+  ])('DDLや業務表を変えずに高水位だけが%sのdumpを拒否する', (_label, replacement) => {
+    expect(() => inspect(dump.replace(sequenceRow, replacement))).toThrow(/OAuth.*採番/)
+  })
+
+  it('次の番号が安全整数上限ちょうどになる復元を許可する', () => {
+    const restored = inspect(dump.replace(sequenceRow, sequenceRow.replace(',100)', ',9007199254740990)')))
+    expect(restored.integrityCheck).toBe('ok')
+  })
+
+  it('無効なuserのfloorも次回採番の下限として検査する', () => {
+    expect(() => inspect(`${dump}
+      UPDATE users SET active=0,session_epoch=session_epoch+1 WHERE id='user-b';
+      UPDATE sqlite_sequence SET seq=99 WHERE name='oauth_login_attempts';
+    `)).toThrow(/OAuth.*採番/)
+  })
+
+  it('全試行を清掃した後もuserのfloorを超える高水位の復元を必須にする', () => {
+    const cleaned = `${dump}\nDELETE FROM sessions; DELETE FROM oauth_login_attempts;`
+    expect(inspect(cleaned).countRows[0].oauth_login_attempts).toBe(0)
+    expect(() => inspect(`${cleaned}\nDELETE FROM sqlite_sequence;`)).toThrow(/OAuth.*採番/)
+  })
+
+  it.each(['DELETE FROM sqlite_sequence;', 'UPDATE sqlite_sequence SET seq=11;'])(
+    'userが空でも残存試行12に対する高水位の欠落・低下を拒否する: %s', (mutation) => {
+      expect(() => inspect(`${snapshot(13)}
+        INSERT INTO oauth_login_attempts(sequence,id,browser_binding_hash,state_hash,nonce,code_verifier,created_at,expires_at)
+          VALUES(12,'pending',printf('%064d',1),printf('%064d',1),'nonce','verifier','2026-09-06','2099-01-01');
+        ${mutation}
+      `)).toThrow(/OAuth.*採番/)
+    }
+  )
 })

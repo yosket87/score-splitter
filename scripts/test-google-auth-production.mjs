@@ -29,21 +29,22 @@ await promisify(execFile)(process.execPath, [resolve('node_modules/wrangler/bin/
 const files = (await readdir(bundle)).filter(path => /\.(?:mjs|js|wasm)$/.test(path))
 const modules = files.sort((a, b) => Number(b === 'google-auth-test-entry.js') - Number(a === 'google-auth-test-entry.js'))
   .map(path => ({ type: path.endsWith('.wasm') ? 'CompiledWasm' : 'ESModule', path: resolve(bundle, path) }))
-mf = new Miniflare({ modules, modulesRoot: bundle,
+const runtimeOptions = { modules, modulesRoot: bundle,
   compatibilityDate: '2026-06-28', compatibilityFlags: ['nodejs_compat'],
   assets: { directory: resolve('.open-next/assets'), binding: 'ASSETS', routerConfig: { has_user_worker: true, invoke_user_worker_ahead_of_assets: true } },
   d1Databases: { DB: 'google-auth-production-fixture' }, d1Persist: false,
   bindings: { GOOGLE_OAUTH_CLIENT_ID: 'valid-dummy-client', GOOGLE_OAUTH_CLIENT_SECRET: 'valid-dummy-secret',
     GOOGLE_OAUTH_ORIGIN: 'https://app.example.com', USE_MOCKS: 'true', NODE_ENV: 'development', NEXT_RUNTIME: 'nodejs' },
   outboundService: () => { outbound++; return new Response('外部通信は禁止', { status: 502 }) },
-})
+}
+mf = new Miniflare(runtimeOptions)
   const db = await mf.getD1Database('DB')
   for (const file of (await readdir('cloudflare/worker/migrations')).filter(file => file.endsWith('.sql')).sort()) {
     await db.exec((await readFile(`cloudflare/worker/migrations/${file}`, 'utf8')).replace(/--[^\n]*/g, '').replace(/\s+/g, ' '))
   }
   const headers = { host: 'app.example.com', 'x-forwarded-proto': 'https', cookie: 'google_mock_scenario=member-a', 'content-type': 'application/json' }
   for (const [path, method] of [['/api/mock/reset', 'POST'], ['/api/mock/ai-diagnosis-stats', 'GET'],
-    ['/api/mock/google/prepare', 'POST'], ['/api/mock/google/authorize?request=fixture', 'GET'], ['/api/mock/__google-ui-fixture.html', 'GET']]) {
+    ['/api/mock/google/prepare', 'POST'], ['/api/mock/firebase/prepare', 'POST'], ['/api/mock/google/authorize?request=fixture', 'GET'], ['/api/mock/__google-ui-fixture.html', 'GET']]) {
     const response = await mf.dispatchFetch(`https://app.example.com${path}`, { method, headers, redirect: 'manual', ...(method === 'POST' ? { body: '{"scenario":"member-a"}' } : {}) })
     assert.equal(response.status, 404, `${path}: ${await response.text()}`)
   }
@@ -71,5 +72,24 @@ mf = new Miniflare({ modules, modulesRoot: bundle,
   for (const file of files.filter(file => /\.(?:mjs|js)$/.test(file))) {
     assert.doesNotMatch(await readFile(resolve(bundle, file), 'utf8'), /node:sqlite|\bminiflare\b|tests\/helpers\/(?:identity|auth)-sqlite/)
   }
-  console.log('production Google封鎖検証成功: 有効dummy設定・全mock入口404・Preview事前拒否・正規Google redirect・Store未初期化・外部通信0')
+  await mf.dispose()
+  mf = new Miniflare({ ...runtimeOptions, bindings: { ...runtimeOptions.bindings,
+    FIREBASE_PROJECT_ID: 'fixture-project', FIREBASE_API_KEY: 'public-fixture', FIREBASE_AUTH_DOMAIN: 'fixture-project.firebaseapp.com',
+    FIREBASE_AUTH_ORIGIN: 'https://app.example.com', FIREBASE_GOOGLE_ENABLED: 'true', FIREBASE_APPLE_ENABLED: 'true', FIREBASE_AUTH_MOCK: 'true',
+  } })
+  const firebaseLogin = await mf.dispatchFetch('https://app.example.com/login', { headers })
+  assert.equal(firebaseLogin.status, 200)
+  const firebaseHtml = await firebaseLogin.text()
+  assert.match(firebaseHtml, /Googleでログイン/)
+  assert.match(firebaseHtml, /Appleでログイン/)
+  assert.doesNotMatch(firebaseHtml, /ローカル画面検証用/)
+  const firebaseMock = await mf.dispatchFetch('https://app.example.com/api/mock/firebase/prepare', { method: 'POST', headers, body: '{"scenario":"member-a"}' })
+  assert.equal(firebaseMock.status, 404)
+  const previousGoogle = await mf.dispatchFetch('https://app.example.com/api/auth/google/start', { headers, redirect: 'manual' })
+  assert.equal(previousGoogle.status, 400)
+  const firebasePreview = await mf.dispatchFetch('https://dynamic-preview.example.com/login', { headers: { ...headers, host: 'dynamic-preview.example.com' } })
+  assert.doesNotMatch(await firebasePreview.text(), /Googleでログイン|Appleでログイン/)
+  assert.deepEqual(await (await mf.dispatchFetch('https://app.example.com/__fixture_probe')).json(), { store: false, google: false, provider: false })
+  assert.equal(outbound, 0)
+  console.log('production認証封鎖検証成功: Google/Firebase有効設定・全mock入口404・Preview拒否・旧Google停止・Store未初期化・外部通信0')
 } finally { await mf?.dispose(); await rm(entry, { force: true }); await rm(bundle, { recursive: true, force: true }) }

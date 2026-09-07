@@ -67,8 +67,8 @@ export async function readPaymentMonth(
       signedYen: row.signed_yen,
       paidOn: row.paid_on,
       createdAt: row.created_at,
-      actor: row.actor_auth_method === 'google'
-        ? { person: row.actor_person, authMethod: 'google' as const, userId: row.actor_user_id! }
+      actor: row.actor_auth_method === 'google' || row.actor_auth_method === 'firebase'
+        ? { person: row.actor_person, authMethod: row.actor_auth_method, userId: row.actor_user_id! }
         : { person: row.actor_person, authMethod: row.actor_auth_method },
       snapshot: JSON.parse(row.snapshot_json) as PaymentSnapshot,
       voidedAt: row.voided_at,
@@ -143,7 +143,7 @@ export async function writeOperation(
     `).bind(
       context.householdId, input.operationId, input.month, input.kind, input.expectedRevision,
       input.inputJson, JSON.stringify(result), input.actor.person,
-      input.actor.authMethod, input.actor.authMethod === 'google' ? input.actor.userId : null, now
+      input.actor.authMethod, input.actor.authMethod === 'google' || input.actor.authMethod === 'firebase' ? input.actor.userId : null, now
     ),
   ]
   if (input.voidPayment) {

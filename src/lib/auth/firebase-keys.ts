@@ -67,6 +67,7 @@ function cacheLifetime(headers: Headers): number {
 export function createFirebaseKeyResolver(dependencies: FirebaseVerificationDependencies) {
   let cached: { certificates: Record<string, string>; expiresAt: number; fetchedAt: number } | undefined
   let pending: Promise<void> | undefined
+  let failedAt: number | undefined
   async function refresh() {
     const fetchedAt = dependencies.now()
     const { data, headers } = await fetchFirebaseJson(dependencies, CERTIFICATE_URL)
@@ -80,7 +81,8 @@ export function createFirebaseKeyResolver(dependencies: FirebaseVerificationDepe
     const now = dependencies.now()
     if (!cached || now >= cached.expiresAt ||
       (!Object.hasOwn(cached.certificates, kid) && now - cached.fetchedAt >= UNKNOWN_KEY_REFRESH_MS)) {
-      pending ??= refresh().finally(() => { pending = undefined })
+      if (!pending && failedAt !== undefined && now - failedAt < UNKNOWN_KEY_REFRESH_MS) throw new Error('Firebase署名鍵を取得できません')
+      pending ??= refresh().catch(error => { failedAt = dependencies.now(); throw error }).finally(() => { pending = undefined })
       await pending
     }
     if (!cached || !Object.hasOwn(cached.certificates, kid)) throw new Error('Firebase署名鍵がありません')

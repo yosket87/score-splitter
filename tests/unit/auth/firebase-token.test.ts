@@ -18,6 +18,27 @@ function setup(options: Parameters<typeof createFirebaseFixtureFetch>[0] = {}) {
 }
 
 describe('Firebase IDトークン検証', () => {
+  it.each([123, null, {}, []].map(email => ({ email })))('emailが存在する場合は文字列だけを受け付ける: %j', async ({ email }) => {
+    await expect(setup().verify(await createFirebaseTokenFixture({ claims: { email } }), firebaseFixtureConfig)).rejects.toThrow()
+  })
+  it('鍵更新失敗後も再取得を30秒抑制する', async () => {
+    const fixture = createFirebaseFixtureFetch()
+    let now = firebaseFixtureNow * 1000
+    let keyRequests = 0
+    const verify = createFirebaseTokenVerifierForTesting({ now: () => now, fetch: async (url, init) => {
+      if (String(url).includes('/x509/') && ++keyRequests > 1) return new Response('', { status: 503 })
+      return fixture.fetch(url, init)
+    } })
+    await verify(await createFirebaseTokenFixture(), firebaseFixtureConfig)
+    now += 30000
+    const unknown = await createFirebaseTokenFixture({ header: { kid: 'unknown' } })
+    await expect(verify(unknown, firebaseFixtureConfig)).rejects.toThrow()
+    await expect(verify(unknown, firebaseFixtureConfig)).rejects.toThrow()
+    expect(keyRequests).toBe(2)
+    now += 30000
+    await expect(verify(unknown, firebaseFixtureConfig)).rejects.toThrow()
+    expect(keyRequests).toBe(3)
+  })
   it('実RS256署名とアカウントを検証する', async () => {
     const { verify, requests } = setup()
     const token = await createFirebaseTokenFixture()

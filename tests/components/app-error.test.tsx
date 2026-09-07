@@ -7,6 +7,9 @@ import SettingsPage from '@/app/settings/page'
 import { requireAuth } from '@/lib/webauthn/session'
 
 vi.mock('@/lib/api/google-auth', () => ({ getGoogleAccount: vi.fn() }))
+vi.mock('@/lib/auth/firebase-config', () => ({ firebaseAuthConfig: () => null }))
+vi.mock('@/lib/api/firebase-auth', () => ({ getFirebaseAccount: vi.fn() }))
+vi.mock('@/features/firebase-auth/firebase-account-settings', () => ({ FirebaseAccountSettings: () => null }))
 vi.mock('@/app/actions/google-auth', () => ({ logoutAllGoogleSessions: vi.fn() }))
 vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined }) }))
 

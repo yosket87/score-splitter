@@ -21,7 +21,7 @@ function identityFromClaims(payload: JWTPayload, projectId: string, now: number)
   const { sub, iat, exp, auth_time: authTime, firebase } = payload
   if (payload.aud !== projectId || typeof sub !== 'string' || sub.length === 0 || sub.length > 128 ||
     /[\u0000-\u001f\u007f]/.test(sub) || !isTimestamp(iat) || !isTimestamp(exp) || !isTimestamp(authTime) ||
-    (typeof payload.email === 'string' && payload.email_verified !== true) ||
+    (Object.hasOwn(payload, 'email') && (typeof payload.email !== 'string' || payload.email.length === 0 || payload.email_verified !== true)) ||
     iat > now || authTime > now || authTime > iat || exp <= iat ||
     !isRecord(firebase) || Object.hasOwn(firebase, 'tenant') ||
     (firebase.sign_in_provider !== 'google.com' && firebase.sign_in_provider !== 'apple.com')) {

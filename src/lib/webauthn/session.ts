@@ -67,14 +67,14 @@ export async function getSession(): Promise<SessionInfo | null> {
     return null
   }
 
-  if (!data.householdId?.trim() || !['password', 'passkey', 'google'].includes(data.authMethod) ||
+  if (!data.householdId?.trim() || !['password', 'passkey', 'google', 'firebase'].includes(data.authMethod) ||
     !Number.isFinite(Date.parse(data.expiresAt)) || Date.parse(data.expiresAt) <= Date.now()) {
     return null
   }
 
-  if (data.authMethod === 'google') {
+  if (data.authMethod === 'google' || data.authMethod === 'firebase') {
     if (!data.userId?.trim() || !data.membershipId?.trim() || !Number.isSafeInteger(data.sessionEpoch) || data.sessionEpoch < 0) return null
-    return { householdId: data.householdId, person: data.person, authMethod: 'google',
+    return { householdId: data.householdId, person: data.person, authMethod: data.authMethod,
       userId: data.userId, membershipId: data.membershipId, sessionEpoch: data.sessionEpoch }
   }
   return {
@@ -109,11 +109,21 @@ export async function requireAuth(): Promise<SessionInfo> {
 // GoogleのDB batch成功後にのみ呼び出す。公開Server Actionにはしない。
 export async function setGoogleSessionCookie(session: ApiSession): Promise<void> {
   if (session.authMethod !== 'google' || !/^[a-f0-9]{64}$/.test(session.token)) throw new Error('認証情報が不正です')
+  await setVerifiedSessionCookie(session, SESSION_MAX_AGE)
+}
+
+// ID tokenより長いCookieを発行しない。DB確定後だけ呼び出す。
+export async function setFirebaseSessionCookie(session: ApiSession): Promise<void> {
+  if (session.authMethod !== 'firebase' || !/^[a-f0-9]{64}$/.test(session.token)) throw new Error('認証情報が不正です')
+  await setVerifiedSessionCookie(session, 3600)
+}
+
+async function setVerifiedSessionCookie(session: ApiSession, maximumAge: number): Promise<void> {
   const remaining = Math.floor((Date.parse(session.expiresAt) - Date.now()) / 1000)
   if (!Number.isFinite(remaining) || remaining <= 0) throw new Error('認証情報の期限が切れています')
   const cookieStore = await cookies()
   cookieStore.set(SESSION_COOKIE_NAME, session.token, {
     httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax',
-    maxAge: Math.min(remaining, SESSION_MAX_AGE), path: '/',
+    maxAge: Math.min(remaining, maximumAge), path: '/',
   })
 }

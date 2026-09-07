@@ -2,6 +2,9 @@
 export function isDevelopmentMockEnabled(): boolean {
   return process.env.NODE_ENV === 'development' && process.env.NEXT_RUNTIME === 'nodejs' && process.env.USE_MOCKS === 'true'
 }
+export function isFirebaseMockEnabled(): boolean {
+  return isDevelopmentMockEnabled() && process.env.FIREBASE_AUTH_MOCK === 'true'
+}
 export function isLocalMockRequest(request: Request): boolean {
   if (!isDevelopmentMockEnabled()) return false
   const origin = 'http://localhost:3000'

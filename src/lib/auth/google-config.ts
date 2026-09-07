@@ -1,8 +1,10 @@
 import 'server-only'
 import { isDevelopmentMockEnabled } from '@/lib/mock-mode'
 import type { GoogleOAuthConfig } from './google-protocol'
+import { firebaseAuthConfig } from './firebase-config'
 
 export function googleOAuthConfig(): GoogleOAuthConfig | null {
+  if (firebaseAuthConfig()) return null
   if (isDevelopmentMockEnabled()) return { clientId: 'local-google-client', clientSecret: 'local-google-secret', redirectUri: 'http://localhost:3000/api/auth/google/callback' }
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET

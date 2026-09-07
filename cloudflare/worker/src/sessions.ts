@@ -4,8 +4,9 @@ import { assertExistingLoginHousehold, type HouseholdContext } from './household
 import { authOperation } from './google-auth-shared'
 import type { ApiSession } from '../../../src/types/auth'
 import { assertObject } from './validation'
+import { readFirebaseSession } from './firebase-session'
 
-export type AuthMethod = 'password' | 'passkey' | 'google'
+export type AuthMethod = 'password' | 'passkey' | 'google' | 'firebase'
 
 interface SessionRow {
   token: string
@@ -55,12 +56,13 @@ async function readSession(db: D1DatabaseLike, token: string, now: Date = new Da
     .bind(token)
     .first<SessionRow>()
   if (!row || !row.household_id?.trim() ||
-    !['password', 'passkey', 'google'].includes(row.auth_method) ||
+    !['password', 'passkey', 'google', 'firebase'].includes(row.auth_method) ||
     !Number.isFinite(Date.parse(row.expires_at)) || Date.parse(row.expires_at) <= now.getTime() ||
     (row.person !== null && row.person !== 'husband' && row.person !== 'wife')) {
     return null
   }
   const base = { token: row.token, householdId: row.household_id, expiresAt: row.expires_at }
+  if (row.auth_method === 'firebase') return readFirebaseSession(db, token, now)
   if (row.auth_method === 'google') {
     if (!row.user_id || !row.membership_id || row.active !== 1 || row.revoked_at !== null ||
       row.member_user_id !== row.user_id || row.member_household_id !== row.household_id ||

@@ -4,11 +4,16 @@ import { GoogleAccountSettings } from '@/features/google-auth/google-account-set
 import { PasskeySettings } from '@/features/passkey'
 import { Header } from '@/components/layout/header'
 import { requireAuth } from '@/lib/webauthn/session'
+import { firebaseAuthConfig } from '@/lib/auth/firebase-config'
+import { getFirebaseAccount } from '@/lib/api/firebase-auth'
+import { FirebaseAccountSettings } from '@/features/firebase-auth/firebase-account-settings'
 
 export default async function SettingsPage() {
   const { householdId, authMethod } = await requireAuth()
   const token = (await cookies()).get('household_session')?.value
   const account = authMethod === 'google' && token ? await getGoogleAccount(token) : null
+  const firebaseAccount = authMethod === 'firebase' && token ? await getFirebaseAccount(token) : null
+  const firebaseConfig = firebaseAuthConfig()
 
   return (
     <div key={householdId} className="app-shell flex min-h-screen flex-col">
@@ -28,6 +33,7 @@ export default async function SettingsPage() {
             </h1>
           </div>
           {authMethod === 'google' && <GoogleAccountSettings email={account?.email ?? null} />}
+          {firebaseAccount && firebaseConfig && <FirebaseAccountSettings config={firebaseConfig.client} uid={firebaseAccount.uid} email={firebaseAccount.email} />}
           <h2 className="mb-4 text-lg font-bold">パスキー管理</h2>
           <PasskeySettings householdId={householdId} />
         </section>

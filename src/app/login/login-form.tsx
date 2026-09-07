@@ -6,8 +6,10 @@ import { login } from '@/app/actions/auth'
 import { BrandLogo } from '@/components/brand/brand-logo'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { PasskeyLoginButton } from '@/features/passkey'
+import { FirebaseLogin } from '@/features/firebase-auth/firebase-login'
+import type { FirebaseClientConfig } from '@/lib/auth/firebase-client-config'
 
-export function LoginForm({ googleEnabled = false, googleMessage }: { googleEnabled?: boolean; googleMessage?: string }) {
+export function LoginForm({ googleEnabled = false, googleMessage, firebaseConfig }: { googleEnabled?: boolean; googleMessage?: string; firebaseConfig?: FirebaseClientConfig }) {
   const [state, formAction, isPending] = useActionState(login, {})
   const [showPassword, setShowPassword] = useState(false)
 
@@ -32,12 +34,13 @@ export function LoginForm({ googleEnabled = false, googleMessage }: { googleEnab
           <p className="mt-2.5 text-[13px] leading-relaxed text-sub-text">
             ログイン方法を選んでください。
             <br />
-            セッションは7日間保持されます。
+            {firebaseConfig ? 'いつものアカウントで家計を確認できます。' : 'セッションは7日間保持されます。'}
           </p>
         </section>
 
         <div className="app-glass-heavy rounded-[24px] p-[18px]">
           {googleMessage && <p role="status" className="mb-4 text-sm leading-relaxed">{googleMessage}</p>}
+          {firebaseConfig && <div className="mb-6 space-y-4"><FirebaseLogin config={firebaseConfig} /><p className="text-center text-xs text-sub-text">これまでのログイン方法も利用できます</p></div>}
           {googleEnabled && <div className="mb-6 space-y-4"><GoogleLoginLink /><p className="text-center text-xs text-sub-text">これまでのログイン方法も利用できます</p></div>}
           <form action={formAction} className="flex flex-col gap-3.5">
             <div>

@@ -7,6 +7,12 @@ function mockDb(row: unknown = null) {
   return { prepare: vi.fn().mockReturnValue(statement), batch: vi.fn().mockResolvedValue([{ success: true }]) }
 }
 describe('振込台帳', () => {
+  it.each(['google', 'firebase'] as const)('%sの操作に内部利用者IDを記録する', async authMethod => {
+    const db = mockDb()
+    await writeOperation(db, { householdId: 'A' }, runtime, { operationId: 'id', month: '202609', expectedRevision: 0,
+      kind: 'void', inputJson: '{}', actor: { person: 'wife', authMethod, userId: 'internal-user', membershipId: 'membership', sessionEpoch: 0 }, payment: null, voidPayment: null })
+    expect(db.prepare.mock.results[0].value.bind.mock.calls[0]).toContain('internal-user')
+  })
   it('同一操作は保存済み結果を返す', async () => {
     const result = { operationId: 'id', revision: 1 }
     expect(await replayOperation(mockDb({ input_json: 'input', result_json: JSON.stringify(result) }), { householdId: 'A' }, 'id', 'input')).toEqual(result)

@@ -3,6 +3,9 @@ import { Toaster } from '@/components/ui/sonner'
 import { ThemeProvider } from '@/components/providers/theme-provider'
 import { MotionProvider } from '@/components/animations/motion-provider'
 import './globals.css'
+import { firebaseAuthConfig } from '@/lib/auth/firebase-config'
+import { FirebaseSessionSync } from '@/features/firebase-auth/firebase-session-sync'
+import { headers } from 'next/headers'
 
 export const metadata: Metadata = {
   title: 'ヤマワケ',
@@ -18,11 +21,13 @@ export const viewport: Viewport = {
   ],
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const host = (await headers()).get('host')
+  const firebase = firebaseAuthConfig()
   return (
     <html lang="ja" suppressHydrationWarning>
       <body className="antialiased">
@@ -39,6 +44,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <MotionProvider>
+            {firebase && host === new URL(firebase.origin).host && <FirebaseSessionSync config={firebase.client} />}
             {children}
             <Toaster />
           </MotionProvider>

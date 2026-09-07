@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
+vi.mock('@/lib/auth/firebase-config', () => ({ firebaseAuthConfig: () => null }))
+vi.mock('@/features/firebase-auth/firebase-session-sync', () => ({ FirebaseSessionSync: () => null }))
 
 vi.mock('@/components/ui/sonner', () => ({
   Toaster: () => null,

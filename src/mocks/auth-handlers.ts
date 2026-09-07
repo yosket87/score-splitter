@@ -20,14 +20,16 @@ function legacyHousehold() {
 export function validSession(token: string) {
   if (!/^[a-f0-9]{64}$/.test(token)) return null
   const row = getTable('sessions').find((item) => item.token === token)
-  if (!row || !householdExists(row.household_id) || !['password', 'passkey', 'google'].includes(String(row.auth_method)) ||
+  if (!row || !householdExists(row.household_id) || !['password', 'passkey', 'google', 'firebase'].includes(String(row.auth_method)) ||
     ![null, 'husband', 'wife'].includes(row.person as string | null) ||
     !Number.isFinite(Date.parse(String(row.expires_at))) || Date.parse(String(row.expires_at)) <= Date.now()) return null
-  if (row.auth_method === 'google') {
+  if (row.auth_method === 'google' || row.auth_method === 'firebase') {
     const user = getTable('users').find(user => user.id === row.user_id && user.active === 1)
     const member = getTable('household_memberships').find(member => member.id === row.membership_id && member.user_id === row.user_id
       && member.household_id === row.household_id && member.revoked_at === null)
     if (!user || !member || !Number.isSafeInteger(row.session_epoch) || user.session_epoch !== row.session_epoch) return null
+    if (row.auth_method === 'firebase' && (Number(row.firebase_auth_time) <= Number(user.firebase_auth_time_floor) ||
+      !getTable('firebase_identities').some(identity => identity.id === row.firebase_identity_id && identity.user_id === user.id && identity.revoked_at === null))) return null
     return { ...row, person: member.default_person }
   }
   if (getTable('households').find(h => h.id === row.household_id)?.legacy_auth_disabled_at != null) return null
@@ -36,8 +38,8 @@ export function validSession(token: string) {
 export function apiSession(row: Row): ApiSession {
   const base = { token: String(row.token), householdId: String(row.household_id),
     person: row.person as 'husband' | 'wife' | null, expiresAt: String(row.expires_at) }
-  return row.auth_method === 'google'
-    ? { ...base, authMethod: 'google', userId: String(row.user_id), membershipId: String(row.membership_id), sessionEpoch: Number(row.session_epoch) }
+  return row.auth_method === 'google' || row.auth_method === 'firebase'
+    ? { ...base, authMethod: row.auth_method, userId: String(row.user_id), membershipId: String(row.membership_id), sessionEpoch: Number(row.session_epoch) }
     : { ...base, authMethod: row.auth_method as 'password' | 'passkey' }
 }
 function apiPasskey(row: Row) {

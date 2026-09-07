@@ -2,6 +2,8 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { Header } from '@/components/layout/header'
 import { metadata } from '@/app/layout'
+vi.mock('@/lib/auth/firebase-config', () => ({ firebaseAuthConfig: () => null }))
+vi.mock('@/features/firebase-auth/firebase-session-sync', () => ({ FirebaseSessionSync: () => null }))
 
 vi.mock('@/app/actions/auth', () => ({
   logout: vi.fn(),

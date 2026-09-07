@@ -5,6 +5,9 @@ import LoginPage from '@/app/login/page'
 import { isAuthenticated } from '@/lib/webauthn/session'
 
 vi.mock('@/lib/auth/google-config', () => ({ googleOAuthConfig: () => null }))
+vi.mock('@/lib/auth/firebase-config', () => ({ firebaseAuthConfig: () => null }))
+vi.mock('@/features/firebase-auth/firebase-login', () => ({ FirebaseLogin: () => null }))
+vi.mock('next/headers', () => ({ headers: async () => new Headers() }))
 
 vi.mock('next-themes', () => ({
   useTheme: () => ({

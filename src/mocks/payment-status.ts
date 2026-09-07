@@ -45,7 +45,7 @@ function makeRecord(context: HouseholdContext, input: { month: string; signedYen
     schemaVersion: 1, ...inputs, calculation: getMockPaymentStatus(context, input.month).calculation,
     calculationVersion: 'equal-surplus-v1', roundingVersion: 'toward-zero-yen-v1',
   }
-  return { id: crypto.randomUUID(), ...input, actor: actor.authMethod === 'google' ? { person: actor.person, authMethod: 'google', userId: actor.userId } : { person: actor.person, authMethod: actor.authMethod }, snapshot: structuredClone(snapshot), createdAt: new Date().toISOString(), voidedAt: null, voidReason: null }
+  return { id: crypto.randomUUID(), ...input, actor: actor.authMethod === 'google' || actor.authMethod === 'firebase' ? { person: actor.person, authMethod: actor.authMethod, userId: actor.userId } : { person: actor.person, authMethod: actor.authMethod }, snapshot: structuredClone(snapshot), createdAt: new Date().toISOString(), voidedAt: null, voidReason: null }
 }
 
 function commit(context: HouseholdContext, kind: string, input: RecordPaymentInput | CorrectPaymentInput, payment: PaymentRecord | null, voidId: string | null): PaymentOperationResult {

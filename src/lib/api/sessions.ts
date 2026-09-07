@@ -25,7 +25,7 @@ const sessionBase = z.object({
 })
 const sessionSchema: z.ZodType<ApiSession> = z.union([
   sessionBase.extend({ authMethod: z.enum(['password', 'passkey']) }),
-  sessionBase.extend({ authMethod: z.literal('google'), userId: z.string().min(1),
+  sessionBase.extend({ authMethod: z.enum(['google', 'firebase']), userId: z.string().min(1),
     membershipId: z.string().min(1), sessionEpoch: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER) }),
 ])
 

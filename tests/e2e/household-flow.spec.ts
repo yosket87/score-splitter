@@ -9,6 +9,7 @@ test.beforeEach(async ({ request }) => {
 
 async function login(page: Page) {
   await page.goto('/login')
+  await page.getByRole('button', { name: 'パスワードでログイン', exact: true }).click()
   await page.getByPlaceholder('パスワード').fill(MOCK_PASSWORD)
   await page.getByRole('button', { name: 'ログイン', exact: true }).click()
   await page.waitForURL(/\/\d{4}\/\d{2}/)
@@ -46,6 +47,7 @@ test.describe('ログインページ', () => {
     )
 
     expect(contentWidth).toBe(viewportWidth)
+    await page.getByRole('button', { name: 'パスワードでログイン', exact: true }).click()
     await expect(page.getByPlaceholder('パスワード')).toBeInViewport()
     await expect(
       page.getByRole('button', { name: 'ログイン', exact: true })
@@ -55,15 +57,19 @@ test.describe('ログインページ', () => {
     ).toBeInViewport()
   })
 
-  test('ログインフォームが表示される', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: 'ヤマワケ' })).toBeVisible()
+  test('パスワード欄は選択したときに表示される', async ({ page }) => {
+    await expect(page.getByPlaceholder('パスワード')).toBeHidden()
+    await page.getByRole('button', { name: 'パスワードでログイン', exact: true }).click()
     await expect(page.getByPlaceholder('パスワード')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'ふたりの家計を、ひとつに。' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'パスワードでログイン', exact: true })).toBeVisible()
     await expect(
       page.getByRole('button', { name: 'ログイン', exact: true })
     ).toBeVisible()
   })
 
   test('不正なパスワードでエラーが表示される', async ({ page }) => {
+    await page.getByRole('button', { name: 'パスワードでログイン', exact: true }).click()
     await page.getByPlaceholder('パスワード').fill('wrong-password')
     await page.getByRole('button', { name: 'ログイン', exact: true }).click()
 
@@ -73,6 +79,7 @@ test.describe('ログインページ', () => {
   })
 
   test('正しいパスワードで月詳細に遷移する', async ({ page }) => {
+    await page.getByRole('button', { name: 'パスワードでログイン', exact: true }).click()
     await page.getByPlaceholder('パスワード').fill(MOCK_PASSWORD)
     await page.getByRole('button', { name: 'ログイン', exact: true }).click()
     await page.waitForURL(/\/\d{4}\/\d{2}/)
@@ -521,7 +528,7 @@ test.describe('ログアウト', () => {
     await page.getByRole('button', { name: /ログアウト/ }).click()
 
     await page.waitForURL(/\/login/)
-    await expect(page.getByPlaceholder('パスワード')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'パスワードでログイン', exact: true })).toBeVisible()
   })
 
   test('ログアウト後にホームにアクセスするとログインページにリダイレクトされる', async ({ page }) => {
@@ -532,7 +539,7 @@ test.describe('ログアウト', () => {
     await page.goto('/')
     await page.waitForURL(/\/login/)
 
-    await expect(page.getByPlaceholder('パスワード')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'パスワードでログイン', exact: true })).toBeVisible()
   })
 })
 
@@ -543,7 +550,7 @@ test.describe('認証ガード', () => {
   test('未ログインでホームにアクセスするとログインページにリダイレクト', async ({ page }) => {
     await page.goto('/')
     await page.waitForURL(/\/login/)
-    await expect(page.getByPlaceholder('パスワード')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'パスワードでログイン', exact: true })).toBeVisible()
   })
 
   test('ログイン済みでログインページにアクセスするとホームにリダイレクト', async ({ page }) => {

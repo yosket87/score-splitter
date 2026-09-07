@@ -4,6 +4,7 @@ import { resetMockData } from './helpers'
 test.beforeEach(async ({ page, request }) => {
   await resetMockData(request)
   await page.goto('/login')
+  await page.getByRole('button', { name: 'パスワードでログイン', exact: true }).click()
   await page.getByPlaceholder('パスワード').fill('password')
   await page.getByRole('button', { name: 'ログイン', exact: true }).click()
   await page.waitForURL(/\/\d{4}\/\d{2}/)

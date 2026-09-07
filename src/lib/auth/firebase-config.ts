@@ -20,8 +20,11 @@ export function firebaseAuthConfig(): FirebaseAuthConfig | null {
   const appleFlag: string | undefined = process.env.FIREBASE_APPLE_ENABLED
   const googleEnabled = googleFlag === 'true'
   const appleEnabled = appleFlag === 'true'
+  const customAuthDomainAllowed = projectId === 'yamawake-prod' && authDomain === 'auth.yamawake.app'
+    && origin === 'https://app.yamawake.app'
   if (!projectId || !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(projectId) || !apiKey?.trim() ||
-    authDomain !== `${projectId}.firebaseapp.com` || !origin || (!googleEnabled && !appleEnabled)) return null
+    !authDomain || (authDomain !== `${projectId}.firebaseapp.com` && !customAuthDomainAllowed) ||
+    !origin || (!googleEnabled && !appleEnabled)) return null
   try {
     const url = new URL(origin)
     const local = process.env.NODE_ENV === 'development' && process.env.NEXT_RUNTIME === 'nodejs'

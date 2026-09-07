@@ -20,11 +20,11 @@ export async function consumeFirebaseApproval(db:D1DatabaseLike,runtime:Runtime,
  AND julianday(approval_expires_at)>julianday(?) AND julianday(expires_at)>julianday('now') AND julianday(approval_expires_at)>julianday('now')
  AND ((purpose='legacy_enrollment' AND EXISTS(SELECT 1 FROM households WHERE id=approved_household_id AND legacy_auth_key='legacy' AND legacy_auth_disabled_at IS NULL)
  AND NOT EXISTS(SELECT 1 FROM household_memberships WHERE household_id=approved_household_id AND default_person=approved_default_person AND revoked_at IS NULL))
- OR (purpose IN ('identity_link','identity_recovery') AND EXISTS(SELECT 1 FROM users WHERE id=target_user_id AND active=1 AND session_epoch=expected_session_epoch AND (SELECT COUNT(*) FROM household_memberships WHERE user_id=target_user_id AND revoked_at IS NULL)=1)
+ OR (purpose IN ('identity_link','identity_recovery') AND EXISTS(SELECT 1 FROM users WHERE id=target_user_id AND active=1 AND session_epoch=expected_session_epoch AND ?>firebase_auth_time_floor AND (SELECT COUNT(*) FROM household_memberships WHERE user_id=target_user_id AND revoked_at IS NULL)=1)
  AND ((purpose='identity_link' AND NOT EXISTS(SELECT 1 FROM firebase_identities WHERE user_id=target_user_id))
  OR (purpose='identity_recovery' AND EXISTS(SELECT 1 FROM firebase_identities WHERE id=expected_old_identity_id AND user_id=target_user_id)
  AND NOT EXISTS(SELECT 1 FROM firebase_identities WHERE user_id=target_user_id AND revoked_at IS NULL AND id<>expected_old_identity_id)))))`)
- .bind(consumptionId,approval.id,identity.projectId,identity.uid,now,now)
+ .bind(consumptionId,approval.id,identity.projectId,identity.uid,now,now,identity.authTime)
  const proof=`SELECT 1 FROM firebase_migration_requests WHERE id=? AND status='consuming' AND consumption_id=?`
  const operations=[claim]
  if(isEnrollment) {

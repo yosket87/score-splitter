@@ -142,4 +142,25 @@ describe('Firebase D1',()=> {
   }
  })
 
+ it.each([-1, 0])('最新epochの復旧承認もauth_timeがfloorとの差%s秒なら全値を保持して拒否する',async(offset)=>{
+  const {db,sqlite}=setup(),session=await enroll(db)
+  await revokeFirebaseSessions(db,runtime,session.token)
+  const user=await db.prepare('SELECT session_epoch,firebase_auth_time_floor FROM users WHERE id=?').bind(session.userId)
+   .first<{session_epoch:number;firebase_auth_time_floor:number}>()
+  const old=await db.prepare('SELECT id FROM firebase_identities WHERE user_id=?').bind(session.userId).first<{id:string}>()
+  const replacement={...identity('replacement'),authTime:user!.firebase_auth_time_floor+offset}
+  const pending=await completeFirebaseLogin(db,runtime,replacement,{mode:'login'});if(pending.kind!=='migration_pending')throw Error()
+  await approveFirebaseRecovery(db,runtime,{requestId:pending.requestId,code:pending.code,approvedBy:'operator',confirmationRef:'record',targetUserId:session.userId,expectedEpoch:user!.session_epoch,expectedOldIdentityId:old!.id})
+  const snapshot=()=>['users','firebase_identities','firebase_migration_requests','household_memberships','sessions']
+   .map(table=>({table,rows:sqlite.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()}))
+  const before=snapshot()
+  await expect(completeFirebaseLogin(db,runtime,replacement,{mode:'login'})).rejects.toThrow()
+  expect(snapshot()).toEqual(before)
+  const nextSeconds=user!.firebase_auth_time_floor+1
+  const nextRuntime={...runtime,now:()=>new Date(nextSeconds*1000)}
+  expect(await completeFirebaseLogin(db,nextRuntime,{...replacement,authTime:nextSeconds,issuedAt:nextSeconds},{mode:'login'}))
+   .toEqual({kind:'recovered',userId:session.userId})
+  expect(await db.prepare('SELECT COUNT(*) n FROM firebase_identities').first()).toEqual({n:2})
+ })
+
 })

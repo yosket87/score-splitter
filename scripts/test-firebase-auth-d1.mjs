@@ -183,7 +183,17 @@ try {
  const replacement=identity('replacement'),recovery=await login(replacement)
  const old=await db.prepare('SELECT id FROM firebase_identities WHERE user_id=?').bind(session.userId).first()
  await approveFromVerifiedRequest(adminDb,api,'approve-recovery',{requestId:recovery.requestId,code:recovery.code,approvedBy:'operator',confirmationRef:'fixture',targetUserId:session.userId,expectedOldIdentityId:old.id,expectedEpoch:1})
- assert.deepEqual(await login(replacement),{kind:'recovered',userId:session.userId})
+ const floor=(await db.prepare('SELECT firebase_auth_time_floor FROM users WHERE id=?').bind(session.userId).first()).firebase_auth_time_floor
+ const recoverySnapshot=async()=>Promise.all(['users','firebase_identities','firebase_migration_requests','household_memberships','sessions']
+  .map(async table=>({table,rows:(await db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()).results})))
+ const beforeRecovery=await recoverySnapshot()
+ for(const authTime of [floor-1,floor]) {
+  await assert.rejects(login({...replacement,authTime}))
+  assert.deepEqual(await recoverySnapshot(),beforeRecovery)
+ }
+ // DB時計でも失効境界の後続秒になってから、新たな認証で復旧する。
+ await new Promise(resolve=>setTimeout(resolve,Math.max(0,(floor+1)*1000-Date.now())))
+ assert.deepEqual(await login(identity('replacement')),{kind:'recovered',userId:session.userId})
  assert.equal((await db.prepare('SELECT COUNT(*) n FROM users').first()).n,2)
  assert.deepEqual((await db.prepare('PRAGMA foreign_key_check').all()).results,[])
  console.log('Firebase認証D1検証成功: 同時消費・全rollback・本人floor失効・partner継続・同users復旧・CLI非公開SQL転送')

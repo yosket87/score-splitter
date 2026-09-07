@@ -1,7 +1,7 @@
-import { Button } from '@/components/ui/button'
+import { GoogleSignInButton } from './google-sign-in-button'
+
 export function GoogleLoginLink() {
-  // eslint-disable-next-line @next/next/no-html-link-for-pages -- 認可開始はprefetchやRSC遷移を避ける通常の画面遷移にする。
-  return <Button asChild className="h-12 w-full rounded-xl text-sm font-bold"><a href="/api/auth/google/start">Googleでログイン</a></Button>
+  return <GoogleSignInButton href="/api/auth/google/start" />
 }
 export function GoogleRecoveryHelp() {
   return <p className="text-xs leading-relaxed text-sub-text">

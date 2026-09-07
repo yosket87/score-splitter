@@ -7,6 +7,7 @@ import { exchangeFirebaseSession } from '@/app/actions/firebase-auth'
 import { getFirebaseAuth, createFirebaseProvider, firebaseErrorMessage, type FirebaseLoginProvider } from '@/lib/auth/firebase-client'
 import type { FirebaseClientConfig } from '@/lib/auth/firebase-client-config'
 import { Button } from '@/components/ui/button'
+import { GoogleSignInButton } from '@/features/google-auth/google-sign-in-button'
 
 export function FirebaseLogin({ config }: { config: FirebaseClientConfig }) {
   const router = useRouter()
@@ -39,7 +40,7 @@ export function FirebaseLogin({ config }: { config: FirebaseClientConfig }) {
 
   return <div className="space-y-3">
     {config.mock && <p className="text-xs text-sub-text">ローカル画面検証用</p>}
-    {config.googleEnabled && <Button type="button" disabled={pending} onClick={() => login('google.com')} className="h-12 w-full rounded-xl text-sm font-bold">Googleでログイン</Button>}
+    {config.googleEnabled && <GoogleSignInButton disabled={pending} onClick={() => login('google.com')} />}
     {config.appleEnabled && <Button type="button" variant="outline" disabled={pending} onClick={() => login('apple.com')} className="h-12 w-full rounded-xl text-sm font-bold">Appleでログイン</Button>}
     {pending && <p role="status" className="text-sm text-sub-text">ログインを確認しています…</p>}
     {message && <p role="alert" className="text-sm leading-relaxed text-destructive">{message}</p>}

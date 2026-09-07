@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ popup: vi.fn(), exchange: vi.fn(), replace: vi.fn(), refresh: vi.fn(), signOut: vi.fn() }))
+vi.mock('next/font/local', () => ({ default: () => ({ className: 'google-sans-test' }) }))
 vi.mock('firebase/auth', () => ({ signInWithPopup: mocks.popup, signOut: mocks.signOut }))
 vi.mock('@/lib/auth/firebase-client', () => ({ getFirebaseAuth: () => ({}), createFirebaseProvider: (id: string) => id,
   firebaseErrorMessage: () => 'ログインをキャンセルしました。' }))

@@ -6,9 +6,13 @@ import { firebaseOperation, FirebaseAuthError, firebaseSecret, hashSecret, opaqu
 export async function createFirebaseMigrationRequest(db:D1DatabaseLike,runtime:Runtime,identity:VerifiedFirebaseIdentity) {
  const now=runtime.now().toISOString(),requestId=runtime.randomUUID(),code=randomSecret(),browserSecret=randomSecret()
  const expiresAt=expiresIn(now,30*60_000)
- await db.prepare(`INSERT INTO firebase_migration_requests(id,purpose,project_id,uid,email,code_hash,browser_binding_hash,created_at,expires_at)
- VALUES(?,'legacy_enrollment',?,?,?,?,?,?,?)`)
- .bind(requestId,identity.projectId,identity.uid,identity.email,await hashSecret(code),await hashSecret(browserSecret),now,expiresAt).run()
+ const row=await db.prepare(`INSERT INTO firebase_migration_requests(id,purpose,project_id,uid,email,code_hash,browser_binding_hash,created_at,expires_at)
+ SELECT ?,'legacy_enrollment',?,?,?,?,?,?,?
+ WHERE (SELECT COUNT(*) FROM firebase_migration_requests WHERE project_id=? AND uid=?
+ AND julianday(created_at)>julianday(?)-15.0/1440)<5 RETURNING id`)
+ .bind(requestId,identity.projectId,identity.uid,identity.email,await hashSecret(code),await hashSecret(browserSecret),now,expiresAt,
+ identity.projectId,identity.uid,now).first<{id:string}>()
+ if(!row)throw new FirebaseAuthError()
  return {kind:'migration_pending' as const,requestId,code,browserSecret,expiresAt}
 }
 export function getFirebaseMigrationDisplay(db:D1DatabaseLike,runtime:Runtime,id:string,browserSecret:string,code:string) {

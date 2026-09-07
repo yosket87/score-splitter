@@ -16,6 +16,8 @@ Server Actionで固定Origin/Hostを確認し、WorkersのWebCrypto/joseでFireb
 
 初回ログインは5分以内の`auth_time`が必要。継続更新は、Cookieに同じUIDの有効なD1セッションがある場合のみ許可する。セッションはFirebase ID tokenの`exp`以下、最大1時間。開いているWeb画面はSDKのID token更新でセッションも更新する。期限切れで再訪した場合は再ログインが必要。
 
+通常ログアウトはFirebase SDKの状態と家計Cookieを削除する。更新時の一時的な通信障害は60秒後に再試行し、現在の家計セッションとの不一致など、再ログインが必要と判定できる場合はSDK状態を削除する。署名検証やFirebase側失効を含む検証器のエラーは共通化されるため再試行となるが、セッションは更新せず既存の期限を維持する。成功済みの同じID tokenを画面遷移のたびに交換しない。外部検証前に接続元ごと15分30回、未知UIDの申請作成は15分5件までの原子的な制限を設ける。
+
 アプリの全端末ログアウトでは`session_epoch`と`firebase_auth_time_floor`を更新する。古い`auth_time`のトークンは、ID tokenを再発行しても再入場できない。同秒の再認証も拒否するため、直後に失敗した場合は再度ログインする。パートナーの利用者IDは変更しない。
 
 Firebase Consoleでの無効化・失効は次のセッション交換時に反映される。発行済みのD1セッションが切れるまでは最大1時間の差がある。アプリ側で即時失効させたい場合はアプリの全端末ログアウトまたはD1の管理手順を利用する。Firebaseのrefresh token自体をアプリ側で破棄したとは扱わない。
@@ -40,6 +42,19 @@ FIREBASE_APPLE_ENABLED=false
 WorkerのOriginは`https://score-splitter-dev.bluespec.workers.dev`を使用する。localhostのHTTPは開発Nodeプロセスだけ許可する。設定不足時はFirebaseを無効化し、モックへ自動切替しない。Firebaseが有効なら従来のGoogle OAuth開始・callbackは無効になる。
 
 Appleを有効化する際はApple Developer側のSign in with Apple、Services ID、Team ID、Key IDと秘密鍵を設定し、Firebaseが示す認証コールバックURLを登録する。秘密鍵はFirebaseのApple provider設定へ入れ、GitやWorkersの公開varsへは入れない。完了後だけ`FIREBASE_APPLE_ENABLED=true`にする。iOSアプリ追加時は同じprojectへBundle IDを登録し、ネイティブSDKで得たID tokenを使うAPI認証入口を別途実装する（今回のWeb Cookie用ActionをネイティブAPIとして流用しない）。
+
+## 管理者による承認
+
+照合コードと対象世帯IDを`code`・`householdId`として、権限600のJSONファイルへ保存する。次のコマンドは開発D1のUUIDを明示し、照合結果を非公開ファイルへ出力する。
+
+```bash
+npm run auth:firebase:admin -- inspect --env dev --confirm-database <開発D1のUUID> --input-file <非公開入力JSON> --output-file <非公開照合結果JSON>
+npm run auth:firebase:admin -- approve-migration --env dev --confirm-database <開発D1のUUID> --input-file <非公開承認JSON>
+```
+
+承認JSONの共通項目は`requestId`・`code`・`approvedBy`・`confirmationRef`。旧共有ログインからの初回参加は`householdId`・`defaultPerson`・`legacySlot`（`existing-member-1`または`existing-member-2`）を追加する。すでにGoogleの個人IDがある場合は、照合した`targetUserId`・`expectedEpoch`を指定し、同じ個人IDへ接続する。コードやメールの一致だけで承認せず、既存の信頼できる連絡手段で本人を確認する。
+
+復旧は`approve-recovery`を使い、共通項目と`targetUserId`・`expectedEpoch`・`expectedOldIdentityId`を指定する。復旧後は旧identityと個人セッションを失効させ、本人へ再認証を案内する。入力・結果ファイルに個人情報を含むためGitへ追加しない。
 
 ## 移行と検証
 

@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('server-only', () => ({}))
 const mocks = vi.hoisted(() => ({ config: vi.fn(), verify: vi.fn(), account: vi.fn(), complete: vi.fn(), revoke: vi.fn(),
-  setSession: vi.fn(), cookies: { get: vi.fn(), set: vi.fn(), delete: vi.fn() }, headers: vi.fn() }))
+  setSession: vi.fn(), limit: vi.fn(), cookies: { get: vi.fn(), set: vi.fn(), delete: vi.fn() }, headers: vi.fn() }))
+vi.mock('@/lib/api/firebase-rate-limit', () => ({ allowFirebaseExchange: mocks.limit }))
 vi.mock('next/headers', () => ({ cookies: async () => mocks.cookies, headers: mocks.headers }))
 vi.mock('@/lib/auth/firebase-config', async importOriginal => ({ ...await importOriginal<object>(), firebaseAuthConfig: mocks.config }))
 vi.mock('@/lib/auth/firebase-token', () => ({ verifyFirebaseToken: mocks.verify }))
@@ -16,6 +17,7 @@ describe('Firebase認証Action', () => {
   beforeEach(() => {
     vi.resetAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date(identity.issuedAt * 1000))
     mocks.config.mockReturnValue(config)
+    mocks.limit.mockResolvedValue(true)
     mocks.headers.mockResolvedValue(new Headers({ origin: config.origin, host: 'dev.example.com' }))
     mocks.verify.mockResolvedValue(identity)
     mocks.account.mockResolvedValue(null)
@@ -44,6 +46,16 @@ describe('Firebase認証Action', () => {
     mocks.complete.mockRejectedValueOnce(new Error('D1 SECRET'))
     expect((await exchangeFirebaseSession('token', 'login')).ok).toBe(false)
     expect(mocks.setSession).not.toHaveBeenCalled()
+  })
+  it('一時的なサーバー障害はSDK失効と区別する', async () => {
+    mocks.verify.mockRejectedValue(new Error('network unavailable'))
+    expect(await exchangeFirebaseSession('token', 'refresh')).toMatchObject({ ok: false, reason: 'retry' })
+  })
+  it('レート制限に達すると外部Firebase検証を呼ばない', async () => {
+    mocks.limit.mockResolvedValue(false)
+    expect(await exchangeFirebaseSession('token', 'login')).toMatchObject({ ok: false, reason: 'retry' })
+    expect(mocks.verify).not.toHaveBeenCalled()
+    expect(mocks.complete).not.toHaveBeenCalled()
   })
   it('無効providerや古い初回認証を拒否する', async () => {
     mocks.verify.mockResolvedValueOnce({ ...identity, provider: 'apple.com' })

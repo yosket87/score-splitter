@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { getGoogleMigrationDisplay } from '@/lib/api/google-auth'
 import { migrationCookie, migrationCookieSchema, parseCookie } from '@/lib/auth/google-cookies'
 import { googleOAuthConfig } from '@/lib/auth/google-config'
@@ -12,6 +12,12 @@ import { FirebaseLogin } from '@/features/firebase-auth/firebase-login'
 export const dynamic = 'force-dynamic'
 export default async function MigrationPage() {
   const firebase = firebaseAuthConfig()
+  if (firebase && (await headers()).get('host') !== new URL(firebase.origin).host) {
+    return <main id="main" className="mx-auto max-w-lg space-y-4 p-6">
+      <h1 className="text-xl font-bold">ログイン用のURLからアクセスしてください</h1>
+      <a className="underline" href={`${firebase.origin}/login`}>ログイン画面へ</a>
+    </main>
+  }
   if (firebase) {
     const cookie = parseCookie((await cookies()).get('firebase_migration_request')?.value, migrationCookieSchema)
     const request = cookie ? await getFirebaseMigrationDisplay(cookie.id, cookie.secret, cookie.code).catch(() => null) : null

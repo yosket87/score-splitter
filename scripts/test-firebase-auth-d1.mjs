@@ -142,7 +142,7 @@ const authTemp=mkdtempSync(join(tmpdir(),'firebase-domain-d1-'))
 const mf=new Miniflare({modules:true,script:'export default { fetch() { return new Response("fixture") } }',compatibilityDate:'2026-07-08',d1Databases:{DB:'firebase-fixture'},d1Persist:false})
 try {
  const output=join(authTemp,'domain.mjs')
- await build({stdin:{contents:`export * from './cloudflare/worker/src/firebase-login.ts';export * from './cloudflare/worker/src/firebase-migrations.ts';export * from './cloudflare/worker/src/firebase-revocation.ts';export * from './cloudflare/worker/src/firebase-session.ts';`,resolveDir:process.cwd(),loader:'ts'},bundle:true,platform:'node',format:'esm',outfile:output})
+ await build({stdin:{contents:`export * from './cloudflare/worker/src/firebase-login.ts';export * from './cloudflare/worker/src/firebase-migrations.ts';export * from './cloudflare/worker/src/firebase-revocation.ts';export * from './cloudflare/worker/src/firebase-session.ts';export * from './cloudflare/worker/src/firebase-rate-limit.ts';`,resolveDir:process.cwd(),loader:'ts'},bundle:true,platform:'node',format:'esm',outfile:output})
  const api=await import(pathToFileURL(output).href),db=await mf.getD1Database('DB')
  for(const name of readdirSync(source).filter(name=>name.endsWith('.sql')).sort()) {
   await db.exec(readFileSync(join(source,name),'utf8').replace(/--[^\n]*/g,'').replace(/\s+/g,' '))
@@ -150,6 +150,11 @@ try {
  const runtime={now:()=>new Date(),randomUUID:()=>crypto.randomUUID()},householdId='3975b870-bbfa-49fd-ae3d-d273c9f6e107'
  const identity=uid=>({projectId:'fixture-project',uid,provider:'apple.com',email:null,authTime:Math.floor(Date.now()/1000),issuedAt:Math.floor(Date.now()/1000),expiresAt:Math.floor(Date.now()/1000)+3600})
  const login=value=>api.completeFirebaseLogin(db,runtime,value,{mode:'login'})
+ const exchangeResults=await Promise.all(Array.from({length:35},()=>api.reserveFirebaseExchange(db,runtime,'a'.repeat(64))))
+ assert.equal(exchangeResults.filter(Boolean).length,30)
+ const requestResults=await Promise.allSettled(Array.from({length:8},()=>login(identity('rate-limit-fixture'))))
+ assert.equal(requestResults.filter(result=>result.status==='fulfilled').length,5)
+ assert.equal((await db.prepare('SELECT COUNT(*) n FROM firebase_migration_requests WHERE uid=?').bind('rate-limit-fixture').first()).n,5)
  const adminDb=createWranglerDatabase({database_id:'fixture'},'dev',authTemp,async args=>{
   const sql=readFileSync(args[args.indexOf('--file')+1],'utf8')
   const result=await db.prepare(sql).all()

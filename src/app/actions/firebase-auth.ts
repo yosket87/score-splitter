@@ -7,15 +7,18 @@ import { canExchangeFirebaseSession } from '@/lib/auth/firebase-session-policy'
 import { completeFirebaseLogin, getFirebaseAccount, revokeFirebaseSessions } from '@/lib/api/firebase-auth'
 import { setFirebaseSessionCookie } from '@/lib/webauthn/session'
 import { isFirebaseMockEnabled } from '@/lib/mock-mode'
+import { allowFirebaseExchange } from '@/lib/api/firebase-rate-limit'
 
-export type FirebaseExchangeResult = { ok: true; destination: '/' | '/auth/migration' | '/login?firebase=recovered' } | { ok: false; error: string }
-const failure = { ok: false as const, error: 'ログインを確認できませんでした。もう一度ログインしてください。' }
+export type FirebaseExchangeResult = { ok: true; destination: '/' | '/auth/migration' | '/login?firebase=recovered' } | { ok: false; reason: 'reauthenticate' | 'retry'; error: string }
+const failure = { ok: false as const, reason: 'reauthenticate' as const, error: 'ログインを確認できませんでした。もう一度ログインしてください。' }
 
 export async function exchangeFirebaseSession(token: string, mode: 'login' | 'refresh'): Promise<FirebaseExchangeResult> {
   try {
     const config = firebaseAuthConfig()
-    if (!config || !matchesFirebaseOrigin(await headers(), config) ||
+    const requestHeaders = await headers()
+    if (!config || !matchesFirebaseOrigin(requestHeaders, config) ||
       typeof token !== 'string' || token.length > 16 * 1024 || (mode !== 'login' && mode !== 'refresh')) return failure
+    if (!await allowFirebaseExchange(requestHeaders)) return { ok: false, reason: 'retry', error: 'ログインの試行回数が上限に達しました。しばらくしてからお試しください。' }
     const identity = isFirebaseMockEnabled()
       ? (await import('@/mocks/firebase-auth')).verifyMockFirebaseToken(token)
       : await verifyFirebaseToken(token, config.client)
@@ -43,7 +46,8 @@ export async function exchangeFirebaseSession(token: string, mode: 'login' | 're
     cookieStore.delete('firebase_migration_request')
     return { ok: true, destination: '/login?firebase=recovered' }
   } catch {
-    return failure
+    // 通信障害やDB障害は認証の失効と区別する。Cookieは新規発行せず、既存期限の範囲だけ有効。
+    return { ok: false, reason: 'retry', error: '認証を確認できませんでした。時間をおいてもう一度お試しください。' }
   }
 }
 

@@ -134,6 +134,10 @@ Google方式は有効user・有効membership・失効世代も検証
 
 世帯対応の共通入口は `src/lib/household-context.ts`。middlewareやlayoutだけを認可境界とみなさず、データ操作ごとに認証済み世帯を渡す。householdIdは家計担当者のpersonとは別概念。Cookieのtokenや内部Bearerはクライアントコンポーネントへ渡さない。
 
+Firebase認証の入口はServer Action `src/app/actions/firebase-auth.ts`。固定Origin/HostとID tokenを検証した後、D1のFirebaseドメインで本人・所属・失効世代を確認し、家計Cookieを発行する。`firebase_identities`のprojectId/UIDと内部users.idを分け、Google・Appleの明示的連携後も家計の利用者IDを維持する。公開設定はリクエスト内で取得する。詳細は[Google・Appleログイン](firebase-auth.md)を参照。
+
+以下の直接Google OAuthは移行互換用で、Firebase設定が有効な環境では開始・callbackを停止する。
+
 Google認証のドメインは`cloudflare/worker/src/oauth-attempts.ts`、`google-login.ts`、`google-migrations.ts`に分ける。OIDC署名の検証結果を受けた後、D1側で一度きりの試行・移行許可・現在の所属を確認する。`src/lib/api/google-auth.ts`がリクエスト内でDBを取得し、安全な固定エラーへ変換する。旧HTTPのsession作成はpassword/passkeyに限定し、任意のuserIdからGoogle sessionを作る入口にはしない。
 
 未知の主体には家計sessionを作らず、短期の申請だけを返す。承認済みの移行は個人・主体・所属・sessionを同じbatchで確定する。本人の全端末失効はepochとOAuth試行の下限を進め、復旧は同じuserと過去の振込actorを維持して旧主体を失効する。Google tokensを家計sessionに使わない。詳細は[Google認証ADR](adr/0002-google-authentication.md)を参照する。

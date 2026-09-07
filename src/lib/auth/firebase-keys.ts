@@ -28,7 +28,7 @@ export async function fetchFirebaseJson(
     }, Math.max(0, Math.min(REQUEST_TIMEOUT_MS, remainingBudgetMs)))
   })
   const request = async () => {
-    const response = await dependencies.fetch(url, { ...init, redirect: 'error', signal: controller.signal })
+    const response = await dependencies.fetch(url, { ...init, redirect: 'manual', signal: controller.signal })
     if (!response.ok || response.redirected || !response.body) throw new Error('Firebase応答が不正です')
     const declaredSize = Number(response.headers.get('content-length'))
     if (declaredSize > RESPONSE_LIMIT) throw new Error('Firebase応答が大きすぎます')

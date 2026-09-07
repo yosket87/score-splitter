@@ -46,7 +46,7 @@ describe('Firebase IDトークン検証', () => {
       projectId: 'fixture-project', uid: 'firebase-uid-123', provider: 'google.com', email: 'person@example.com',
       authTime: firebaseFixtureNow - 20, issuedAt: firebaseFixtureNow - 10, expiresAt: firebaseFixtureNow + 3600,
     })
-    expect(requests[1].init).toMatchObject({ method: 'POST', redirect: 'error', body: JSON.stringify({ idToken: token }) })
+    expect(requests[1].init).toMatchObject({ method: 'POST', redirect: 'manual', body: JSON.stringify({ idToken: token }) })
   })
   it('Appleとメールなしを受け入れる', async () => {
     const token = await createFirebaseTokenFixture({ claims: { firebase: { sign_in_provider: 'apple.com' }, email: undefined } })

@@ -80,3 +80,11 @@ FIREBASE_AUTH_MOCK=true npm run dev:mock
 - [複数providerの明示的リンク](https://firebase.google.com/docs/auth/web/account-linking)
 - [同じメールアドレスの複数アカウント](https://support.google.com/firebase/answer/9134820?hl=en)
 - [WebのApple認証設定](https://firebase.google.com/docs/auth/web/apple)
+
+## 開発環境の反映記録（2026-09-07）
+
+開発用Firebase project `yamawake-dev-7e298`とWeb app `yamawake-web-dev`を作成し、Googleを有効化した。公開表示名は「ヤマワケ（開発用）」。Analytics/Gemini/Hostingは利用しない。Authenticationのアカウント設定は「ID プロバイダごとに複数のアカウントを作成」で保存済み。承認済みドメインはlocalhost、Firebase既定2件、固定開発Workerのみ。
+
+開発D1 `51457bd5-8e0e-4645-ad34-86634285af2c`のexportをSQLiteへ復元して整合性を確認後、0014を適用しpending 0件を確認した。開発Worker version `1e3ef9d9-8709-4d37-9776-4090cb98dcbb`へ配備し、Googleボタンの表示を確認した。本番D1・Worker・Firebase設定は変更していない。
+
+内蔵ブラウザからのGoogle popup完了は確認できず、実ログインは利用者の普段のブラウザで確認待ち。家計への本人承認・連携、Apple Developer設定・Apple実ログインも未完了。Appleフラグは無効のまま。

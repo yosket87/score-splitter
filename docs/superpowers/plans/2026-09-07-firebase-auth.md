@@ -79,10 +79,10 @@ getFirebaseAccount(db, token)
 - [x] 複数タスクの契約と最終差分をcode-reviewer/security-reviewerで確認し、指摘修正を再検証する。
 - [ ] Firebase管理用アカウントを確認して開発projectを選択/作成し、Web app・Google/Apple・許可ドメインを設定する。本人確認/規約等の必要箇所だけユーザーへ引き継ぐ。
 - [ ] 正しい開発DBとWorkerに配備して実Google/Appleログイン、本人確認、既存家計、失効を検証する。資格情報が揃わない工程は具体的な未完了条件を記録する。
-- [ ] PR #125説明とrunbookをFirebase構成へ更新。#126の依存変更を記録し、旧認証終了や本番配備はしない。
+- [x] PR #125説明とrunbookをFirebase構成へ更新。#126の依存変更を記録し、旧認証終了や本番配備はしない。
 
 ### 2026-09-07 検証状況
 
 実装と独立レビューは完了。最終修正後の1,672テスト、typecheck、lint（既存警告1件）、実D1での同時要求制限・移行/復元/失効、OpenNext build、本番成果物のモック封鎖に成功。既存E2E78件は統合後に成功。Firebase専用E2E3件も最終修正後に成功。
 
-実Firebase管理アカウントのログイン待ち。Firebase project/provider/許可ドメインとApple Developer設定、開発WorkerへのFirebase版配備、実Google/Appleログインは未完了。本番変更・旧認証の終了は実施しない。
+開発Firebase project/Web app、Google有効化、明示連携設定、許可ドメイン、開発D1の0014・Worker配備は完了。Googleボタン表示を確認。実Google popup完了と家計への本人承認、Apple Developer設定・実ログインは未完了。本番変更・旧認証の終了は実施していない。詳細はdocs/firebase-auth.mdの反映記録を参照。

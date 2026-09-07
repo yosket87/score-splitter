@@ -1,6 +1,6 @@
 import { webcrypto } from 'node:crypto'
 import { beforeAll, afterAll, describe, expect, it, vi } from 'vitest'
-import { createFirebaseTokenVerifierForTesting, verifyFirebaseToken } from '@/lib/auth/firebase-token'
+import { createFirebaseTokenVerifierForTesting, verifyFirebaseToken, FirebaseVerificationError } from '@/lib/auth/firebase-token'
 import { createFirebaseFixtureFetch, createFirebaseTokenFixture, firebaseFixtureConfig, firebaseFixtureNow } from '../../helpers/firebase-token'
 
 beforeAll(async () => {
@@ -196,4 +196,24 @@ describe('Firebase IDトークン検証', () => {
     expect(fixture.requests).toHaveLength(1)
   })
 
+})
+
+
+describe('Firebase検証の安全な段階診断', () => {
+  it.each(['input', 'header', 'keys', 'signature', 'claims', 'account'] as const)('固定stageだけを公開する: %s', async stage => {
+    const fixture = createFirebaseFixtureFetch(stage === 'account' ? { lookup: { users: [] } } : {})
+    const verify = createFirebaseTokenVerifierForTesting({ now: () => firebaseFixtureNow * 1000,
+      fetch: stage === 'keys' ? async () => { throw new Error('機密URLと外部エラー本文') } : fixture.fetch })
+    const token = stage === 'input' ? '' : stage === 'header' ? 'not.a.token' : await createFirebaseTokenFixture({
+      invalidSignature: stage === 'signature',
+      claims: stage === 'claims' ? { firebase: { sign_in_provider: 'password' } } : {},
+    })
+    const error: unknown = await verify(token, firebaseFixtureConfig).catch(error => error)
+    expect(error).toBeInstanceOf(FirebaseVerificationError)
+    expect(error).toMatchObject({ stage, message: 'Firebase認証を確認できませんでした' })
+    expect(error).not.toHaveProperty('cause')
+    expect(Object.keys(error as object)).toEqual(['stage'])
+    expect(JSON.stringify(error)).toBe(JSON.stringify({ stage }))
+    expect(String(error)).not.toContain('機密URLと外部エラー本文')
+  })
 })

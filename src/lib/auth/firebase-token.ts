@@ -1,6 +1,14 @@
 import { decodeProtectedHeader, jwtVerify, type JWTPayload } from 'jose'
 import { createFirebaseKeyResolver, fetchFirebaseJson, isRecord, type FirebaseVerificationDependencies } from './firebase-keys'
 
+export type FirebaseVerificationStage = 'input' | 'header' | 'keys' | 'signature' | 'claims' | 'account'
+
+export class FirebaseVerificationError extends Error {
+  constructor(readonly stage: FirebaseVerificationStage) {
+    super('Firebase認証を確認できませんでした')
+  }
+}
+
 export type FirebaseProvider = 'google.com' | 'apple.com'
 export interface VerifiedFirebaseIdentity {
   projectId: string
@@ -60,27 +68,34 @@ async function checkAccount(
 function createVerifier(dependencies: FirebaseVerificationDependencies) {
   const resolveKey = createFirebaseKeyResolver(dependencies)
   return async (token: string, config: FirebaseVerificationConfig): Promise<VerifiedFirebaseIdentity> => {
-    const deadline = dependencies.now() + 10000
+    let stage: FirebaseVerificationStage = 'input'
     try {
+      const deadline = dependencies.now() + 10000
       if (typeof token !== 'string' || token.length === 0 || token.length > 16 * 1024 ||
         !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(config.projectId) || !config.apiKey || config.apiKey.length > 256) {
         throw new Error('Firebase検証入力が不正です')
       }
+      stage = 'header'
       const header = decodeProtectedHeader(token)
       if (header.alg !== 'RS256' || typeof header.kid !== 'string' || header.kid.length === 0 || header.kid.length > 256) {
         throw new Error('Firebaseトークンヘッダーが不正です')
       }
-      const { payload } = await jwtVerify(token, await resolveKey(header.kid), {
+      stage = 'keys'
+      const key = await resolveKey(header.kid)
+      stage = 'signature'
+      const { payload } = await jwtVerify(token, key, {
         algorithms: ['RS256'], issuer: `https://securetoken.google.com/${config.projectId}`,
         audience: config.projectId, currentDate: new Date(dependencies.now()),
         requiredClaims: ['sub', 'iat', 'exp', 'auth_time'],
       })
+      stage = 'claims'
       const identity = identityFromClaims(payload, config.projectId, Math.floor(dependencies.now() / 1000))
+      stage = 'account'
       await checkAccount(token, identity, config, dependencies, deadline)
       return identity
     } catch {
       // 通信URL・トークン・外部エラー本文は呼び出し元へ漏らさない。
-      throw new Error('Firebase認証を確認できませんでした')
+      throw new FirebaseVerificationError(stage)
     }
   }
 }

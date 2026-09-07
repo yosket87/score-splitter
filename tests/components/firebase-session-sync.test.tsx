@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('next/navigation', () => { const router = { refresh: mocks.refresh }; return { usePathname: () => mocks.pathname, useRouter: () => router } })
 vi.mock('@/lib/auth/firebase-client', () => ({ getFirebaseAuth: () => ({ currentUser: mocks.user }) }))
-vi.mock('firebase/auth', () => ({ onIdTokenChanged: (_auth: unknown, callback: unknown) => { mocks.listener.mockImplementation(callback); return vi.fn() }, signOut: mocks.signOut }))
+vi.mock('firebase/auth', () => ({ onIdTokenChanged: (_auth: unknown, callback: (user: typeof mocks.user | null) => void) => { mocks.listener.mockImplementation(callback); return vi.fn() }, signOut: mocks.signOut }))
 vi.mock('@/app/actions/firebase-auth', () => ({ exchangeFirebaseSession: mocks.exchange }))
 const config = { projectId: 'test', apiKey: 'public', authDomain: 'test.firebaseapp.com', googleEnabled: true, appleEnabled: false }
 

@@ -22,6 +22,8 @@ export async function getLegacyHouseholdContext(db: D1DatabaseLike): Promise<Hou
 // 新規世帯ログインは後続段階で解禁する。既存B sessionの検証には適用しない。
 export async function assertExistingLoginHousehold(db: D1DatabaseLike, context: HouseholdContext) {
   assertHouseholdContext(context)
-  const legacy = await getLegacyHouseholdContext(db)
-  if (legacy.householdId !== context.householdId) throw new HttpError('この世帯ではログインできません', 401)
+  const legacy = await db.prepare("SELECT id FROM households WHERE legacy_auth_key='legacy' AND legacy_auth_disabled_at IS NULL")
+    .first<{ id: string }>()
+  if (!legacy) throw new HttpError('旧ログインは利用できません', 401)
+  if (legacy.id !== context.householdId) throw new HttpError('この世帯ではログインできません', 401)
 }

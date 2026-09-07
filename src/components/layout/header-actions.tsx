@@ -1,6 +1,10 @@
 'use client'
 
 import Link from 'next/link'
+import { signOut } from 'firebase/auth'
+import { toast } from 'sonner'
+import { useFirebaseClientConfig } from '@/features/firebase-auth/firebase-client-context'
+import { getFirebaseAuth } from '@/lib/auth/firebase-client'
 import { LogOut, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
@@ -11,6 +15,16 @@ interface HeaderActionsProps {
 }
 
 export function HeaderActions({ variant = 'default' }: HeaderActionsProps) {
+  const firebase = useFirebaseClientConfig()
+  async function handleLogout() {
+    try {
+      if (firebase && !firebase.mock) await signOut(getFirebaseAuth(firebase))
+    } catch {
+      // SDKの削除失敗でもサーバーの認証セッションは必ず破棄する。
+      toast.error('端末の認証情報を削除できませんでした。共有端末ではブラウザのサイトデータも削除してください。')
+    }
+    await logout()
+  }
   const iconClass = variant === 'hero'
     ? 'text-white/70 hover:text-white'
     : 'text-muted-foreground hover:text-accent'
@@ -29,7 +43,7 @@ export function HeaderActions({ variant = 'default' }: HeaderActionsProps) {
           <Settings className="h-4 w-4" />
         </Link>
       </Button>
-      <form action={logout}>
+      <form action={handleLogout}>
         <Button
           variant="ghost"
           size="icon-sm"

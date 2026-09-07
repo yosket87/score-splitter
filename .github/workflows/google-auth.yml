@@ -4,7 +4,20 @@ on:
   pull_request:
     paths:
       - 'src/lib/auth/**'
+      - 'src/lib/mock-mode.ts'
+      - 'src/lib/api/**'
+      - 'cloudflare/worker/src/**'
+      - 'cloudflare/worker/migrations/**'
+      - 'src/app/api/auth/**'
+      - 'src/app/api/mock/**'
+      - 'src/mocks/**'
+      - 'src/instrumentation.ts'
+      - 'next.config.ts'
+      - 'wrangler.jsonc'
+      - 'scripts/test-google-auth-production.mjs'
       - 'tests/unit/auth/**'
+      - 'tests/unit/lib/auth/**'
+      - 'tests/integration/api/google-*.test.ts'
       - 'tests/helpers/google-oidc.ts'
       - 'scripts/test-google-oidc-worker.mjs'
       - 'scripts/fixtures/google-oidc-worker.ts'
@@ -14,7 +27,20 @@ on:
     branches: [main]
     paths:
       - 'src/lib/auth/**'
+      - 'src/lib/mock-mode.ts'
+      - 'src/lib/api/**'
+      - 'cloudflare/worker/src/**'
+      - 'cloudflare/worker/migrations/**'
+      - 'src/app/api/auth/**'
+      - 'src/app/api/mock/**'
+      - 'src/mocks/**'
+      - 'src/instrumentation.ts'
+      - 'next.config.ts'
+      - 'wrangler.jsonc'
+      - 'scripts/test-google-auth-production.mjs'
       - 'tests/unit/auth/**'
+      - 'tests/unit/lib/auth/**'
+      - 'tests/integration/api/google-*.test.ts'
       - 'tests/helpers/google-oidc.ts'
       - 'scripts/test-google-oidc-worker.mjs'
       - 'scripts/fixtures/google-oidc-worker.ts'
@@ -36,3 +62,18 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:google-oidc:worker
+
+  google-production-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: production成果物を作成
+        run: npx opennextjs-cloudflare build --env dev
+      - name: 有効設定からのmock封鎖とPreview拒否を隔離workerdで検証
+        run: npm run test:google-auth:production

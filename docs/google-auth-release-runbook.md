@@ -21,12 +21,20 @@ Google Cloudの対象プロジェクトを特定し、Webアプリケーショ�
 | 用途 | callback |
 |---|---|
 | 本番 | `https://app.yamawake.app/api/auth/google/callback` |
-| 固定開発 | 開発Workerの実際の固定workers.dev originに`/api/auth/google/callback`を付けたURL。候補は`https://score-splitter-dev.bluespec.workers.dev/api/auth/google/callback`。実URL確認後に登録する。 |
+| 固定開発 | `https://score-splitter-dev.bluespec.workers.dev/api/auth/google/callback`（固定Workerの応答を確認済み） |
 | ローカル実OAuth | `http://localhost:3000/api/auth/google/callback` |
 
 同意画面・公開状態・対象ユーザーを確認する。Google側の設定だけで既存家計を保護せず、アプリの主体固定の許可と所属検証を必須にする。
 
 client IDとcallback用originは非秘密の環境設定、client secretはWorkers Secretで扱う。値をGit、PR、ビルドログ、チャットへ貼らない。ユーザーが安全な方法で用意した値を設定するときは、必ず`--env dev`と対象Workerを照合する。
+
+| 設定名 | 用途・保管方法 |
+|---|---|
+| `GOOGLE_OAUTH_CLIENT_ID` | 対象環境のGoogle OAuth WebクライアントID。環境ごとに分離する |
+| `GOOGLE_OAUTH_ORIGIN` | 登録済みの固定origin。callbackのpathは`/api/auth/google/callback`に固定する |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Workers Secret。実ローカルOAuthではGit管理外の設定で扱う |
+
+3項目が揃わない環境ではGoogleログインを有効にしない。設定不足を開発モックへの切り替え条件にせず、互換期間の旧ログインを維持する。
 
 動的PR Previewでは実OAuthを確認しない。家計の画面・異常系はローカルのモックで検証し、同じSHAを固定開発Workerへ配備して実Googleを確認する。別ホストへcode/tokenを転送する仕組みは追加しない。
 
@@ -61,6 +69,28 @@ OIDCライブラリを使う純粋な検証境界を追加する。実WebCrypto�
 運営は既存の本人と対面または従来の信頼できる連絡経路で申請コードを照合する。申請から検証済みGoogle主体を取得し、その主体と既存世帯・既定担当者に固定した許可を付ける。メール入力や旧session.personだけでは承認しない。
 
 利用者は同じGoogleで再ログインして移行を確定する。2人それぞれの独立した再ログイン、既存明細の担当者、精算額、振込履歴の確認結果を記録する。本人確認の詳細やGoogle主体の値は公開文書へ載せず、運営の管理下で扱う。
+
+### 運営CLIによる申請承認
+
+実運営のremote承認は未実施。以下は入力契約であり、モックやローカルD1の成功をremote承認済みの証拠としない。
+
+まず、利用者から受け取った`code`と、運営が確認した既存の`householdId`を権限600の非公開JSONへ保存する。次の読み取り操作で、コードのハッシュに一致する申請と、その世帯の既存個人・所属・Google連携情報を確認する。
+
+```bash
+npm run auth:google:admin -- inspect --env dev --confirm-database 51457bd5-8e0e-4645-ad34-86634285af2c --input-file /private/path/lookup.json --output-file /private/path/inspection.json
+```
+
+出力は権限600の新規ファイルだけに保存し、既存ファイルは上書きしない。`requests`の`requestId`を承認入力へ使う。復旧時は`existingPeople`から本人確認済みの個人を選び、`userId`、`identityId`、`sessionEpoch`を、それぞれ`targetUserId`、`expectedOldIdentityId`、`expectedEpoch`へ指定する。メールの一致だけで候補を自動選択しない。失効状態も確認し、不明な場合は承認しない。これらの結果を公開Gitへ保存しない。
+
+承認入力は公開Git外の所有者だけが読めるJSONファイル（権限600）で用意する。移行承認は`requestId`、`code`、`approvedBy`、`confirmationRef`、`householdId`、`legacySlot`、`defaultPerson`を指定する。`legacySlot`は既存2名の`existing-member-1`または`existing-member-2`、`defaultPerson`は本人確認済みの`husband`または`wife`。申請の検証済み主体はDBから取得し、メールだけを根拠にしない。
+
+```bash
+npm run auth:google:admin -- approve-migration --env dev --confirm-database 51457bd5-8e0e-4645-ad34-86634285af2c --input-file /private/path/approval.json
+```
+
+復旧は`approve-recovery`を指定し、入力は`requestId`、`code`、`approvedBy`、`confirmationRef`、`targetUserId`、`expectedOldIdentityId`、`expectedEpoch`とする。既存個人と現在の失効世代を照合し、承認後に新しいGoogle主体でログインする。復旧確定だけでは家計sessionを発行せず、さらにGoogleログインして利用を再開する。
+
+CLIは設定上のbindingとWrangler標準認証で取得した実DBの名前・UUIDを照合する。SQLやコードをコマンド引数へ直接渡さない。本番向けの実行は別途切替承認後に行い、この開発コマンドを対象確認なしに流用しない。
 
 ## 第4段階: 旧認証終了
 
@@ -106,3 +136,48 @@ Googleアカウントを利用できない場合はGoogle側の復旧を案内�
 - 適用後exportのSQLite復元・0013期待DDL・FK・整合性、旧16表の全保存値一致を確認。追加5表は空、旧方式停止日時は未設定。適用後export SHA256: `5adf9f22df26baea52c3b2d3d81027068dabe330b7f1f20adf931ecb6fc00983`。
 - 固定開発Workerで旧パスワードログインと認証後の家計再表示（HTTP 200）に成功。資格情報は出力せず、本番への変更は行っていない。
 - `3c4d165`: CIのバックアップ試験8件が5秒の個別上限を超えたため、migration単位のtransactionと試験用の不変snapshotコピーで重複生成・確定回数を削減。主要試験15.589→9.159秒、SQLite試験3.740→1.990秒。timeoutは変更せず、関連208テスト・backup専用coverage 90.6%・identity/backupの隔離D1試験に成功。
+- 第2段階最終SHA `9dc93f3`: 全13チェック成功。E2E jobは5分51秒、テスト工程4分59秒（2026-09-06 10:31 UTC完了）。
+
+## 本番移行時の証跡欄
+
+実施時に次の項目を記録する。本人確認の詳細、Google主体、照合コード、資格情報をGitやPRへ貼らず、運営が管理する記録への参照と確認結果だけを残す。未実施の欄を成功で埋めない。
+
+| 確認項目 | 記録する内容 |
+|---|---|
+| 配備対象 | 承認済みSHA、CI結果、Worker Version、DB UUID |
+| バックアップ | 当該SHAによる作成・切替直前の再検証結果と保管参照 |
+| 利用者1の本人確認 | 信頼できる連絡経路で申請を照合した記録への参照 |
+| 利用者2の本人確認 | 同上。利用者1の確認で代用しない |
+| 利用者1の移行確認 | 独立したGoogle再ログインと既存の明細・精算額・振込履歴を確認した記録への参照 |
+| 利用者2の移行確認 | 同上。初回本人確認やDB上の所属の存在で代用しない |
+| 旧方式終了 | 対象世帯・2人の対応の再照合、明示承認、停止日時、旧session失効とGoogle継続の確認 |
+| 復旧経路 | Google側の復旧案内、運営の本人確認窓口と再紐づけ手順を確認した結果 |
+| 切り戻し候補 | Google対応schemaと履歴を扱えるVersion、復元を伴う場合の別途承認 |
+
+実行前の確認画面・出力だけでは完了としない。実行結果を照合し、条件が変わって実行対象が0件になった場合は、対象を再確認する。
+
+## 第3段階の認証基盤検証
+
+- `8b67376`: 全体117ファイル・1,481テスト、独立D1認証試験、typecheck、lint成功。対象ドメインの行カバレッジ100%、分岐90.90%。Workers向けOpenNext開発設定ビルド成功。
+- `1af6ceb`: 事前失効済み旧主体を保持する復旧と、許可の最終更新が0件の場合の原子rollbackを修正。関連55テストと実D1故障注入試験成功。
+- `20596b0`: 加入・復旧の許可期限をDB実行時刻でも検査。実行待ち中の期限到達を待機に依存しないテストで再現し、関連57テスト・独立D1・typecheck・lint成功。
+- 公開Route・画面・運営CLIとの接続および実Google認証は、後続の検証記録で区別する。
+
+
+### 第3段階の画面・運営接続検証
+
+- Google入口、確認待ち、設定、全端末ログアウト、復旧、運営承認CLIを接続。実Google用のclient/secretは未設定。
+- カバレッジ測定124ファイル・1,522テスト、最終全体1,529テスト、全78 E2E（2.8分）、typecheck、lint、OpenNext build成功。CLI修正後の対象36テストと隔離D1も成功。
+- 有効なダミーGoogle設定を与えた実Workers成果物で、通常login 200、正規Googleへの303、Preview拒否と試行0件、全mock入口404、家計session未発行、外部通信0件を確認した。
+- Wranglerのremoteファイル取り込みではSELECT行が得られないため、非公開入力をプロセス内部で通常queryへ渡す方式に修正。実Wranglerをloopbackの合成APIへ接続し、検索結果の保持を検証。実運営のremote承認は未実施。
+- CUAで既存2月の明細、空9月、375px幅の長いemailと照合コード、コードコピー、承認後再ログイン、設定、確認dialog、全端末ログアウト、旧passwordログインを確認。目視用の一時HTMLは削除済み。
+
+- `40211db`のCLI転送経路で、実開発D1への読み取り専用SELECT成功を確認。Google個人0件・旧方式停止世帯0件を維持。実承認や書き込みは行っていない。
+
+- `7a93b13`: 正規originのOAuth開始時に期限切れ試行の秘密を清掃し、ログイン結果のqueryを既知3値へ限定。関連52テスト・typecheck・lint・OpenNext build・更新成果物の封鎖試験成功。
+
+- 第3段階Draft PR: [#125](https://github.com/yosket87/score-splitter/pull/125)、baseは第2段階ブランチ。`7a93b13`の修正再レビューで未解消指摘0件。
+- 2026-09-06 12:15 UTC: 第3段階（配備時HEAD `0b7dd0b`）を固定開発Workerへ配備。Version `bee98a84-d1bb-4d62-a02a-665167cb0b5b`、DB binding `51457bd5-8e0e-4645-ad34-86634285af2c`を実Versionから照合。Google client IDは空、Secret未設定、旧認証は継続。
+- 配備後、開発の旧passwordログイン・認証後の家計再表示200・ログアウト成功。実Google認証、実運営承認、旧方式の最終停止、本番変更は未実施。
+
+- `7352486`: 第3段階CIで、0011/0012の歴史DBへ0013必須の現APIを接続していた試験不整合を修正。元DBの故障注入・rollback・再適用・0012の16表復元検証は維持し、独立cloneだけを正規0013へ進めて現APIを検証。clone初期schema・全値一致、更新後の旧全列全値保持、元state不変、対象D1・typecheck・lint成功。アプリのschema fallbackは追加していない。

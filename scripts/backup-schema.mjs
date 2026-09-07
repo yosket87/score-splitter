@@ -1,3 +1,4 @@
+import { verifyFirebaseIdentityState } from './backup-identity.mjs'
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -29,6 +30,7 @@ export const BACKUP_MIGRATIONS = Object.freeze([
     name: '0013_add_google_identities.sql',
     tables: ['users', 'google_identities', 'household_memberships', 'oauth_login_attempts', 'google_migration_requests'],
   },
+  { name: '0014_add_firebase_auth.sql', tables: ['firebase_identities', 'firebase_migration_requests'] },
 ].map((migration) => Object.freeze({ ...migration, tables: Object.freeze(migration.tables) })))
 
 // SQLite予約表と、D1が使用する既知の内部表だけを除外する。
@@ -284,5 +286,6 @@ export function readBackupSchema(query, migrationExists = existsSync) {
       throw new Error(`適用済みmigrationがリポジトリにありません: ${migration}`)
     }
   }
+  if (schemaWithoutObjects.tables.includes('firebase_identities')) verifyFirebaseIdentityState(query)
   return resolveBackupSchema(tables, migrations, query(SCHEMA_OBJECTS_SQL))
 }

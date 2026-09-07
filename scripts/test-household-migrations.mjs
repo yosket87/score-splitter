@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { verifyHouseholdFunctions } from './household-d1-boundaries.mjs'
+import { verifyCurrentHouseholdClone } from './household-d1-current-clone.mjs'
 import { readBackupSchema } from './backup-schema.mjs'
 
 // 設定・DB・migrationを毎回隔離し、本番や開発のremote DBへ接続しない。
@@ -39,6 +39,12 @@ const schemaSql = "SELECT type,name,tbl_name,sql FROM sqlite_schema WHERE name N
 const tables = ['incomes', 'expenses', 'carryovers', 'sessions', 'passkey_credentials', 'webauthn_challenges', 'login_attempts', 'waitlist_entries', 'ai_diagnoses', 'ai_execution_guard', 'ai_diagnosis_source_revision', 'month_payment_revisions', 'payment_operations', 'payment_records', 'payment_voids']
 const snapshot = () => execute([schemaSql, ...[...tables, 'households', 'd1_migrations'].map(table => `SELECT * FROM ${table} ORDER BY rowid;`)].join('\n'))
 const stage = name => writeFileSync(join(migrations, name), readFileSync(join(source, name), 'utf8'))
+const verifyCurrentFunctions = async restored => {
+  const before = snapshot()
+  const rows = Object.fromEntries([...tables, 'households', 'd1_migrations'].map((name, index) => [name, before[index + 1]]))
+  await verifyCurrentHouseholdClone(temp, state, restored, { schema: before[0], rows })
+  assert.deepEqual(snapshot(), before)
+}
 
 try {
   for (const name of readdirSync(source).filter(name => name.endsWith('.sql') && name < '0009').sort()) stage(name)
@@ -109,7 +115,7 @@ try {
   writeFileSync(join(migrations, finalName), finalSql.replace(point, 'INSERT INTO _household_migration_assert VALUES(0);\n' + point))
   assert.throws(apply, /CHECK constraint failed/)
   assert.deepEqual(snapshot(), scopedAfter)
-  await verifyHouseholdFunctions(temp, state)
+  await verifyCurrentFunctions(false)
   assert.deepEqual(snapshot(), scopedAfter)
   stage(finalName)
   apply()
@@ -144,9 +150,9 @@ try {
     assert.throws(() => execute(`UPDATE ${table} SET created_at='changed';`), /PAYMENT_IMMUTABLE/)
     assert.throws(() => execute(`DELETE FROM ${table};`), /PAYMENT_IMMUTABLE/)
   }
-  await verifyHouseholdFunctions(temp, state, true)
-  console.log('0012: 6表の最終制約・全保持値・DROP後rollback・0011実関数起動・再試行を確認')
-  console.log('最終fixture export→別隔離D1 restore: 16表・全列/JSON/revision/quota・FK/trigger・実共有関数の世帯境界を確認')
+  await verifyCurrentFunctions(true)
+  console.log('0012: 6表の最終制約・全保持値・DROP後rollback・0011保存値から現API専用cloneを起動・再試行を確認')
+  console.log('最終fixture export→別隔離D1 restore: 16表・全列/JSON/revision/quota・FK/trigger・原状態保持と0013 clone上の実共有関数世帯境界を確認')
   console.log('0011: 最終NULL補完・全保持列/JSON/quota/revision・コピー後/旧DROP後/rename途中/trigger復元前のDDL rollbackと再試行を確認')
   console.log('世帯migration D1検証成功: 15表保持・13表所属・認証challenge無所属・DDL/data/trigger/適用台帳rollback・再適用・旧SQL互換・immutable/FK')
 } finally {

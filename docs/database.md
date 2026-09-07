@@ -29,6 +29,10 @@ AI3表・振込4表のhousehold_idはNOT NULL。明細3表と認証3表は0011�
 
 0012は明細3表・sessions・passkey_credentialsのhousehold_idをNOT NULL/FKへ再構築し、webauthn_challengesは種別CHECKでauthenticationだけ所属NULLを許す。NULLの追補は行わず、不明所属や必要所属NULLがあれば停止する。全列比較で既存値を保持し、索引・トリガーを復元する。ローカルの最終制約・失敗rollback・再適用・別D1復元は検証済み。本番適用は別承認で、0011から0012完了まで全入口の停止を維持する。
 
+## Firebase個人認証の互換追加（0014）
+
+0013を保持して`firebase_identities`と`firebase_migration_requests`を追加する。projectId/UIDを既存users.idへ対応させ、解除済みidentityも保持する。usersの`firebase_auth_time_floor`とsession_epochで過去の本人確認による再ログインを拒否する。Firebase sessionにはidentityとauth_timeを保存し、発行時にも本人・所属・失効状態を検査する。既存sessionと振込履歴の値は変更しない。[設定・移行手順](firebase-auth.md)を参照。
+
 ## Google個人認証の互換追加（0013）
 
 Googleの本人確認結果と世帯への所属を分離する。互換段階では既存の家計・旧session・振込履歴を保持し、既存のpersonからuserを推定しない。本番適用や利用者の移行完了を意味しない。
@@ -240,3 +244,7 @@ D1マイグレーションは `cloudflare/worker/migrations/` に配置してい
 3明細テーブルのINSERT/UPDATE/DELETEはAFTERトリガーで対象世帯・月のrevisionを加算する。明細の編集は禁止しない。分類だけのAI更新はsnapshot対象外のためrevisionを変えない。振込操作は同一読取batchで作った見積りを、操作INSERT時のrevisionトリガーと単一書込batchで検証する。編集が先なら再確認、記録が先なら編集後の差額へ反映する。
 
 コピーは明細だけを対象とし、振込状態・履歴を次月へ引き継がない。支払正味合計はBigIntで計算し、最終値の安全整数を検証する。
+
+### D1 remoteのトリガー構文
+
+トリガー内のCASE式は`SELECT (CASE ... END);`のように括弧で囲む。0013ではローカルD1で成功した括弧なしCASEがremote適用時に`incomplete input`となり、括弧化で解消した。完成したトリガー定義への構文検査をidentity migration suiteで実行する。[Cloudflareの既知事例](https://github.com/cloudflare/workers-sdk/issues/4727)

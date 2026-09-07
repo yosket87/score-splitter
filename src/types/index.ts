@@ -12,10 +12,7 @@ export type Person = 'husband' | 'wife'
 export type EntryType = 'income' | 'expense' | 'carryover'
 
 // セッション
-export interface Session {
-  person: Person | null
-  authMethod: 'password' | 'passkey'
-}
+export type { Session } from './auth'
 
 // 収入
 export interface Income {

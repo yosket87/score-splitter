@@ -1,105 +1,84 @@
 'use client'
 
+import { GoogleLoginLink, GoogleRecoveryHelp } from '@/features/google-auth/google-login-link'
 import { useActionState, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { login } from '@/app/actions/auth'
-import { BrandLogo } from '@/components/brand/brand-logo'
+import { BrandMark } from '@/components/brand/brand-mark'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { PasskeyLoginButton } from '@/features/passkey'
+import { FirebaseLogin } from '@/features/firebase-auth/firebase-login'
+import type { FirebaseClientConfig } from '@/lib/auth/firebase-client-config'
 
-export function LoginForm() {
+export function LoginForm({ googleEnabled = false, googleMessage, firebaseConfig }: { googleEnabled?: boolean; googleMessage?: string; firebaseConfig?: FirebaseClientConfig }) {
   const [state, formAction, isPending] = useActionState(login, {})
   const [showPassword, setShowPassword] = useState(false)
+  const [passwordOpen, setPasswordOpen] = useState(false)
 
   return (
-    <div className="app-shell flex min-h-screen flex-col">
-      <header className="app-sticky-glass">
-        <div className="mx-auto flex min-h-16 max-w-6xl items-center justify-between px-4 sm:px-5">
-          <BrandLogo />
-          <ThemeToggle />
-        </div>
+    <div className="app-shell flex min-h-svh flex-col">
+      <header className="flex justify-end px-4 pt-3 sm:px-6">
+        <ThemeToggle />
       </header>
+      <main id="main" tabIndex={-1} className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 pb-12 pt-6 sm:py-12">
+        <section aria-labelledby="login-heading" className="app-glass-heavy rounded-[28px] px-6 py-8 sm:px-8 sm:py-10">
+          <div className="mb-7 text-center">
+            <BrandMark className="mx-auto size-12" />
+            <p className="mt-3 text-xl font-semibold tracking-[0.08em]">ヤマワケ</p>
+            <h1 id="login-heading" className="mt-6 text-xl font-bold leading-relaxed tracking-tight">ふたりの家計を、ひとつに。</h1>
+            <p className="mt-2 text-sm text-sub-text">いつもの方法でログイン</p>
+          </div>
 
-      <main
-        id="main"
-        tabIndex={-1}
-        className="mx-auto flex w-full max-w-md flex-1 flex-col px-5 pb-4 pt-10"
-      >
-        <section className="pb-6">
-          <h1 className="text-[26px] font-bold leading-tight tracking-[-0.03em]">
-            ヤマワケ
-          </h1>
-          <p className="mt-2.5 text-[13px] leading-relaxed text-sub-text">
-            パスワードを入力してログインしてください。
-            <br />
-            セッションは7日間保持されます。
-          </p>
-        </section>
-
-        <div className="app-glass-heavy rounded-[24px] p-[18px]">
-          <form action={formAction} className="flex flex-col gap-3.5">
-            <div>
-              <div className="flex items-baseline justify-between mb-2">
-                <label
-                  htmlFor="password"
-                  className="text-[11px] font-bold tracking-[0.14em] uppercase text-sub-text"
-                >
-                  パスワード
-                </label>
-                <span className="text-[10px] text-sub-text font-tabular">
-                  パスワードの表示状態: {showPassword ? '表示' : '非表示'}
-                </span>
-              </div>
-
-              <div className="rounded-[12px] bg-muted flex items-center px-4 h-12">
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  name="password"
-                  placeholder="パスワード"
-                  required
-                  autoFocus
-                  className="min-w-0 flex-1 text-[20px] font-semibold tracking-[0.30em] bg-transparent border-none outline-none font-tabular placeholder:text-muted-foreground/40 placeholder:tracking-normal placeholder:text-base"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  className="min-h-11 shrink-0 px-2 text-[11px] font-bold tracking-[0.10em] text-accent"
-                >
-                  {showPassword ? '隠す' : '表示'}
-                </button>
-              </div>
-            </div>
-
-            {state.error && (
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-destructive shrink-0" />
-                <span className="text-[12px] font-semibold text-destructive">{state.error}</span>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isPending}
-              className="mt-1 h-12 px-5 bg-accent text-accent-foreground rounded-[12px] text-[13px] font-bold tracking-[0.14em] uppercase flex items-center justify-between shadow-fab disabled:opacity-50 transition-opacity"
-            >
-              <span>{isPending ? 'ログイン中…' : 'ログイン'}</span>
-              {!isPending && <span aria-hidden="true" className="text-lg font-normal">→</span>}
-            </button>
-          </form>
-
-          <div className="mt-4">
+          {googleMessage && <p role="status" className="mb-4 text-sm leading-relaxed">{googleMessage}</p>}
+          <div className="space-y-3">
+            {firebaseConfig && <FirebaseLogin config={firebaseConfig} />}
+            {googleEnabled && !firebaseConfig && <GoogleLoginLink />}
             <PasskeyLoginButton />
           </div>
+
+          <div className="my-6 flex items-center gap-4" aria-hidden="true">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs text-sub-text">または</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+          <button type="button" aria-expanded={passwordOpen} aria-controls="password-login-panel"
+            disabled={isPending} onClick={() => setPasswordOpen(open => !open)}
+            className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border border-border px-4 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
+            パスワードでログイン
+            <ChevronDown aria-hidden="true" className={`size-4 shrink-0 ${passwordOpen ? 'rotate-180' : ''}`} />
+          </button>
+          <div id="password-login-panel">
+            {passwordOpen && <form action={formAction} className="mt-5 flex flex-col gap-4">
+              <div>
+                <label htmlFor="password" className="mb-2 block text-sm font-medium">パスワード</label>
+                <div className="flex h-12 items-center rounded-xl border border-border bg-background/70 px-3 focus-within:ring-2 focus-within:ring-ring">
+                  <input id="password" type={showPassword ? 'text' : 'password'} name="password" placeholder="パスワード"
+                    required autoComplete="current-password"
+                    className="min-w-0 flex-1 border-none bg-transparent text-base outline-none placeholder:text-muted-foreground" />
+                  <button type="button" aria-label={showPassword ? '隠す' : '表示'} aria-pressed={showPassword}
+                    onClick={() => setShowPassword(value => !value)} className="min-h-11 shrink-0 px-2 text-xs font-medium text-accent">
+                    {showPassword ? '隠す' : '表示'}
+                  </button>
+                </div>
+              </div>
+              {state.error && <p role="alert" className="text-sm leading-relaxed text-destructive">{state.error}</p>}
+              <button type="submit" disabled={isPending}
+                className="h-12 rounded-xl bg-accent px-5 text-sm font-semibold text-accent-foreground transition-opacity disabled:opacity-50">
+                {isPending ? 'ログイン中…' : 'ログイン'}
+              </button>
+            </form>}
+          </div>
+        </section>
+        <div className="mt-6 text-center text-xs leading-relaxed text-sub-text">
+          <details>
+            <summary className="mx-auto w-fit cursor-pointer rounded-md px-2 py-3 text-accent focus-visible:outline-2 focus-visible:outline-ring">ログインでお困りの方へ</summary>
+            <div className="mt-2 space-y-3 text-left">
+              <p>パスワードを忘れた場合は、管理者に問い合わせてください。</p>
+              <GoogleRecoveryHelp />
+            </div>
+          </details>
         </div>
       </main>
-
-      <footer className="mx-auto w-full max-w-md px-5 py-5">
-        <p className="text-[11px] text-sub-text leading-relaxed">
-          パスワードを忘れた場合は
-          <br />
-          管理者に問い合わせてください。
-        </p>
-      </footer>
     </div>
   )
 }

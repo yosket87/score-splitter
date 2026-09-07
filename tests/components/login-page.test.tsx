@@ -1,8 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { redirect } from 'next/navigation'
 import LoginPage from '@/app/login/page'
 import { isAuthenticated } from '@/lib/webauthn/session'
+
+vi.mock('next/font/local', () => ({ default: () => ({ className: 'font-test' }) }))
+vi.mock('@/lib/auth/google-config', () => ({ googleOAuthConfig: () => null }))
+vi.mock('@/lib/auth/firebase-config', () => ({ firebaseAuthConfig: () => null }))
+vi.mock('@/features/firebase-auth/firebase-login', () => ({ FirebaseLogin: () => null }))
+vi.mock('next/headers', () => ({ headers: async () => new Headers() }))
 
 vi.mock('next-themes', () => ({
   useTheme: () => ({
@@ -32,23 +38,25 @@ describe('LoginPage', () => {
   it('未認証の場合はログインフォームを表示する', async () => {
     vi.mocked(isAuthenticated).mockResolvedValue(false)
 
-    const { container } = render(await LoginPage())
+    const { container } = render(await LoginPage({ searchParams: Promise.resolve({}) }))
 
     expect(screen.getByRole('img', { name: 'ヤマワケ' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'ヤマワケ' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'ふたりの家計を、ひとつに。' })).toBeInTheDocument()
     expect(container.firstElementChild).toHaveClass('app-shell')
     expect(container.querySelector('.app-glass-heavy')).toBeInTheDocument()
     expect(screen.queryByText('Score Splitter')).not.toBeInTheDocument()
     expect(screen.queryByText('家計計算アプリ')).not.toBeInTheDocument()
-    expect(screen.getByText('パスワードの表示状態: 非表示')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('パスワード')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'パスワードでログイン' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Help ›')).not.toBeInTheDocument()
   })
 
   it('ログイン操作を44px以上の領域で表示する', async () => {
     vi.mocked(isAuthenticated).mockResolvedValue(false)
 
-    render(await LoginPage())
+    render(await LoginPage({ searchParams: Promise.resolve({}) }))
 
+    fireEvent.click(screen.getByRole('button', { name: 'パスワードでログイン' }))
     expect(screen.getByRole('button', { name: '表示' })).toHaveClass('min-h-11')
     expect(screen.getByRole('button', { name: 'ログイン' })).toHaveClass('h-12')
     expect(screen.getByRole('button', { name: 'テーマを切り替え' })).toHaveClass('size-11')
@@ -57,16 +65,34 @@ describe('LoginPage', () => {
   it('パスワード入力欄をカード幅まで縮小できる', async () => {
     vi.mocked(isAuthenticated).mockResolvedValue(false)
 
-    render(await LoginPage())
+    render(await LoginPage({ searchParams: Promise.resolve({}) }))
 
+    fireEvent.click(screen.getByRole('button', { name: 'パスワードでログイン' }))
     expect(screen.getByPlaceholderText('パスワード')).toHaveClass('min-w-0')
   })
 
   it('認証済みの場合はトップページへリダイレクトする', async () => {
     vi.mocked(isAuthenticated).mockResolvedValue(true)
 
-    await expect(LoginPage()).rejects.toThrow('NEXT_REDIRECT:/')
+    await expect(LoginPage({ searchParams: Promise.resolve({}) })).rejects.toThrow('NEXT_REDIRECT:/')
 
     expect(redirect).toHaveBeenCalledWith('/')
   })
+})
+
+it.each(['__proto__', 'constructor', 'toString', 'unknown', ['error', 'canceled']])('未知のGoogle結果 %j でもログイン画面を安全に表示する', async google => {
+  vi.mocked(isAuthenticated).mockResolvedValue(false)
+  const page = await LoginPage({ searchParams: Promise.resolve({ google }) })
+  expect(page.props.googleMessage).toBeUndefined()
+  render(page)
+  expect(screen.getByRole('button', { name: 'パスワードでログイン' })).toBeInTheDocument()
+})
+it.each([
+  ['error', 'Googleログインを完了できませんでした。もう一度お試しください。'],
+  ['canceled', 'Googleログインをキャンセルしました。'],
+  ['recovered', 'アカウントを復旧しました。Googleでログインし直してください。'],
+])('既知Google結果 %s は安全な固定メッセージを表示する', async (google, message) => {
+  vi.mocked(isAuthenticated).mockResolvedValue(false)
+  render(await LoginPage({ searchParams: Promise.resolve({ google }) }))
+  expect(screen.getByText(message)).toBeInTheDocument()
 })

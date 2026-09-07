@@ -19,6 +19,7 @@
 
 | ファイル | 内容 |
 |---------|------|
+| [firebase-auth.md](firebase-auth.md) | Google・Apple認証の構成と設定・移行手順 |
 | [architecture.md](./architecture.md) | ディレクトリ構造・アーキテクチャ |
 | [tech-stack.md](./tech-stack.md) | 使用技術スタック |
 | [components.md](./components.md) | コンポーネント構造 |

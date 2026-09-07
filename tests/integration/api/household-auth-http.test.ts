@@ -14,7 +14,7 @@ async function request(path: string, method = 'GET', body?: unknown, token?: str
 beforeEach(() => {
   state = createAuthSqlite()
   for (const [token, household] of [[tokenA, 'A'], [tokenB, 'B']]) {
-    state.sqlite.prepare('INSERT INTO sessions VALUES (?, NULL, ?, ?, ?, ?)').run(token, 'password', expiresAt, now.toISOString(), household)
+    state.sqlite.prepare('INSERT INTO sessions(token,person,auth_method,expires_at,created_at,household_id) VALUES (?, NULL, ?, ?, ?, ?)').run(token, 'password', expiresAt, now.toISOString(), household)
   }
 })
 afterEach(() => state.sqlite.close())

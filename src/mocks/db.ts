@@ -3,6 +3,8 @@
  * Worker APIモック用のクエリ操作を提供する
  */
 
+import { resetGoogleState } from './google-state'
+import { resetGoogleProvider } from './google-provider'
 import { seedData } from './data'
 
 type Row = Record<string, unknown>
@@ -28,6 +30,8 @@ function getStore(): Store {
 
 /** ストアをシードデータで初期化 */
 export function initStore(): void {
+  resetGoogleState()
+  resetGoogleProvider()
   mockGlobal.__scoreSplitterMockStore = {
     incomes: structuredClone(seedData.incomes).map(row => ({...row, household_id:'3975b870-bbfa-49fd-ae3d-d273c9f6e107'})),
     expenses: structuredClone(seedData.expenses).map(row => ({...row, household_id:'3975b870-bbfa-49fd-ae3d-d273c9f6e107'})),

@@ -17,7 +17,7 @@ export function middleware(request: NextRequest) {
 
   const session = request.cookies.get(SESSION_COOKIE_NAME)
   const hasSession = isValidSessionCookieValue(session?.value)
-  const isLoginPage = request.nextUrl.pathname === '/login'
+  const isLoginPage = request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/auth/migration'
 
   // ログインページにアクセスしようとしている場合
   if (isLoginPage) {

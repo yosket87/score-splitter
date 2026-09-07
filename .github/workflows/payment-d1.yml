@@ -9,7 +9,13 @@ on:
       - 'src/lib/utils/payment-status.ts'
       - 'src/lib/validations/payment-status.ts'
       - 'src/types/payment-status.ts'
+      - 'src/types/auth.ts'
+      - 'src/lib/api/google-auth.ts'
+      - 'tests/unit/cloudflare/google-auth.test.ts'
+      - 'tests/unit/lib/api/google-auth.test.ts'
       - 'scripts/test-*-d1.mjs'
+      - 'scripts/google-auth-*.mjs'
+      - 'scripts/test-google-auth-admin-transport.mjs'
       - 'scripts/test-household-migrations.mjs'
       - 'scripts/test-identity-migrations.mjs'
       - 'scripts/identity-migration-*.mjs'
@@ -29,7 +35,13 @@ on:
       - 'src/lib/utils/**'
       - 'src/lib/validations/payment-status.ts'
       - 'src/types/payment-status.ts'
+      - 'src/types/auth.ts'
+      - 'src/lib/api/google-auth.ts'
+      - 'tests/unit/cloudflare/google-auth.test.ts'
+      - 'tests/unit/lib/api/google-auth.test.ts'
       - 'scripts/test-*-d1.mjs'
+      - 'scripts/google-auth-*.mjs'
+      - 'scripts/test-google-auth-admin-transport.mjs'
       - 'scripts/test-household-migrations.mjs'
       - 'scripts/test-identity-migrations.mjs'
       - 'scripts/identity-migration-*.mjs'
@@ -54,7 +66,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [payment, records, ai-payment, household-migrations, identity-migrations]
+        suite: [payment, records, ai-payment, household-migrations, identity-migrations, auth]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

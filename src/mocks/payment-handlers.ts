@@ -1,8 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import { z } from 'zod'
 import { isValidMonth } from '@/lib/utils/format'
-import type { Session } from '@/types'
-import { validSession } from './auth-handlers'
+import { validSession, apiSession } from './auth-handlers'
 import { correctMockPayment, getMockPaymentOperation, getMockPaymentStatus, recordMockPayment } from './payment-status'
 import { HttpError } from '../../cloudflare/worker/src/http'
 
@@ -15,7 +14,7 @@ export function createPaymentHandlers(baseUrl: string, internalToken: string) {
       if (!session || !(Date.parse(String(session.expires_at)) > Date.now())) throw new HttpError('ログインし直してください。', 401)
       const month = String(params.month)
       if (!isValidMonth(month)) throw new HttpError('月が不正です。', 400)
-      const actor: Session & { householdId: string } = { householdId: String(session.household_id), person: session.person as Session['person'], authMethod: session.auth_method as Session['authMethod'] }
+      const actor = apiSession(session)
       if (request.method === 'GET' && params.action === 'payment-status') return HttpResponse.json({ data: getMockPaymentStatus(actor, month) })
       if (request.method === 'GET' && params.action === 'payment-operations') {
         const id = z.string().uuid().parse(params.id)

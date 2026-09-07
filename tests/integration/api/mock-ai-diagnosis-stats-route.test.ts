@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GET } from '@/app/api/mock/ai-diagnosis-stats/route'
 import {
   incrementAiDiagnosisMockStat,
@@ -8,6 +8,7 @@ import {
 const originalUseMocks = process.env.USE_MOCKS
 
 afterEach(() => {
+  vi.unstubAllEnvs()
   if (originalUseMocks === undefined) delete process.env.USE_MOCKS
   else process.env.USE_MOCKS = originalUseMocks
   resetAiDiagnosisMockStats()
@@ -17,7 +18,7 @@ describe('AI診断mock統計endpoint', () => {
   it('mock環境以外では404として統計を公開しない', async () => {
     delete process.env.USE_MOCKS
 
-    const response = await GET()
+    const response = await GET(new Request('http://localhost:3000/api/mock/ai-diagnosis-stats'))
 
     expect(response.status).toBe(404)
     await expect(response.json()).resolves.toEqual({
@@ -27,12 +28,13 @@ describe('AI診断mock統計endpoint', () => {
 
   it('mock環境でだけproviderと保存の回数を返す', async () => {
     process.env.USE_MOCKS = 'true'
+    vi.stubEnv('NODE_ENV', 'development'); vi.stubEnv('NEXT_RUNTIME', 'nodejs')
     resetAiDiagnosisMockStats()
     incrementAiDiagnosisMockStat('categoryProviderCalls')
     incrementAiDiagnosisMockStat('narrativeProviderCalls')
     incrementAiDiagnosisMockStat('diagnosisSaveCalls')
 
-    const response = await GET()
+    const response = await GET(new Request('http://localhost:3000/api/mock/ai-diagnosis-stats'))
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({

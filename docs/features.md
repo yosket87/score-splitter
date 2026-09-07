@@ -96,14 +96,18 @@ type Person = 'husband' | 'wife'
 
 ### ログイン方式
 
-パスワード認証（bcryptによるハッシュ化）
+Firebase Authenticationを設定した環境ではGoogle・Appleでログインできます。AppleはDeveloper設定の完了後に有効化します。移行期間は従来のパスワード認証とパスキーを併用します。
+
+未連携のアカウントは確認待ち画面へ進み、管理者の本人確認・承認後に既存家計へ接続します。メールの一致だけで家計やアカウントを統合しません。設定画面から本人の同意を得てGoogle・Appleを追加連携できます。
+
+通常ログアウトはFirebase SDKと家計セッションを終了します。全端末ログアウトは本人の既存認証を無効化し、パートナーのセッションを維持します。構成・設定・復旧の詳細は[Google・Appleログイン](firebase-auth.md)を参照してください。
 
 ### セッション管理
 
 | 項目 | 値 |
 |-----|---|
 | Cookie名 | `household_session` |
-| 有効期限 | 7日間 |
+| 有効期限 | Firebaseは最大1時間（SDKによる更新あり）、旧方式は7日間 |
 | 属性 | httpOnly, secure, sameSite: lax |
 
 ### パスワードハッシュの管理
@@ -116,12 +120,14 @@ type Person = 'husband' | 'wife'
 1. ユーザーがパスワードを入力
 2. bcryptでハッシュと比較
 3. 一致すればセッションCookieを発行
-4. 以降のリクエストはCookieで認証
+4. 以降のリクエストはCookieのtokenをD1と照合して認証
 ```
 
 ### ミドルウェアによる保護
 
-`middleware.ts`で全ページを保護し、未認証ユーザーは `/login` にリダイレクトされます。
+`middleware.ts`は家計画面への未認証アクセスを `/login` へ誘導します。認可はServer Actions/RSCからのデータ操作ごとにD1のセッションを確認します。Google方式では利用者・所属の有効状態と失効世代も照合します。
+
+Googleのcallbackと確認待ち画面は家計セッションなしで利用するため、それぞれ短期の試行Cookie・申請Cookieを検証します。設定と運営手順は[Googleログインの段階リリース手順](google-auth-release-runbook.md)を参照してください。
 
 ## 5. AI家計診断
 

@@ -126,12 +126,25 @@ middleware.ts（Cookie等による画面入口の確認）
 Server Action / RSC の認証境界
     ↓
 D1 sessionのtoken・期限・実在householdを検証
+Google方式は有効user・有効membership・失効世代も検証
     ↓
 ├── 有効 → householdId/person/authMethodの不変snapshot
 └── 無効 → 認証拒否 / loginへ誘導
 ```
 
 世帯対応の共通入口は `src/lib/household-context.ts`。middlewareやlayoutだけを認可境界とみなさず、データ操作ごとに認証済み世帯を渡す。householdIdは家計担当者のpersonとは別概念。Cookieのtokenや内部Bearerはクライアントコンポーネントへ渡さない。
+
+Firebase認証の入口はServer Action `src/app/actions/firebase-auth.ts`。固定Origin/HostとID tokenを検証した後、D1のFirebaseドメインで本人・所属・失効世代を確認し、家計Cookieを発行する。`firebase_identities`のprojectId/UIDと内部users.idを分け、Google・Appleの明示的連携後も家計の利用者IDを維持する。公開設定はリクエスト内で取得する。詳細は[Google・Appleログイン](firebase-auth.md)を参照。
+
+以下の直接Google OAuthは移行互換用で、Firebase設定が有効な環境では開始・callbackを停止する。
+
+Google認証のドメインは`cloudflare/worker/src/oauth-attempts.ts`、`google-login.ts`、`google-migrations.ts`に分ける。OIDC署名の検証結果を受けた後、D1側で一度きりの試行・移行許可・現在の所属を確認する。`src/lib/api/google-auth.ts`がリクエスト内でDBを取得し、安全な固定エラーへ変換する。旧HTTPのsession作成はpassword/passkeyに限定し、任意のuserIdからGoogle sessionを作る入口にはしない。
+
+未知の主体には家計sessionを作らず、短期の申請だけを返す。承認済みの移行は個人・主体・所属・sessionを同じbatchで確定する。本人の全端末失効はepochとOAuth試行の下限を進め、復旧は同じuserと過去の振込actorを維持して旧主体を失効する。Google tokensを家計sessionに使わない。詳細は[Google認証ADR](adr/0002-google-authentication.md)を参照する。
+
+ブラウザの入口は`/api/auth/google/start`と`/api/auth/google/callback`。固定originと短期HttpOnly Cookieを照合し、試行claim、OIDC検証、D1の認可確定後に家計Cookieを発行する。未知の主体には`/auth/migration`で照合コードを表示し、家計Cookieは発行しない。設定画面の全端末ログアウトは、Cookieから取得した本人のsessionをServer Actionで失効する。
+
+UI検証の疑似Googleはdevelopment・Node runtime・USE_MOCKSの全条件が揃うlocalhostだけで利用する。実際の署名/PKCE検証を通す疑似providerと既存のインメモリStoreを使い、SQL認可の検証は隔離D1で行う。本番成果物では環境変数にモック指定を与えても疑似認証を有効にしない。
 
 認証前の内部HTTPは `/internal/auth/*`、パスキー管理と登録challengeはDB session必須の管理ルートへ分ける。認証challengeはNULL所属で、登録challengeは認証済み世帯に属する。短期httpOnly cookieで試行IDをブラウザへ紐づけ、期限・type・世帯/personと照合して原子的に消費する。署名検証失敗後はoptionsを取り直す。
 

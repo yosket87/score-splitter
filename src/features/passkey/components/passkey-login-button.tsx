@@ -54,19 +54,13 @@ export function PasskeyLoginButton() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3">
-        <div className="flex-1 h-px bg-border" />
-        <span className="text-[11px] text-sub-text">または</span>
-        <div className="flex-1 h-px bg-border" />
-      </div>
-
       <button
         type="button"
         onClick={handlePasskeyLogin}
         disabled={isAuthenticating}
-        className="w-full h-12 px-5 bg-foreground text-background rounded-[12px] text-[13px] font-bold tracking-[0.10em] flex items-center justify-center gap-2 disabled:opacity-50 transition-opacity"
+        className="relative flex h-12 w-full items-center justify-center gap-2 rounded-full border border-border bg-background/70 px-5 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
       >
-        <Key className="h-4 w-4" />
+        <Key aria-hidden="true" className="absolute left-3 size-5" />
         {isAuthenticating ? '認証中…' : 'パスキーでログイン'}
       </button>
 

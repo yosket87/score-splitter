@@ -16,7 +16,7 @@ describe.each(['Worker', 'MSW'])('%s の明細HTTP世帯境界', backend => {
     getTable('ai_diagnosis_source_revision').push({ household_id: 'A', id: 1, revision: 0 }, { household_id: 'B', id: 1, revision: 0 })
     getTable('ai_execution_guard').push({ household_id: 'A', id: 1, daily_count: 0 }, { household_id: 'B', id: 1, daily_count: 0 })
     for (const [token, household] of [[tokenA, 'A'], [tokenB, 'B']]) {
-      fixture.sqlite.prepare('INSERT INTO sessions VALUES(?,?,?,?,?,?)').run(token, null, 'password', '2099-01-01', '2026-01-01', household)
+      fixture.sqlite.prepare('INSERT INTO sessions(token,person,auth_method,expires_at,created_at,household_id) VALUES(?,?,?,?,?,?)').run(token, null, 'password', '2099-01-01', '2026-01-01', household)
       getTable('sessions').push({ token, person: null, auth_method: 'password', expires_at: '2099-01-01', household_id: household })
     }
     const request = async (path: string, method = 'GET', body?: unknown, token = tokenA) => {

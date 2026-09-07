@@ -3,6 +3,7 @@
  * Next.jsのServer Actionsから発信されるWorker APIリクエストをインターセプトする
  */
 
+import { googleProviderHandlers } from './google-provider-handlers'
 import { setupServer } from 'msw/node'
 import { handlers } from './handlers'
 import { initStore } from './db'
@@ -10,4 +11,4 @@ import { initStore } from './db'
 // インメモリDBを初期化
 initStore()
 
-export const server = setupServer(...handlers)
+export const server = setupServer(...handlers, ...googleProviderHandlers)

@@ -26,7 +26,7 @@ describe('世帯認証の実SQLite境界', () => {
   })
   it.each(['A', 'B'])('実在する世帯%sのsessionから所属を解決する', async (householdId) => {
     const token = 'a'.repeat(64)
-    state.sqlite.prepare('INSERT INTO sessions VALUES (?, NULL, ?, ?, ?, ?)').run(token, 'password', expiresAt, now.toISOString(), householdId)
+    state.sqlite.prepare('INSERT INTO sessions(token,person,auth_method,expires_at,created_at,household_id) VALUES (?, NULL, ?, ?, ?, ?)').run(token, 'password', expiresAt, now.toISOString(), householdId)
     await expect(getSession(state.db, token, now)).resolves.toMatchObject({ householdId })
   })
   it.each([
@@ -35,7 +35,7 @@ describe('世帯認証の実SQLite境界', () => {
     ['A', 'password', now.toISOString()], ['A', 'password', '2026-09-04T23:59:59.999Z'],
   ])('不正sessionを拒否する %j %j %j', async (household, method, expiry) => {
     const token = 'a'.repeat(64)
-    state.sqlite.prepare('INSERT INTO sessions VALUES (?, NULL, ?, ?, ?, ?)').run(token, method, expiry, now.toISOString(), household)
+    state.sqlite.prepare('INSERT INTO sessions(token,person,auth_method,expires_at,created_at,household_id) VALUES (?, NULL, ?, ?, ?, ?)').run(token, method, expiry, now.toISOString(), household)
     await expect(getSession(state.db, token, now)).resolves.toBeNull()
   })
   it('session作成に世帯を必須とし保存する', async () => {

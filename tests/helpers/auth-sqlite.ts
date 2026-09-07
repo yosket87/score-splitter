@@ -7,9 +7,12 @@ const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof
 export function createAuthSqlite() {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec(`
-    CREATE TABLE households (id TEXT PRIMARY KEY, legacy_auth_key TEXT UNIQUE, created_at TEXT);
-    INSERT INTO households VALUES ('A', 'legacy', '2026-01-01'), ('B', NULL, '2026-01-01');
-    CREATE TABLE sessions (token TEXT PRIMARY KEY, person TEXT, auth_method TEXT, expires_at TEXT, created_at TEXT, household_id TEXT);
+    CREATE TABLE households (id TEXT PRIMARY KEY, legacy_auth_key TEXT UNIQUE, created_at TEXT, legacy_auth_disabled_at TEXT);
+    INSERT INTO households(id,legacy_auth_key,created_at) VALUES ('A', 'legacy', '2026-01-01'), ('B', NULL, '2026-01-01');
+    CREATE TABLE sessions (token TEXT PRIMARY KEY, person TEXT, auth_method TEXT, expires_at TEXT, created_at TEXT, household_id TEXT, user_id TEXT, membership_id TEXT, session_epoch INTEGER, oauth_attempt_sequence INTEGER);
+    -- 旧HTTP fixtureのJOIN互換用。Google認可は実migrationのidentity-sqliteで検証する。
+    CREATE TABLE users(id TEXT PRIMARY KEY,active INTEGER,session_epoch INTEGER);
+    CREATE TABLE household_memberships(id TEXT PRIMARY KEY,user_id TEXT,household_id TEXT,default_person TEXT,revoked_at TEXT);
     CREATE TABLE passkey_credentials (id TEXT PRIMARY KEY, person TEXT, public_key_base64 TEXT, counter INTEGER, device_name TEXT, transports TEXT, created_at TEXT, household_id TEXT);
     CREATE TABLE webauthn_challenges (id TEXT PRIMARY KEY, challenge TEXT, type TEXT, person TEXT, expires_at TEXT, created_at TEXT, household_id TEXT);
   `)

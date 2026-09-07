@@ -1,6 +1,6 @@
 # Google・Appleログイン
 
-認証はFirebase Authentication、家計の所属・個人ID・セッション・振込履歴はCloudflare D1で管理する。FirestoreやFirebase Hostingは使用しない。WebはFirebase Web SDKを使い、将来のiOSアプリも同じFirebase projectの利用者へ接続する。
+認証はFirebase Authentication、家計の所属・個人ID・セッション・振込履歴はCloudflare D1で管理する。Firestoreは使用しない。Web本体はCloudflare Workersで配信し、Firebase Hostingは独自認証ドメインの認証ヘルパーに使用する。WebはFirebase Web SDKを使い、将来のiOSアプリも同じFirebase projectの利用者へ接続する。
 
 ## 本人と家計の対応
 
@@ -100,3 +100,13 @@ FIREBASE_AUTH_MOCK=true npm run dev:mock
 利用者から本番リリースの明示指示を受け、開発とは別のSparkプロジェクト`yamawake-prod`とWebアプリ`yamawake-web-prod`を作成。Googleのみを有効にし、本番Originは`https://app.yamawake.app`とする。旧パスワード・パスキーの最終停止は含めない。
 
 本番D1への追加適用は0014のみ。配備前に対象HEADのバックアップ・SQLite復元・schema/全保存値/外部キーを照合する。CI成功、バックアップPASS、migration適用を確認後にPR125をマージして本番配備する。実ログイン・利用者承認は本番プロジェクトで別途確認し、開発環境の本人紐づけはコピーしない。配備バージョンと実施結果はPRのリリース記録に記載する。
+
+## 本番の独自認証ドメイン（2026-09-07）
+
+Firebase Hostingへ`auth.yamawake.app`を登録し、CloudflareにDNS-onlyのCNAME `auth.yamawake.app → yamawake-prod.web.app`を設定した（digで確認済み）。Firebase Authenticationの承認済みドメインへ`auth.yamawake.app`を追加し、既存のGoogle OAuthクライアントにもリダイレクトURI `https://auth.yamawake.app/__/auth/handler`を追加・保存した。
+
+2026-09-07に独自ドメインのTLS検証と認証ヘルパー2件のHTTP 200応答を確認した。本番Workerの`FIREBASE_AUTH_DOMAIN`を`auth.yamawake.app`へ切り替える。Firebase projectと利用者IDは変更しない。
+
+切替前に、証明書のSAN・有効性と、HTTPSで`https://auth.yamawake.app/__/auth/handler`および`https://auth.yamawake.app/__/auth/iframe`へ接続してFirebaseの認証ヘルパーが配信されることを確認する。確認後、本番の`FIREBASE_AUTH_DOMAIN`を`auth.yamawake.app`へ変更して再配備し、実Googleログインと家計への復帰を検証する。アプリ側で許可する独自ドメインは、projectが`yamawake-prod`、originが`https://app.yamawake.app`の場合の`auth.yamawake.app`のみ。
+
+旧`yamawake-prod.firebaseapp.com`の承認済みドメインとGoogleの既存リダイレクトURIは保持する。切替後に問題があれば`FIREBASE_AUTH_DOMAIN`を`yamawake-prod.firebaseapp.com`へ戻して再配備する。

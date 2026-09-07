@@ -45,6 +45,29 @@ describe('Firebase設定', () => {
     vi.stubEnv('FIREBASE_AUTH_DOMAIN', 'https://yamawake-dev.firebaseapp.com')
     expect(firebaseAuthConfig()).toBeNull()
   })
+  it('本番projectとoriginの組合せで独自authDomainを許可する', () => {
+    vi.stubEnv('FIREBASE_PROJECT_ID', 'yamawake-prod')
+    vi.stubEnv('FIREBASE_AUTH_DOMAIN', 'auth.yamawake.app')
+    vi.stubEnv('FIREBASE_AUTH_ORIGIN', 'https://app.yamawake.app')
+    expect(firebaseAuthConfig()).toEqual({
+      origin: 'https://app.yamawake.app',
+      client: { projectId: 'yamawake-prod', apiKey: 'public-key', authDomain: 'auth.yamawake.app',
+        googleEnabled: true, appleEnabled: false },
+    })
+  })
+  it.each([
+    ['yamawake-dev', 'auth.yamawake.app', 'https://app.yamawake.app'],
+    ['yamawake-prod', 'other.example.com', 'https://app.yamawake.app'],
+    ['yamawake-prod', 'auth.yamawake.app.evil.example', 'https://app.yamawake.app'],
+    ['yamawake-prod', 'auth.yamawake.app', 'https://preview.yamawake.app'],
+    ['yamawake-prod', 'auth.yamawake.app', 'https://app.yamawake.app:8443'],
+    ['yamawake-prod', 'auth.yamawake.app', 'https://app.yamawake.app/'],
+  ])('独自domainの許可組合せと異なる設定 %s / %s / %s を拒否する', (projectId, authDomain, origin) => {
+    vi.stubEnv('FIREBASE_PROJECT_ID', projectId)
+    vi.stubEnv('FIREBASE_AUTH_DOMAIN', authDomain)
+    vi.stubEnv('FIREBASE_AUTH_ORIGIN', origin)
+    expect(firebaseAuthConfig()).toBeNull()
+  })
   it('providerが全て無効なら設定も無効', () => {
     vi.stubEnv('FIREBASE_GOOGLE_ENABLED', 'false')
     expect(firebaseAuthConfig()).toBeNull()

@@ -5,6 +5,7 @@ import { MotionProvider } from '@/components/animations/motion-provider'
 import './globals.css'
 import { firebaseAuthConfig } from '@/lib/auth/firebase-config'
 import { FirebaseSessionSync } from '@/features/firebase-auth/firebase-session-sync'
+import { FirebaseClientProvider } from '@/features/firebase-auth/firebase-client-context'
 import { headers } from 'next/headers'
 
 export const metadata: Metadata = {
@@ -28,6 +29,7 @@ export default async function RootLayout({
 }>) {
   const host = (await headers()).get('host')
   const firebase = firebaseAuthConfig()
+  const firebaseClient = firebase && host === new URL(firebase.origin).host ? firebase.client : null
   return (
     <html lang="ja" suppressHydrationWarning>
       <body className="antialiased">
@@ -44,9 +46,11 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <MotionProvider>
-            {firebase && host === new URL(firebase.origin).host && <FirebaseSessionSync config={firebase.client} />}
-            {children}
-            <Toaster />
+            <FirebaseClientProvider config={firebaseClient}>
+              {firebaseClient && <FirebaseSessionSync config={firebaseClient} />}
+              {children}
+              <Toaster />
+            </FirebaseClientProvider>
           </MotionProvider>
         </ThemeProvider>
       </body>

@@ -2,7 +2,7 @@
 
 import { cookies, headers } from 'next/headers'
 import { firebaseAuthConfig, matchesFirebaseOrigin } from '@/lib/auth/firebase-config'
-import { verifyFirebaseToken } from '@/lib/auth/firebase-token'
+import { FirebaseVerificationError, verifyFirebaseToken } from '@/lib/auth/firebase-token'
 import { canExchangeFirebaseSession } from '@/lib/auth/firebase-session-policy'
 import { completeFirebaseLogin, getFirebaseAccount, revokeFirebaseSessions } from '@/lib/api/firebase-auth'
 import { setFirebaseSessionCookie } from '@/lib/webauthn/session'
@@ -13,22 +13,28 @@ export type FirebaseExchangeResult = { ok: true; destination: '/' | '/auth/migra
 const failure = { ok: false as const, reason: 'reauthenticate' as const, error: 'ログインを確認できませんでした。もう一度ログインしてください。' }
 
 export async function exchangeFirebaseSession(token: string, mode: 'login' | 'refresh'): Promise<FirebaseExchangeResult> {
+  let stage = 'configuration'
   try {
     const config = firebaseAuthConfig()
     const requestHeaders = await headers()
     if (!config || !matchesFirebaseOrigin(requestHeaders, config) ||
       typeof token !== 'string' || token.length > 16 * 1024 || (mode !== 'login' && mode !== 'refresh')) return failure
+    stage = 'rate-limit'
     if (!await allowFirebaseExchange(requestHeaders)) return { ok: false, reason: 'retry', error: 'ログインの試行回数が上限に達しました。しばらくしてからお試しください。' }
+    stage = 'verification'
     const identity = isFirebaseMockEnabled()
       ? (await import('@/mocks/firebase-auth')).verifyMockFirebaseToken(token)
       : await verifyFirebaseToken(token, config.client)
     if ((identity.provider === 'google.com' && !config.client.googleEnabled) ||
       (identity.provider === 'apple.com' && !config.client.appleEnabled)) return failure
+    stage = 'current-session'
     const cookieStore = await cookies()
     const currentToken = cookieStore.get('household_session')?.value
     const current = currentToken ? await getFirebaseAccount(currentToken) : null
     if (!canExchangeFirebaseSession(identity, current, mode, Math.floor(Date.now() / 1000))) return failure
+    stage = 'database'
     const result = await completeFirebaseLogin(identity, { mode, currentToken })
+    stage = 'cookie'
     if (result.kind === 'authenticated') {
       await setFirebaseSessionCookie(result.session)
       cookieStore.delete('firebase_migration_request')
@@ -45,7 +51,9 @@ export async function exchangeFirebaseSession(token: string, mode: 'login' | 're
     cookieStore.delete('household_session')
     cookieStore.delete('firebase_migration_request')
     return { ok: true, destination: '/login?firebase=recovered' }
-  } catch {
+  } catch (error) {
+    // 外部エラー本文・URL・token・メールは記録しない。段階は内部の固定値だけ。
+    console.error('Firebaseセッション交換失敗', { stage, ...(error instanceof FirebaseVerificationError ? { verificationStage: error.stage } : {}) })
     // 通信障害やDB障害は認証の失効と区別する。Cookieは新規発行せず、既存期限の範囲だけ有効。
     return { ok: false, reason: 'retry', error: '認証を確認できませんでした。時間をおいてもう一度お試しください。' }
   }

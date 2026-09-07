@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({ config: vi.fn(), verify: vi.fn(), account: vi.
 vi.mock('@/lib/api/firebase-rate-limit', () => ({ allowFirebaseExchange: mocks.limit }))
 vi.mock('next/headers', () => ({ cookies: async () => mocks.cookies, headers: mocks.headers }))
 vi.mock('@/lib/auth/firebase-config', async importOriginal => ({ ...await importOriginal<object>(), firebaseAuthConfig: mocks.config }))
-vi.mock('@/lib/auth/firebase-token', () => ({ verifyFirebaseToken: mocks.verify }))
+vi.mock('@/lib/auth/firebase-token', async importOriginal => ({ ...await importOriginal<object>(), verifyFirebaseToken: mocks.verify }))
 vi.mock('@/lib/api/firebase-auth', () => ({ getFirebaseAccount: mocks.account, completeFirebaseLogin: mocks.complete, revokeFirebaseSessions: mocks.revoke }))
 vi.mock('@/lib/webauthn/session', () => ({ setFirebaseSessionCookie: mocks.setSession }))
 import { exchangeFirebaseSession, logoutAllFirebaseSessions } from '@/app/actions/firebase-auth'
@@ -46,6 +46,18 @@ describe('Firebase認証Action', () => {
     mocks.complete.mockRejectedValueOnce(new Error('D1 SECRET'))
     expect((await exchangeFirebaseSession('token', 'login')).ok).toBe(false)
     expect(mocks.setSession).not.toHaveBeenCalled()
+  })
+  it('診断ログは固定段階だけを記録してtokenや外部エラーを含めない', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      mocks.verify.mockRejectedValueOnce(new Error('external SECRET'))
+      await exchangeFirebaseSession('token-SECRET', 'login')
+      expect(log).toHaveBeenLastCalledWith('Firebaseセッション交換失敗', { stage: 'verification' })
+      mocks.complete.mockRejectedValueOnce(new Error('database SECRET'))
+      await exchangeFirebaseSession('token-SECRET', 'login')
+      expect(log).toHaveBeenLastCalledWith('Firebaseセッション交換失敗', { stage: 'database' })
+      expect(JSON.stringify(log.mock.calls)).not.toContain('SECRET')
+    } finally { log.mockRestore() }
   })
   it('一時的なサーバー障害はSDK失効と区別する', async () => {
     mocks.verify.mockRejectedValue(new Error('network unavailable'))

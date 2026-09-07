@@ -6,6 +6,7 @@ import NotFound from '@/app/not-found'
 import SettingsPage from '@/app/settings/page'
 import { requireAuth } from '@/lib/webauthn/session'
 
+vi.mock('next/font/local', () => ({ default: () => ({ className: 'font-test' }) }))
 vi.mock('@/lib/api/google-auth', () => ({ getGoogleAccount: vi.fn() }))
 vi.mock('@/lib/auth/firebase-config', () => ({ firebaseAuthConfig: () => null }))
 vi.mock('@/lib/api/firebase-auth', () => ({ getFirebaseAccount: vi.fn() }))

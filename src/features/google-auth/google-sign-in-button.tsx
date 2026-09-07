@@ -17,7 +17,6 @@ export function GoogleSignInButton({ href, ...props }: Omit<ComponentProps<'butt
   </>
 
   return href
-    // eslint-disable-next-line @next/next/no-html-link-for-pages -- OAuth開始は通常の画面遷移を使う。
     ? <Button asChild className={buttonClassName}><a href={href}>{content}</a></Button>
     : <Button {...props} type="button" className={buttonClassName}>{content}</Button>
 }

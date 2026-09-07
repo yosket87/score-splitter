@@ -105,7 +105,7 @@ FIREBASE_AUTH_MOCK=true npm run dev:mock
 
 Firebase Hostingへ`auth.yamawake.app`を登録し、CloudflareにDNS-onlyのCNAME `auth.yamawake.app → yamawake-prod.web.app`を設定した（digで確認済み）。Firebase Authenticationの承認済みドメインへ`auth.yamawake.app`を追加し、既存のGoogle OAuthクライアントにもリダイレクトURI `https://auth.yamawake.app/__/auth/handler`を追加・保存した。
 
-現時点ではTLS証明書のSANが`auth.yamawake.app`に一致せず、プロビジョニング待ち。本番Workerの`FIREBASE_AUTH_DOMAIN`は`yamawake-prod.firebaseapp.com`を維持する。この変更はコードと手順の準備であり、Workerの稼働設定は切り替えない。
+2026-09-07に独自ドメインのTLS検証と認証ヘルパー2件のHTTP 200応答を確認した。本番Workerの`FIREBASE_AUTH_DOMAIN`を`auth.yamawake.app`へ切り替える。Firebase projectと利用者IDは変更しない。
 
 切替前に、証明書のSAN・有効性と、HTTPSで`https://auth.yamawake.app/__/auth/handler`および`https://auth.yamawake.app/__/auth/iframe`へ接続してFirebaseの認証ヘルパーが配信されることを確認する。確認後、本番の`FIREBASE_AUTH_DOMAIN`を`auth.yamawake.app`へ変更して再配備し、実Googleログインと家計への復帰を検証する。アプリ側で許可する独自ドメインは、projectが`yamawake-prod`、originが`https://app.yamawake.app`の場合の`auth.yamawake.app`のみ。
 

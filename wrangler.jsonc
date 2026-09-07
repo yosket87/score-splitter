@@ -39,7 +39,7 @@
     "GOOGLE_OAUTH_ORIGIN": "https://app.yamawake.app",
     "FIREBASE_PROJECT_ID": "yamawake-prod",
     "FIREBASE_API_KEY": "AIzaSyD8fbQG7-SVZaZzjkwSkYyqIdb-PXgM6jA",
-    "FIREBASE_AUTH_DOMAIN": "yamawake-prod.firebaseapp.com",
+    "FIREBASE_AUTH_DOMAIN": "auth.yamawake.app",
     "FIREBASE_AUTH_ORIGIN": "https://app.yamawake.app",
     "FIREBASE_GOOGLE_ENABLED": "true",
     "FIREBASE_APPLE_ENABLED": "false",

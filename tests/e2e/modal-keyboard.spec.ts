@@ -84,3 +84,54 @@ test('小画面でも本文をスクロールして更新ボタンを押せる',
   const row = page.locator('[data-section="expense"] [data-testid="item-row"]').filter({ hasText: '食費' })
   await expect(row).toContainText('−¥1')
 })
+
+test('項目追加でもキーボードの縮小・移動で見出しが隠れず保存できる', async ({ page, request }) => {
+  await page.addInitScript(() => {
+    const viewport = window.visualViewport!
+    let height = 667
+    let offsetTop = 0
+    Object.defineProperties(viewport, {
+      height: { get: () => height },
+      offsetTop: { get: () => offsetTop },
+    })
+    Object.assign(window, {
+      setAddKeyboardViewport(nextHeight: number, offset: number) {
+        height = nextHeight
+        offsetTop = offset
+        viewport.dispatchEvent(new Event('resize'))
+        viewport.dispatchEvent(new Event('scroll'))
+      },
+    })
+  })
+  await resetMockData(request)
+  await login(page)
+  await page.goto('/2026/02')
+  await page.getByRole('button', { name: '項目を追加', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '項目を追加' })
+  await expect(dialog).toBeVisible()
+  await expect.poll(() => dialog.evaluate(el => ['none', 'matrix(1, 0, 0, 1, 0, 0)'].includes(getComputedStyle(el).transform))).toBe(true)
+  const initialHeight = (await dialog.boundingBox())!.height
+  await dialog.getByLabel('項目名', { exact: true }).fill('追加キーボード確認')
+  const amount = dialog.getByLabel('金額', { exact: true })
+  await amount.fill('12345')
+  for (const [height, offset] of [[587, 0], [367, 96], [367, 159]]) {
+    await page.evaluate(([height, offset]) => {
+      const target = window as typeof window & { setAddKeyboardViewport: (height: number, offset: number) => void }
+      target.setAddKeyboardViewport(height, offset)
+    }, [height, offset])
+    await expect.poll(() => dialog.evaluate((el, { height, offset }) => {
+      const rect = el.getBoundingClientRect()
+      const heading = el.querySelector('[data-slot="drawer-title"]')!.getBoundingClientRect()
+      return rect.height <= height + 1 && rect.top >= offset - 1 && rect.bottom <= height + offset + 1 && heading.top >= offset - 1
+    }, { height, offset })).toBe(true)
+  }
+  await amount.evaluate(el => el.blur())
+  await page.evaluate(() => {
+    const target = window as typeof window & { setAddKeyboardViewport: (height: number, offset: number) => void }
+    target.setAddKeyboardViewport(667, 0)
+  })
+  await expect.poll(async () => Math.abs((await dialog.boundingBox())!.height - initialHeight)).toBeLessThan(1)
+  await dialog.getByRole('button', { name: '保存', exact: true }).click()
+  await expect(dialog).not.toBeVisible()
+  await expect(page.locator('[data-section="expense"] [data-testid="item-row"]').filter({ hasText: '追加キーボード確認' })).toContainText('−¥12,345')
+})

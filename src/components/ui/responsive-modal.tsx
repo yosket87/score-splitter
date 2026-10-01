@@ -53,7 +53,8 @@ export function ResponsiveModal({
 
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
+      // iOSの段階的なviewport変更でVaulの縮小高さが残るため、入力時もCSSで高さを管理する。
+      <Drawer open={open} onOpenChange={onOpenChange} repositionInputs={false}>
         {trigger && <DrawerTrigger asChild>{trigger}</DrawerTrigger>}
         <DrawerContent
           ref={drawerRef}
@@ -65,9 +66,9 @@ export function ResponsiveModal({
             }
           }}
           onCloseAutoFocus={onCloseAutoFocus}
-          className={cn('app-modal-surface app-solid-panel px-4 pb-safe', drawerContentClassName)}
+          className={cn('app-modal-surface app-solid-panel data-[vaul-drawer-direction=bottom]:max-h-[80dvh] overflow-hidden px-4 pb-safe', drawerContentClassName)}
         >
-          <DrawerHeader className="relative px-14">
+          <DrawerHeader className="relative shrink-0 px-14">
             <DrawerTitle>{title}</DrawerTitle>
             <DrawerDescription>{description}</DrawerDescription>
             <DrawerClose asChild>
@@ -82,7 +83,7 @@ export function ResponsiveModal({
               </Button>
             </DrawerClose>
           </DrawerHeader>
-          <div className={cn('pb-4', drawerBodyClassName)}>
+          <div className={cn('min-h-0 overflow-y-auto overscroll-contain pb-4', drawerBodyClassName)}>
             {children}
           </div>
         </DrawerContent>

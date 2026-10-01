@@ -69,7 +69,7 @@ export function ResponsiveModal({
             }
           }}
           onCloseAutoFocus={onCloseAutoFocus}
-          className={cn('app-modal-surface app-solid-panel data-[vaul-drawer-direction=bottom]:max-h-[80dvh] overflow-hidden px-4 pb-safe', drawerContentClassName)}
+          className={cn('app-modal-surface app-solid-panel overflow-hidden px-4 pb-safe', drawerContentClassName)}
         >
           <DrawerHeader className="relative shrink-0 px-14">
             <DrawerTitle>{title}</DrawerTitle>

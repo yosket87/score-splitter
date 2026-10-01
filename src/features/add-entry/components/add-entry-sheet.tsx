@@ -96,7 +96,7 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
     <Drawer open={open} onOpenChange={onOpenChange} repositionInputs={false}>
       <DrawerContent
         style={drawerViewportStyle}
-        className="app-modal-surface app-solid-panel data-[vaul-drawer-direction=bottom]:max-h-[80dvh] overflow-hidden rounded-t-[22px] pb-safe"
+        className="app-modal-surface app-solid-panel overflow-hidden rounded-t-[22px] pb-safe"
       >
         <form
           id="add-entry-form"

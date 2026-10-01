@@ -37,6 +37,10 @@ export function EditModal({
 }: EditModalProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const open = controlledOpen ?? internalOpen
+  const [formSession, setFormSession] = useState({ open, version: 0 })
+  if (formSession.open !== open) {
+    setFormSession({ open, version: formSession.version + Number(open) })
+  }
 
   function setOpen(nextOpen: boolean) {
     setInternalOpen(nextOpen)
@@ -63,8 +67,8 @@ export function EditModal({
       title={`${TYPE_LABELS[entry.type]}を編集`}
       description={`${TYPE_LABELS[entry.type]}の内容と担当者を編集します。`}
     >
-      {/* 開くたびに最新の保存値でフォームを初期化する。 */}
-      {open && <EditEntryForm {...entry} onClose={() => setOpen(false)} />}
+      {/* 閉じる途中も本文を保持し、再オープン時だけ保存値で初期化する。 */}
+      <EditEntryForm key={formSession.version} {...entry} onClose={() => setOpen(false)} />
     </ResponsiveModal>
   )
 }

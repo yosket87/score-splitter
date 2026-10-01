@@ -1,5 +1,6 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
+import { useDrawerViewport } from '@/hooks/use-drawer-viewport'
 import { ResponsiveModal } from '@/components/ui/responsive-modal'
 
 vi.mock('@/hooks/use-is-mobile', () => ({ useIsMobile: () => true }))
@@ -94,5 +95,34 @@ it('visualViewportがない環境でもCSSの高さ上限で開閉できる', ()
     title="支出を編集" description="支出の内容を編集します。">本文</ResponsiveModal>)
   const dialog = screen.getByRole('dialog')
   expect(dialog.style.bottom).toBe('')
-  expect(dialog.className).toContain('max-h-[80dvh]')
+  expect(dialog.className).toContain('max-h-[80vh]')
+})
+
+it('従来の80vh上限を保ち、閉じる途中は最後の補正を保持して再開前に読み直す', () => {
+  const viewport = new EventTarget()
+  let height = 547
+  let offsetTop = 0
+  Object.defineProperties(viewport, {
+    height: { get: () => height }, offsetTop: { get: () => offsetTop },
+  })
+  vi.stubGlobal('visualViewport', viewport)
+  const { result, rerender } = renderHook(({ open }) => useDrawerViewport(open), { initialProps: { open: true } })
+  expect(result.current?.maxHeight).toBe('min(80vh, 547px)')
+  act(() => {
+    height = 364
+    offsetTop = 96
+    viewport.dispatchEvent(new Event('resize'))
+  })
+  const closingStyle = result.current
+  rerender({ open: false })
+  expect(result.current).toEqual(closingStyle)
+  act(() => {
+    height = 547
+    offsetTop = 0
+    viewport.dispatchEvent(new Event('resize'))
+  })
+  expect(result.current).toEqual(closingStyle)
+  rerender({ open: true })
+  expect(result.current?.maxHeight).toBe('min(80vh, 547px)')
+  expect(result.current?.bottom).toBe('calc(100dvh - 547px)')
 })

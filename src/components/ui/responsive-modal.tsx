@@ -3,6 +3,7 @@
 import { useRef, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-is-mobile'
+import { useDrawerViewport } from '@/hooks/use-drawer-viewport'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -50,13 +51,16 @@ export function ResponsiveModal({
 }: ResponsiveModalProps) {
   const isMobile = useIsMobile()
   const drawerRef = useRef<HTMLDivElement>(null)
+  const drawerViewportStyle = useDrawerViewport(isMobile && open)
 
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
+      // iOSの段階的なviewport変更でVaulの縮小高さが残るため、入力時もCSSで高さを管理する。
+      <Drawer open={open} onOpenChange={onOpenChange} repositionInputs={false}>
         {trigger && <DrawerTrigger asChild>{trigger}</DrawerTrigger>}
         <DrawerContent
           ref={drawerRef}
+          style={drawerViewportStyle}
           onOpenAutoFocus={(event) => {
             // メニューなど外部から開いた場合、入力欄を避けて本体にフォーカスを移す。
             if (!trigger) {
@@ -65,9 +69,9 @@ export function ResponsiveModal({
             }
           }}
           onCloseAutoFocus={onCloseAutoFocus}
-          className={cn('app-modal-surface app-solid-panel px-4 pb-safe', drawerContentClassName)}
+          className={cn('app-modal-surface app-solid-panel overflow-hidden px-4 pb-safe', drawerContentClassName)}
         >
-          <DrawerHeader className="relative px-14">
+          <DrawerHeader className="relative shrink-0 px-14">
             <DrawerTitle>{title}</DrawerTitle>
             <DrawerDescription>{description}</DrawerDescription>
             <DrawerClose asChild>
@@ -82,7 +86,7 @@ export function ResponsiveModal({
               </Button>
             </DrawerClose>
           </DrawerHeader>
-          <div className={cn('pb-4', drawerBodyClassName)}>
+          <div className={cn('min-h-0 overflow-y-auto overscroll-contain pb-4', drawerBodyClassName)}>
             {children}
           </div>
         </DrawerContent>

@@ -10,6 +10,7 @@ import {
   DrawerTitle,
   DrawerClose,
 } from '@/components/ui/drawer'
+import { useDrawerViewport } from '@/hooks/use-drawer-viewport'
 import { EntryFields } from '@/components/entry-fields'
 import { TYPE_LABELS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
@@ -53,6 +54,7 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
   const [isCleared, setIsCleared] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
+  const drawerViewportStyle = useDrawerViewport(open)
 
   function resetFormState() {
     formRef.current?.reset()
@@ -91,15 +93,18 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
   }
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="app-modal-surface app-solid-panel rounded-t-[22px] pb-safe">
+    <Drawer open={open} onOpenChange={onOpenChange} repositionInputs={false}>
+      <DrawerContent
+        style={drawerViewportStyle}
+        className="app-modal-surface app-solid-panel overflow-hidden rounded-t-[22px] pb-safe"
+      >
         <form
           id="add-entry-form"
           ref={formRef}
           action={handleSubmit}
-          className="flex flex-col"
+          className="flex min-h-0 flex-col"
         >
-          <DrawerHeader className="px-4 pb-3 pt-2">
+          <DrawerHeader className="shrink-0 px-4 pb-3 pt-2">
             <div className="grid grid-cols-[1fr_auto_1fr] items-center">
               <DrawerClose className="min-h-11 justify-self-start px-2 text-sm font-semibold text-sub-text">
                 キャンセル
@@ -116,58 +121,60 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
             </DrawerDescription>
           </DrawerHeader>
 
-          <div
-            className="mx-4 mb-3 flex gap-1 rounded-[12px] bg-muted p-[3px]"
-            role="radiogroup"
-            aria-label="項目種別"
-          >
-            {(['income', 'expense', 'carryover'] as const).map((t) => {
-              const active = entryType === t
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  onClick={() => {
-                    setEntryType(t)
-                    setIsCarryover(false)
-                    setIsCleared(false)
-                  }}
-                  className={cn(
-                    'min-h-11 flex-1 rounded-lg text-center text-[13px] transition-colors',
-                    active
-                      ? 'bg-accent text-accent-foreground font-semibold'
-                      : 'text-muted-foreground'
-                  )}
-                >
-                  {TYPE_LABELS[t]}
-                </button>
-              )
-            })}
-          </div>
-
-          <div className="flex flex-col gap-3 px-4 pb-4">
-            <EntryFields
-              type={entryType}
-              person={person}
-              onPersonChange={setPerson}
-              isCarryover={isCarryover}
-              onCarryoverChange={setIsCarryover}
-              isCleared={isCleared}
-              onClearedChange={setIsCleared}
-              error={error}
-              variant="compact"
-            />
-          </div>
-
-          <div className="px-4 pb-4">
-            <SheetSubmitButton
-              pendingChildren="追加中..."
-              className="w-full h-12 bg-accent text-accent-foreground rounded-[12px] text-[15px] font-bold text-center shadow-fab transition-opacity"
+          <div className="min-h-0 overflow-y-auto overscroll-contain">
+            <div
+              className="mx-4 mb-3 flex gap-1 rounded-[12px] bg-muted p-[3px]"
+              role="radiogroup"
+              aria-label="項目種別"
             >
-              {TYPE_LABELS[entryType]}を追加
-            </SheetSubmitButton>
+              {(['income', 'expense', 'carryover'] as const).map((t) => {
+                const active = entryType === t
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => {
+                      setEntryType(t)
+                      setIsCarryover(false)
+                      setIsCleared(false)
+                    }}
+                    className={cn(
+                      'min-h-11 flex-1 rounded-lg text-center text-[13px] transition-colors',
+                      active
+                        ? 'bg-accent text-accent-foreground font-semibold'
+                        : 'text-muted-foreground'
+                    )}
+                  >
+                    {TYPE_LABELS[t]}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="flex flex-col gap-3 px-4 pb-4">
+              <EntryFields
+                type={entryType}
+                person={person}
+                onPersonChange={setPerson}
+                isCarryover={isCarryover}
+                onCarryoverChange={setIsCarryover}
+                isCleared={isCleared}
+                onClearedChange={setIsCleared}
+                error={error}
+                variant="compact"
+              />
+            </div>
+
+            <div className="px-4 pb-4">
+              <SheetSubmitButton
+                pendingChildren="追加中..."
+                className="w-full h-12 bg-accent text-accent-foreground rounded-[12px] text-[15px] font-bold text-center shadow-fab transition-opacity"
+              >
+                {TYPE_LABELS[entryType]}を追加
+              </SheetSubmitButton>
+            </div>
           </div>
         </form>
       </DrawerContent>

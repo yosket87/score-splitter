@@ -3,6 +3,7 @@
 import { useRef, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-is-mobile'
+import { useDrawerViewport } from '@/hooks/use-drawer-viewport'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -50,6 +51,7 @@ export function ResponsiveModal({
 }: ResponsiveModalProps) {
   const isMobile = useIsMobile()
   const drawerRef = useRef<HTMLDivElement>(null)
+  const drawerViewportStyle = useDrawerViewport(isMobile && open)
 
   if (isMobile) {
     return (
@@ -58,6 +60,7 @@ export function ResponsiveModal({
         {trigger && <DrawerTrigger asChild>{trigger}</DrawerTrigger>}
         <DrawerContent
           ref={drawerRef}
+          style={drawerViewportStyle}
           onOpenAutoFocus={(event) => {
             // メニューなど外部から開いた場合、入力欄を避けて本体にフォーカスを移す。
             if (!trigger) {

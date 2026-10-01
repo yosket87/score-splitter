@@ -13,6 +13,7 @@ it('複数段階のキーボードresizeとblur後も縮小した高さを残さ
   const viewport = new EventTarget()
   let height = 667
   Object.defineProperty(viewport, 'height', { get: () => height })
+  Object.defineProperty(viewport, 'offsetTop', { value: 0 })
   vi.stubGlobal('visualViewport', viewport)
   vi.stubGlobal('innerHeight', 667)
   vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
@@ -44,6 +45,54 @@ it('複数段階のキーボードresizeとblur後も縮小した高さを残さ
   })
 
   expect(dialog.style.height).toBe('')
-  expect(dialog.style.bottom).toBe('')
+  expect(dialog.style.bottom).toBe('calc(100dvh - 667px)')
   expect(screen.getByRole('button', { name: '更新' })).toBeEnabled()
+})
+
+it('Safariのキーボード表示と表示領域の移動に高さ・下端を追従する', () => {
+  const viewport = new EventTarget()
+  let height = 547
+  let offsetTop = 0
+  Object.defineProperties(viewport, {
+    height: { get: () => height },
+    offsetTop: { get: () => offsetTop },
+  })
+  vi.stubGlobal('visualViewport', viewport)
+  const { rerender } = render(
+    <ResponsiveModal open onOpenChange={() => {}} trigger={null}
+      title="支出を編集" description="支出の内容を編集します。">
+      <label>金額<input type="number" /></label>
+    </ResponsiveModal>
+  )
+  const dialog = screen.getByRole('dialog')
+  act(() => {
+    height = 364
+    viewport.dispatchEvent(new Event('resize'))
+  })
+  expect(dialog.style.bottom).toBe('calc(100dvh - 364px)')
+  act(() => {
+    offsetTop = 96
+    viewport.dispatchEvent(new Event('scroll'))
+  })
+  expect(dialog.style.bottom).toBe('calc(100dvh - 460px)')
+  act(() => {
+    height = 547
+    offsetTop = 0
+    viewport.dispatchEvent(new Event('resize'))
+  })
+  expect(dialog.style.bottom).toBe('calc(100dvh - 547px)')
+  const removeListener = vi.spyOn(viewport, 'removeEventListener')
+  rerender(<ResponsiveModal open={false} onOpenChange={() => {}} trigger={null}
+    title="支出を編集" description="支出の内容を編集します。">閉じた状態</ResponsiveModal>)
+  expect(removeListener).toHaveBeenCalledWith('resize', expect.any(Function))
+  expect(removeListener).toHaveBeenCalledWith('scroll', expect.any(Function))
+})
+
+it('visualViewportがない環境でもCSSの高さ上限で開閉できる', () => {
+  vi.stubGlobal('visualViewport', undefined)
+  render(<ResponsiveModal open onOpenChange={() => {}} trigger={null}
+    title="支出を編集" description="支出の内容を編集します。">本文</ResponsiveModal>)
+  const dialog = screen.getByRole('dialog')
+  expect(dialog.style.bottom).toBe('')
+  expect(dialog.className).toContain('max-h-[80dvh]')
 })

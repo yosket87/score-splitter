@@ -10,13 +10,17 @@ for (const resizeLayout of [false, true]) {
       const viewport = window.visualViewport!
       let visualHeight = 667
       let layoutHeight = 667
+      let offsetTop = 0
       Object.defineProperty(viewport, 'height', { get: () => visualHeight })
+      Object.defineProperty(viewport, 'offsetTop', { get: () => offsetTop })
       Object.defineProperty(window, 'innerHeight', { get: () => layoutHeight })
       Object.assign(window, {
-        setKeyboardViewport(height: number, innerHeight = 667) {
+        setKeyboardViewport(height: number, innerHeight = 667, offset = 0) {
           visualHeight = height
           layoutHeight = innerHeight
+          offsetTop = offset
           viewport.dispatchEvent(new Event('resize'))
+          viewport.dispatchEvent(new Event('scroll'))
         },
       })
     })
@@ -39,6 +43,16 @@ for (const resizeLayout of [false, true]) {
         target.setKeyboardViewport(height, resizeLayout && height === 367 ? height : 667)
       }, { height, resizeLayout })
     }
+    // Safariの表示領域の移動も再現し、見える範囲よりドロワーが大きくならないことを確認する。
+    await page.evaluate(() => {
+      const target = window as typeof window & { setKeyboardViewport: (height: number, innerHeight: number, offset: number) => void }
+      target.setKeyboardViewport(367, 571, 96)
+    })
+    await expect.poll(() => dialog.evaluate(el => {
+      const rect = el.getBoundingClientRect()
+      return rect.top >= 96 - 1 && rect.bottom <= 463 + 1 && rect.height <= 367 + 1
+    })).toBe(true)
+    await expect(dialog.getByRole('heading', { name: '支出を編集' })).toBeInViewport()
     await amount.evaluate(el => el.blur())
     await page.evaluate(() => {
       const target = window as typeof window & { setKeyboardViewport: (height: number) => void }

@@ -31,6 +31,7 @@ export const BACKUP_MIGRATIONS = Object.freeze([
     tables: ['users', 'google_identities', 'household_memberships', 'oauth_login_attempts', 'google_migration_requests'],
   },
   { name: '0014_add_firebase_auth.sql', tables: ['firebase_identities', 'firebase_migration_requests'] },
+  { name: '0015_extend_mobile_sessions.sql', tables: [] },
 ].map((migration) => Object.freeze({ ...migration, tables: Object.freeze(migration.tables) })))
 
 // SQLite予約表と、D1が使用する既知の内部表だけを除外する。

@@ -1,6 +1,6 @@
 import { isFirebaseMockEnabled } from '@/lib/mock-mode'
 import type { VerifiedFirebaseIdentity } from '@/lib/auth/firebase-token'
-import { canExchangeFirebaseSession } from '@/lib/auth/firebase-session-policy'
+import { canExchangeFirebaseSession, FIREBASE_WEB_SESSION_MAX_AGE } from '@/lib/auth/firebase-session-policy'
 import { getTable, insertRows, updateRows } from './db'
 import { apiSession, validSession, MOCK_LEGACY_HOUSEHOLD_ID } from './auth-handlers'
 import { randomSecret, hashSecret } from '../../cloudflare/worker/src/google-auth-shared'
@@ -44,7 +44,7 @@ export async function completeMockFirebaseLogin(identity: VerifiedFirebaseIdenti
   if (identity.authTime <= Number(user.firebase_auth_time_floor)) throw new Error('ログインし直してください')
   const row = insertRows('sessions', [{ token: randomSecret(), household_id: MOCK_LEGACY_HOUSEHOLD_ID, person: 'husband', auth_method: 'firebase',
     user_id: userId, membership_id: 'firebase-membership-a', session_epoch: user.session_epoch, firebase_identity_id: 'firebase-identity-a', firebase_auth_time: identity.authTime,
-    expires_at: new Date(Math.min(identity.expiresAt, now + 3600) * 1000).toISOString() }])[0]
+    expires_at: new Date((now + FIREBASE_WEB_SESSION_MAX_AGE) * 1000).toISOString() }])[0]
   return { kind: 'authenticated' as const, session: apiSession(row) as FirebaseSessionData }
 }
 export async function getMockFirebaseMigrationDisplay(id: string, secret: string, code: string) {

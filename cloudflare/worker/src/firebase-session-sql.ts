@@ -1,11 +1,14 @@
+import { FIREBASE_WEB_SESSION_MAX_AGE, FIREBASE_MOBILE_SESSION_MAX_AGE } from '../../../src/lib/auth/firebase-session-policy'
 import type { D1DatabaseLike } from './d1'
 import type { VerifiedFirebaseIdentity } from '../../../src/lib/auth/firebase-token'
 import { randomSecret, expiresIn } from './firebase-shared'
 export interface FirebaseSessionData {
  token:string; householdId:string; person:'husband'|'wife'; authMethod:'firebase'; userId:string; membershipId:string; sessionEpoch:number; expiresAt:string
 }
-export function newFirebaseSession(now:string,userId:string,membershipId:string,householdId:string,person:'husband'|'wife',sessionEpoch:number,tokenExpiresAt:number):FirebaseSessionData {
- return {token:randomSecret(),householdId,person,authMethod:'firebase',userId,membershipId,sessionEpoch,expiresAt:new Date(Math.min(Date.parse(expiresIn(now,60*60_000)),tokenExpiresAt*1000)).toISOString()}
+export function newFirebaseSession(now:string,userId:string,membershipId:string,householdId:string,person:'husband'|'wife',sessionEpoch:number,client:'web'|'mobile'='web'):FirebaseSessionData {
+ const maxAge=client==='mobile'?FIREBASE_MOBILE_SESSION_MAX_AGE:FIREBASE_WEB_SESSION_MAX_AGE
+ const expiresAt=expiresIn(now,maxAge*1000)
+ return {token:randomSecret(),householdId,person,authMethod:'firebase',userId,membershipId,sessionEpoch,expiresAt}
 }
 export function insertFirebaseSession(db:D1DatabaseLike,now:string,identity:VerifiedFirebaseIdentity,session:FirebaseSessionData,requirePreviousChange=false,currentToken:string|null=null) {
  // 条件不成立を必須列のNULLへ変換し、先行の承認・identity登録もbatch全体で戻す。

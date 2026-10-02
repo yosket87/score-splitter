@@ -249,14 +249,17 @@ describe('Firebase共通sessionとCookie', () => {
     expect(await getSession()).toEqual({ householdId: 'A', person: 'wife', authMethod: 'firebase',
       userId: 'user-a', membershipId: 'member-a', sessionEpoch: 2 })
   })
-  it('Firebase CookieはID token残り期限を超えず最大1時間', async () => {
+  it('Firebase CookieはDBセッションの残り期限を超えず最大30日', async () => {
     const { setFirebaseSessionCookie } = await import('@/lib/webauthn/session')
     vi.stubEnv('NODE_ENV', 'production')
     await setFirebaseSessionCookie(session)
     expect(mockCookies.set).toHaveBeenLastCalledWith('household_session', session.token,
       { httpOnly: true, secure: true, sameSite: 'lax', maxAge: 1800, path: '/' })
-    await setFirebaseSessionCookie({ ...session, expiresAt: '2026-09-07T00:00:00.000Z' })
+    await setFirebaseSessionCookie({ ...session, expiresAt: '2026-10-06T00:00:00.000Z' })
     expect(mockCookies.set).toHaveBeenLastCalledWith('household_session', session.token,
-      expect.objectContaining({ maxAge: 3600 }))
+      expect.objectContaining({ maxAge: 30 * 24 * 60 * 60 }))
+    await setFirebaseSessionCookie({ ...session, expiresAt: '2027-09-06T00:00:00.000Z' })
+    expect(mockCookies.set).toHaveBeenLastCalledWith('household_session', session.token,
+      expect.objectContaining({ maxAge: 30 * 24 * 60 * 60 }))
   })
 })

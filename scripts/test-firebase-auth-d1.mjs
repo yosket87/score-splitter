@@ -95,11 +95,13 @@ try {
     VALUES(100,'cleaned',printf('%064d',1),printf('%064d',100),'n','v','2026-09-06','2099-01-01');
     UPDATE users SET session_epoch=1,oauth_attempt_floor=100 WHERE id='user-b';
     DELETE FROM oauth_login_attempts WHERE id='cleaned';`)
+  stage('0015_extend_mobile_sessions.sql')
+  apply()
   const exported = snapshot()
   const exportPath = join(temp, 'identity.sql')
   run(['export', 'identity-test', '--output', exportPath])
   const evidence = readBackupSchema(sql => execute(sql)[0])
-  assert.equal(evidence.stage, '0014')
+  assert.equal(evidence.stage, '0015')
   assert.equal(evidence.tables.length, 23)
 
   const expected = createExpectedBackupSchema(evidence.migrations, join(temp, 'expected.sqlite'), sqliteCommand)

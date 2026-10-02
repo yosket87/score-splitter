@@ -14,7 +14,7 @@ export async function consumeFirebaseApproval(db:D1DatabaseLike,runtime:Runtime,
  await db.prepare('SELECT id,household_id,default_person FROM household_memberships WHERE user_id=? AND revoked_at IS NULL')
  .bind(userId).first<{id:string;household_id:string;default_person:'husband'|'wife'}>()
  if(!membership)throw new FirebaseAuthError()
- const session=newFirebaseSession(now,userId,membership.id,membership.household_id,membership.default_person,isEnrollment?0:approval.expected_session_epoch,identity.expiresAt)
+ const session=newFirebaseSession(now,userId,membership.id,membership.household_id,membership.default_person,isEnrollment?0:approval.expected_session_epoch)
  const claim=db.prepare(`UPDATE firebase_migration_requests SET status='consuming',consumption_id=?
  WHERE id=? AND project_id=? AND uid=? AND status='approved' AND julianday(expires_at)>julianday(?)
  AND julianday(approval_expires_at)>julianday(?) AND julianday(expires_at)>julianday('now') AND julianday(approval_expires_at)>julianday('now')

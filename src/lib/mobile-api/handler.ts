@@ -32,7 +32,7 @@ async function exchange(request: Request) {
   // 未連携UIDでは移行申請を作らず、Webの既存承認画面へ案内する。
   const linked = await db.prepare('SELECT id FROM firebase_identities WHERE project_id=? AND uid=?').bind(identity.projectId, identity.uid).first()
   if (!linked) throw linkRequired()
-  const result = await completeFirebaseLogin(db, getRuntime(), identity, { mode: input.mode, currentToken, rotate: true })
+  const result = await completeFirebaseLogin(db, getRuntime(), identity, { mode: input.mode, currentToken, rotate: true, client: 'mobile' })
   if (result.kind !== 'authenticated') throw linkRequired()
   return result.session
 }

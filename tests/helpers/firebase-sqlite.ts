@@ -5,6 +5,9 @@ export function createFirebaseSqlite({ migrate = true, fixture = true } = {}) {
   const context = createIdentitySqlite({ fixture })
   if (fixture) context.sqlite.exec(readFileSync('tests/fixtures/google-identity.sql', 'utf8'))
   const applyFirebase = (sql = readFileSync(`cloudflare/worker/migrations/${firebaseMigration}`, 'utf8')) => context.apply(sql)
-  if (migrate) applyFirebase()
+  if (migrate) {
+    applyFirebase()
+    context.apply(readFileSync('cloudflare/worker/migrations/0015_extend_mobile_sessions.sql', 'utf8'))
+  }
   return { ...context, applyFirebase }
 }

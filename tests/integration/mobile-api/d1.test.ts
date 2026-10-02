@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createFirebaseSqlite } from '../../helpers/firebase-sqlite'
 import { legacyHouseholdId } from '../../helpers/identity-sqlite'
@@ -33,10 +34,33 @@ beforeEach(async()=>{
  const result=await completeFirebaseLogin(context.db,runtime,identity(),{mode:'login'})
  if(result.kind!=='authenticated')throw Error('session')
  token=result.session.token
+ const previous=context.sqlite.prepare('SELECT * FROM sessions').all()
+ context.apply(readFileSync('cloudflare/worker/migrations/0015_extend_mobile_sessions.sql','utf8'))
+ expect(context.sqlite.prepare('SELECT * FROM sessions').all()).toEqual(previous)
  fixture.verify.mockResolvedValue(identity())
 })
 afterEach(()=>context.sqlite.close())
 describe('モバイルAPI実D1境界',()=>{
+ it.each(['login','refresh'])('%sで発行したセッションはIDトークン期限に依存せず365日間有効',async(mode)=>{
+  fixture.verify.mockResolvedValue({...identity(),expiresAt:Math.floor(Date.now()/1000)+25})
+  const response=await handleMobileRequest(request('POST',{idToken:'verified',mode}),['auth','exchange'])
+  expect(response.status).toBe(200)
+  const session=(await response.json()).data
+  const row=await context.db.prepare('SELECT created_at FROM sessions WHERE token=?').bind(session.token).first<{created_at:string}>()
+  const expiry=Date.parse(row!.created_at)+365*24*60*60*1000
+  expect(Date.parse(session.expiresAt)).toBe(expiry)
+  expect(await readFirebaseSession(context.db,session.token,new Date(expiry-1000))).not.toBeNull()
+  expect(await readFirebaseSession(context.db,session.token,new Date(expiry))).toBeNull()
+  context.sqlite.exec("UPDATE users SET session_epoch=session_epoch+1 WHERE id='user-a'")
+  expect(await readFirebaseSession(context.db,session.token,new Date())).toBeNull()
+ })
+
+ it('DB移行後も365日超の発行と既存セッションの期限延長を拒否する',async()=>{
+  const row=context.sqlite.prepare('SELECT expires_at FROM sessions WHERE token=?').get(token)
+  expect(()=>context.sqlite.prepare("UPDATE sessions SET expires_at=datetime(created_at,'+365 days') WHERE token=?").run(token)).toThrow('FIREBASE_SESSION_LIFETIME')
+  expect(()=>context.sqlite.prepare("INSERT INTO sessions SELECT ?,person,auth_method,datetime(created_at,'+366 days'),created_at,household_id,user_id,membership_id,session_epoch,oauth_attempt_sequence,firebase_identity_id,firebase_auth_time FROM sessions WHERE token=?").run('f'.repeat(64),token)).toThrow('FIREBASE_SESSION_INVALID')
+  expect(context.sqlite.prepare('SELECT expires_at FROM sessions WHERE token=?').get(token)).toEqual(row)
+ })
  it.each(['expired','revoked','epoch','membership'])('%sをGET/PUT/PATCH/DELETEすべて拒否する',async(reason)=>{
   if(reason==='expired')context.sqlite.prepare('UPDATE sessions SET expires_at=? WHERE token=?').run(new Date(Date.now()-1000).toISOString(),token)
   if(reason==='revoked')context.sqlite.prepare('UPDATE firebase_identities SET revoked_at=? WHERE id=?').run(new Date().toISOString(),'identity-a')

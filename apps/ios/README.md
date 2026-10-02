@@ -77,3 +77,5 @@ CSV出力、月コピー、AI診断、振込記録、世帯管理・providerの�
 UIテストの未設定ケースはDebug専用引数`--unconfigured`でFirebaseの初期化を明示的に停止するため、個別の接続設定を置いた開発環境でも再現できます。Googleログインは登録済みのreversed client ID schemeが一致する場合のみ有効になり、scheme不足によるSDKの例外を防ぎます。
 
 ログイン後は月一覧がトップです。下タブは置かず、右上のプロフィール画像からアカウント画面へ進みます。ログイン済み開発Simulatorでの画面遷移テストは、上記xcodebuildコマンドに `IOS_LIVE_UI_TESTS=AUTHENTICATED -only-testing:ScoreSplitterUITests/AppFlowTests/testAuthenticatedMonthListAndAccountNavigation` を指定して実行できます。ログアウトやデータ変更は行いません。
+
+アプリアイコンは`ScoreSplitter/Assets.xcassets/AppIcon.appiconset`にライト／ダーク各1024pxの不透明PNGを配置しています。既存Webのブランドマークを基に、`swift scripts/generate-app-icons.swift`（`apps/ios`内で実行）で再生成できます。角丸はiOSが適用します。

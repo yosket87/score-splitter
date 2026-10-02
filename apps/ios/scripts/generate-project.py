@@ -64,14 +64,17 @@ for target, kind, directory, deps in [('ScoreSplitter', 'application', 'ScoreSpl
     phases.append(obj(target + ':frameworks', isa='PBXFrameworksBuildPhase', buildActionMask=2147483647, files=framework_files, runOnlyForDeploymentPostprocessing=0))
     settings = dict(common, PRODUCT_NAME='$(TARGET_NAME)', GENERATE_INFOPLIST_FILE='YES')
     if target == 'ScoreSplitter':
-        resource_ids = []
+        asset_path = 'ScoreSplitter/Assets.xcassets'
+        asset = obj(asset_path, isa='PBXFileReference', lastKnownFileType='folder.assetcatalog', path=asset_path, sourceTree='<group>')
+        children.append(asset)
+        resource_ids = [obj(asset_path + ':resource', isa='PBXBuildFile', fileRef=asset)]
         for filename, filetype in [('google-g.png', 'image.png'), ('google-sans-medium.ttf', 'file'), ('google-sans-OFL.txt', 'text')]:
             path = '../../src/features/google-auth/' + filename
             resource = obj(path, isa='PBXFileReference', lastKnownFileType=filetype, path=path, sourceTree='<group>')
             children.append(resource)
             resource_ids.append(obj(path + ':resource', isa='PBXBuildFile', fileRef=resource))
         phases.append(obj(target + ':resources', isa='PBXResourcesBuildPhase', buildActionMask=2147483647, files=resource_ids, runOnlyForDeploymentPostprocessing=0))
-        settings.update(INFOPLIST_FILE='ScoreSplitter/Info.plist', GENERATE_INFOPLIST_FILE='NO', CODE_SIGN_ENTITLEMENTS='ScoreSplitter/ScoreSplitter.entitlements')
+        settings.update(ASSETCATALOG_COMPILER_APPICON_NAME='AppIcon', INFOPLIST_FILE='ScoreSplitter/Info.plist', GENERATE_INFOPLIST_FILE='NO', CODE_SIGN_ENTITLEMENTS='ScoreSplitter/ScoreSplitter.entitlements')
         phases.append(obj('firebase-copy', isa='PBXShellScriptBuildPhase', alwaysOutOfDate=1, buildActionMask=2147483647, files=[], inputPaths=[], outputPaths=[], runOnlyForDeploymentPostprocessing=0, shellPath='/bin/sh', shellScript='if [ -f "${SRCROOT}/Config/GoogleService-Info.plist" ]; then\n  cp "${SRCROOT}/Config/GoogleService-Info.plist" "${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist"\nelse\n  rm -f "${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist"\nfi\n'))
     else:
         settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'app.yamawake.ios.' + target

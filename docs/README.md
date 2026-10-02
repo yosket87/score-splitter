@@ -21,6 +21,7 @@
 |---------|------|
 | [firebase-auth.md](firebase-auth.md) | Google・Apple認証の構成と設定・移行手順 |
 | [architecture.md](./architecture.md) | ディレクトリ構造・アーキテクチャ |
+| [ios.md](./ios.md) | SwiftUIクライアントと共通API・認証の構成 |
 | [tech-stack.md](./tech-stack.md) | 使用技術スタック |
 | [components.md](./components.md) | コンポーネント構造 |
 | [features.md](./features.md) | 主要機能の詳細 |

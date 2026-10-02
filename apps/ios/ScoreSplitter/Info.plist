@@ -14,6 +14,7 @@
 <key>WebBaseURL</key><string>$(WEB_BASE_URL)</string>
 <key>CFBundleURLTypes</key><array><dict><key>CFBundleURLSchemes</key><array><string>$(GOOGLE_REVERSED_CLIENT_ID)</string></array></dict></array>
 <key>UIApplicationSceneManifest</key><dict><key>UIApplicationSupportsMultipleScenes</key><false/></dict>
+<key>UIAppFonts</key><array><string>google-sans-medium.ttf</string></array>
 <key>UILaunchScreen</key><dict/>
 <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
 <key>ITSAppUsesNonExemptEncryption</key><false/>

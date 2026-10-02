@@ -11,7 +11,13 @@ final class AppFlowTests: XCTestCase {
             if button.exists { XCTAssertFalse(button.isEnabled) }
         }
         XCTAssertFalse(app.staticTexts["settlementAmount"].exists)
+        XCTAssertTrue(app.staticTexts["ふたりの家計を、ひとつに。"].exists)
+        XCTAssertTrue(app.staticTexts["いつもの方法でログイン"].exists)
+        XCTAssertTrue(app.buttons["loginAppearance"].exists)
         capture("接続設定なし・ログイン")
+        app.buttons["loginHelp"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["loginWebLink"].waitForExistence(timeout: 5))
+        capture("ログイン・ヘルプ展開")
     }
 
     func testLiveConfigurationShowsGoogleLoginOnly() throws {

@@ -19,13 +19,14 @@ enum Radius {
 }
 
 enum WebText {
-    case caption, small, body, label, heading, title, amount, annual, hero
+    case caption, small, body, label, heading, loginTitle, title, amount, annual, hero
 
     var size: CGFloat {
         switch self {
         case .caption: 12
         case .small, .label: 14
         case .body, .heading: 16
+        case .loginTitle: 20
         case .title, .amount: 24
         case .annual: 30
         case .hero: 36
@@ -36,6 +37,7 @@ enum WebText {
         case .caption: .caption
         case .small, .label: .subheadline
         case .body, .heading: .body
+        case .loginTitle: .title3
         case .title, .amount: .title2
         case .annual: .title
         case .hero: .largeTitle

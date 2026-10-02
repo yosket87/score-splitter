@@ -1,0 +1,10 @@
+// 実サービスの値はLocal.xcconfigで設定する。
+PRODUCT_BUNDLE_IDENTIFIER = app.yamawake.ios.dev
+API_BASE_URL =
+WEB_BASE_URL =
+GOOGLE_REVERSED_CLIENT_ID =
+IOS_LIVE_UI_TESTS = NO
+GOOGLE_SIGN_IN_ENABLED = NO
+APPLE_SIGN_IN_ENABLED = NO
+DEVELOPMENT_TEAM =
+#include? "Local.xcconfig"

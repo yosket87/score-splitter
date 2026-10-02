@@ -6,9 +6,9 @@ import { getFirebaseAccount } from './firebase-account'
 import { insertFirebaseSession, newFirebaseSession } from './firebase-session-sql'
 import { createFirebaseMigrationRequest } from './firebase-migrations'
 import { consumeFirebaseApproval, type FirebaseApprovalRow } from './firebase-consume'
-const optionsSchema=z.object({mode:z.enum(['login','refresh']),currentToken:firebaseSecret.optional()})
+const optionsSchema=z.object({mode:z.enum(['login','refresh']),currentToken:firebaseSecret.optional(),rotate:z.boolean().optional()})
 // identityは署名・project・provider・Firebase accountまで検証済みの呼出し専用。
-export function completeFirebaseLogin(db:D1DatabaseLike,runtime:Runtime,value:VerifiedFirebaseIdentity,optionsValue:{mode:'login'|'refresh';currentToken?:string}) {
+export function completeFirebaseLogin(db:D1DatabaseLike,runtime:Runtime,value:VerifiedFirebaseIdentity,optionsValue:{mode:'login'|'refresh';currentToken?:string;rotate?:boolean}) {
  return firebaseOperation(async()=>{
   const identity=firebaseIdentitySchema.parse(value),options=optionsSchema.parse(optionsValue),now=runtime.now(),seconds=Math.floor(now.getTime()/1000)
   const current=options.currentToken?await getFirebaseAccount(db,options.currentToken,now):null
@@ -23,7 +23,10 @@ export function completeFirebaseLogin(db:D1DatabaseLike,runtime:Runtime,value:Ve
     .bind(existing.user_id).all<{id:string;household_id:string;default_person:'husband'|'wife'}>()
    if(memberships.length!==1)throw new FirebaseAuthError()
    const membership=memberships[0],session=newFirebaseSession(now.toISOString(),existing.user_id,membership.id,membership.household_id,membership.default_person,existing.session_epoch,identity.expiresAt)
-   await firebaseAtomic(db,[insertFirebaseSession(db,now.toISOString(),identity,session,false,options.mode==='refresh'?options.currentToken!:null)])
+   const statements=[insertFirebaseSession(db,now.toISOString(),identity,session,false,options.mode==='refresh'?options.currentToken!:null)]
+   // モバイルrefreshだけ旧Bearerを同じtransactionで消費する。競合時はINSERT条件が失敗し全体を戻す。
+   if(options.rotate&&options.mode==='refresh') statements.push(db.prepare('DELETE FROM sessions WHERE token=?').bind(options.currentToken!))
+   await firebaseAtomic(db,statements)
    return {kind:'authenticated' as const,session}
   }
   const approved=await db.prepare(`SELECT * FROM firebase_migration_requests WHERE project_id=? AND uid=? AND status='approved'

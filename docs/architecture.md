@@ -4,6 +4,8 @@
 
 ```
 score-splitter/
+├── apps/ios/                    # SwiftUIクライアント・Xcodeプロジェクト
+├── contracts/                   # iOS向けHTTP APIの通信契約
 ├── src/
 │   ├── app/                      # Next.js App Router
 │   │   ├── actions/              # Server Actions
@@ -90,6 +92,10 @@ score-splitter/
 ```
 
 ## アーキテクチャパターン
+
+### SwiftUIクライアントと共通API
+
+`apps/ios/`のiOSクライアントは`/api/v1`のRoute Handlerへ接続する。HTTP境界は`src/lib/mobile-api/`、業務処理とD1認可は既存の`cloudflare/worker/src/`を利用する。APIもNext.js/OpenNextと同じWorker内で実行し、WebのServer Actionsは既存の呼び出しを維持する。構成と初期版の範囲は[iOSクライアント](ios.md)、通信契約は[API v1](../contracts/mobile-api.md)を参照。
 
 ### Server Components + Server Actions
 

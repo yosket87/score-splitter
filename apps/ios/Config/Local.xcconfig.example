@@ -1,0 +1,9 @@
+// このファイルをLocal.xcconfigへコピーする。
+// xcconfigのURLではスラッシュ2個がコメント扱いになるため下記形式を使用する。
+API_BASE_URL = https:/$()/your-worker.example.com/api/v1
+WEB_BASE_URL = https:/$()/your-worker.example.com
+PRODUCT_BUNDLE_IDENTIFIER = app.yamawake.ios.dev
+DEVELOPMENT_TEAM = YOURTEAMID
+GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.YOUR_CLIENT_ID
+GOOGLE_SIGN_IN_ENABLED = YES
+APPLE_SIGN_IN_ENABLED = NO

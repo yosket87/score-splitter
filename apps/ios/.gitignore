@@ -1,0 +1,6 @@
+Config/Local.xcconfig
+Config/GoogleService-Info.plist
+ScoreSplitterCore/.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/

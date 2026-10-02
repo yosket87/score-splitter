@@ -33,10 +33,10 @@ describe('Firebase運用',()=>{
    expect(await context.db.prepare('SELECT status FROM firebase_migration_requests').first()).toEqual({status:'approved'})
   } finally {context.sqlite.close();rmSync(directory,{recursive:true,force:true})}
  })
- it('0014は23表を必須にして復元時のFirebase整合性異常を拒否する',()=>{
+ it('0015は23表を必須にして復元時のFirebase整合性異常を拒否する',()=>{
   const names=BACKUP_MIGRATIONS.map((row:{name:string})=>row.name)
   const tables=BACKUP_MIGRATIONS.flatMap((row)=>row.tables)
-  expect(resolveBackupSchema(tables,names).stage).toBe('0014')
+  expect(resolveBackupSchema(tables,names).stage).toBe('0015')
   expect(()=>resolveBackupSchema(tables.filter((name:string)=>name!=='firebase_identities'),names)).toThrow()
   expect(()=>verifyFirebaseIdentityState(()=>[{invalid_floors:1,invalid_sessions:0}])).toThrow()
   expect(()=>verifyFirebaseIdentityState(()=>[{invalid_floors:0,invalid_sessions:1}])).toThrow()

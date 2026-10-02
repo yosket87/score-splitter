@@ -4,6 +4,16 @@ import { createFirebaseSqlite, firebaseMigration } from '../../helpers/firebase-
 import { identitySnapshot } from '../../helpers/identity-sqlite'
 
 describe('Firebase migration', () => {
+  it('0015は既存セッションの全保存値を保持する', () => {
+    const { sqlite, apply, applyFirebase } = createFirebaseSqlite({ migrate: false })
+    applyFirebase()
+    const before = identitySnapshot(sqlite)
+    apply(readFileSync('cloudflare/worker/migrations/0015_extend_mobile_sessions.sql', 'utf8'))
+    expect(identitySnapshot(sqlite).rows).toEqual(before.rows)
+    expect(sqlite.prepare('PRAGMA foreign_key_check').all()).toEqual([])
+    sqlite.close()
+  })
+
   it('0013の非空fixtureの全既存列・保存値と外部キーを維持する', () => {
     const { sqlite, applyFirebase } = createFirebaseSqlite({ migrate: false })
     const before = identitySnapshot(sqlite)

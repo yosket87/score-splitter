@@ -1,12 +1,13 @@
+import { FIREBASE_WEB_SESSION_MAX_AGE, FIREBASE_MOBILE_SESSION_MAX_AGE } from '../../../src/lib/auth/firebase-session-policy'
 import type { D1DatabaseLike } from './d1'
 import type { VerifiedFirebaseIdentity } from '../../../src/lib/auth/firebase-token'
 import { randomSecret, expiresIn } from './firebase-shared'
 export interface FirebaseSessionData {
  token:string; householdId:string; person:'husband'|'wife'; authMethod:'firebase'; userId:string; membershipId:string; sessionEpoch:number; expiresAt:string
 }
-export function newFirebaseSession(now:string,userId:string,membershipId:string,householdId:string,person:'husband'|'wife',sessionEpoch:number,tokenExpiresAt:number,client:'web'|'mobile'='web'):FirebaseSessionData {
- // モバイルのログイン保持期間は本人確認用IDトークンの期限から独立させる。
- const expiresAt=client==='mobile'?expiresIn(now,365*24*60*60_000):new Date(Math.min(Date.parse(expiresIn(now,60*60_000)),tokenExpiresAt*1000)).toISOString()
+export function newFirebaseSession(now:string,userId:string,membershipId:string,householdId:string,person:'husband'|'wife',sessionEpoch:number,client:'web'|'mobile'='web'):FirebaseSessionData {
+ const maxAge=client==='mobile'?FIREBASE_MOBILE_SESSION_MAX_AGE:FIREBASE_WEB_SESSION_MAX_AGE
+ const expiresAt=expiresIn(now,maxAge*1000)
  return {token:randomSecret(),householdId,person,authMethod:'firebase',userId,membershipId,sessionEpoch,expiresAt}
 }
 export function insertFirebaseSession(db:D1DatabaseLike,now:string,identity:VerifiedFirebaseIdentity,session:FirebaseSessionData,requirePreviousChange=false,currentToken:string|null=null) {

@@ -22,7 +22,7 @@ export function completeFirebaseLogin(db:D1DatabaseLike,runtime:Runtime,value:Ve
    const {results:memberships}=await db.prepare('SELECT id,household_id,default_person FROM household_memberships WHERE user_id=? AND revoked_at IS NULL')
     .bind(existing.user_id).all<{id:string;household_id:string;default_person:'husband'|'wife'}>()
    if(memberships.length!==1)throw new FirebaseAuthError()
-   const membership=memberships[0],session=newFirebaseSession(now.toISOString(),existing.user_id,membership.id,membership.household_id,membership.default_person,existing.session_epoch,identity.expiresAt,options.client)
+   const membership=memberships[0],session=newFirebaseSession(now.toISOString(),existing.user_id,membership.id,membership.household_id,membership.default_person,existing.session_epoch,options.client)
    const statements=[insertFirebaseSession(db,now.toISOString(),identity,session,false,options.mode==='refresh'?options.currentToken!:null)]
    // モバイルrefreshだけ旧Bearerを同じtransactionで消費する。競合時はINSERT条件が失敗し全体を戻す。
    if(options.rotate&&options.mode==='refresh') statements.push(db.prepare('DELETE FROM sessions WHERE token=?').bind(options.currentToken!))

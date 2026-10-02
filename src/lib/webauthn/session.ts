@@ -1,4 +1,5 @@
 import 'server-only'
+import { FIREBASE_WEB_SESSION_MAX_AGE } from '@/lib/auth/firebase-session-policy'
 import { assertHouseholdContext, type HouseholdContext } from '../../../cloudflare/worker/src/households'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -112,10 +113,10 @@ export async function setGoogleSessionCookie(session: ApiSession): Promise<void>
   await setVerifiedSessionCookie(session, SESSION_MAX_AGE)
 }
 
-// ID tokenより長いCookieを発行しない。DB確定後だけ呼び出す。
+// CookieはDBセッションの残り期限か30日の短い方。DB確定後だけ呼び出す。
 export async function setFirebaseSessionCookie(session: ApiSession): Promise<void> {
   if (session.authMethod !== 'firebase' || !/^[a-f0-9]{64}$/.test(session.token)) throw new Error('認証情報が不正です')
-  await setVerifiedSessionCookie(session, 3600)
+  await setVerifiedSessionCookie(session, FIREBASE_WEB_SESSION_MAX_AGE)
 }
 
 async function setVerifiedSessionCookie(session: ApiSession, maximumAge: number): Promise<void> {

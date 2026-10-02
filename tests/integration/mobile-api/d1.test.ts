@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createFirebaseSqlite } from '../../helpers/firebase-sqlite'
 import { legacyHouseholdId } from '../../helpers/identity-sqlite'
@@ -34,9 +33,6 @@ beforeEach(async()=>{
  const result=await completeFirebaseLogin(context.db,runtime,identity(),{mode:'login'})
  if(result.kind!=='authenticated')throw Error('session')
  token=result.session.token
- const previous=context.sqlite.prepare('SELECT * FROM sessions').all()
- context.apply(readFileSync('cloudflare/worker/migrations/0015_extend_mobile_sessions.sql','utf8'))
- expect(context.sqlite.prepare('SELECT * FROM sessions').all()).toEqual(previous)
  fixture.verify.mockResolvedValue(identity())
 })
 afterEach(()=>context.sqlite.close())

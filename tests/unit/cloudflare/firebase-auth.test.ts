@@ -59,12 +59,19 @@ describe('Firebase D1',()=> {
   expect(await readFirebaseSession(db,session.token,new Date())).toBeNull()
   expect(await db.prepare('SELECT COUNT(*) n FROM firebase_identities').first()).toEqual({n:2})
  })
- it('session期限はIDtokenのexp以下かつ最大1時間に制限する',async()=>{
+ it('Webは初回ログイン・再ログイン・更新から30日間有効でIDトークン期限から独立する',async()=>{
   const {db}=setup();const value={...identity(),expiresAt:Math.floor(Date.now()/1000)+25}
-  const session=await enroll(db,value)
-  expect(Date.parse(session.expiresAt)).toBe(value.expiresAt*1000)
-  const long=await completeFirebaseLogin(db,runtime,{...identity(),expiresAt:Math.floor(Date.now()/1000)+7200},{mode:'login'})
-  expect(long.kind==='authenticated'&&Date.parse(long.session.expiresAt)).toBeLessThanOrEqual(Date.now()+3600_000)
+  const first=await enroll(db,value)
+  const login=await completeFirebaseLogin(db,runtime,value,{mode:'login'})
+  const refresh=await completeFirebaseLogin(db,runtime,value,{mode:'refresh',currentToken:first.token})
+  if(login.kind!=='authenticated'||refresh.kind!=='authenticated')throw Error('authenticated')
+  for(const session of [first,login.session,refresh.session]) {
+   const row=await db.prepare('SELECT created_at FROM sessions WHERE token=?').bind(session.token).first<{created_at:string}>()
+   const expiry=Date.parse(row!.created_at)+30*24*60*60*1000
+   expect(Date.parse(session.expiresAt)).toBe(expiry)
+   expect(await readFirebaseSession(db,session.token,new Date(expiry-1000))).not.toBeNull()
+   expect(await readFirebaseSession(db,session.token,new Date(expiry))).toBeNull()
+  }
  })
  it('同時に同じ許可を消費しても成功は1件でユーザーも1名だけ',async()=>{
   const {db}=setup();const value=identity()
@@ -101,7 +108,7 @@ describe('Firebase D1',()=> {
  it('直接SQLによる不正session、identity復活、floor巻戻しを拒否する',async()=>{
   const {db,sqlite}=setup();const session=await enroll(db)
   const original=sqlite.prepare('SELECT * FROM sessions WHERE token=?').get(session.token)!
-  for(const patch of [{session_epoch:1},{firebase_auth_time:0},{expires_at:new Date(Date.now()+7200_000).toISOString()},{membership_id:'missing'},{oauth_attempt_sequence:1}]) {
+  for(const patch of [{session_epoch:1},{firebase_auth_time:0},{expires_at:new Date(Date.now()+366*24*60*60*1000).toISOString()},{membership_id:'missing'},{oauth_attempt_sequence:1}]) {
    const row={...original,...patch,token:'b'.repeat(64)}
    expect(()=>sqlite.prepare(`INSERT INTO sessions(${Object.keys(row).join(',')}) VALUES(${Object.keys(row).map(()=>'?').join(',')})`).run(...Object.values(row))).toThrow()
   }

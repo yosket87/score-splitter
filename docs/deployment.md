@@ -185,6 +185,10 @@ revert PRをマージしてデプロイを再開する場合も、ローカルHE
 npx wrangler rollback <旧Version ID> --name score-splitter
 ```
 
+切り戻し判断前に、所有者がCloudflareの設定画面で旧 `score-splitter-api` とpreviewそれぞれのrouting（Custom Domain・workers.dev・preview URL）とbindingの存在を確認し、確認日時・対象Worker/Version・存在の有無だけを記録する。Git連携解除だけでは旧入口が到達不能とは判断しない。この文書は現行の稼働Versionやroutingの確認済み証跡ではなく、HTTP入口は引き続き切り戻し用に保持する。
+
+旧APIには非空の文字列secret `WORKER_API_TOKEN`、旧HTTP経路を使うrootには `CLOUDFLARE_WORKER_API_TOKEN` が必要。値は表示・コピー・ログ出力せず、設定画面でbindingの存在だけを確認する。設定が欠落・空・不正型の場合、旧APIの保護ルートは処理前に401で拒否する。存在確認は値の妥当性や双方の一致を保証しないため、不足や不一致が疑われる場合は切り戻しを止め、別途承認されたsecret設定手順で解消する。公開 `POST /waitlist` はこのBearer認証を要求せず、通常のroot→D1直接経路にはこのsecretを追加しない。
+
 旧HTTP APIへ切り戻す必要がある場合の前提は、`api.yamawake.app` のCustom Domain routeが `score-splitter-api` に残っていること、`cloudflare/worker/wrangler.jsonc` が本番D1 `score-splitter`を指すこと、API側secret `WORKER_API_TOKEN` とroot側secret `CLOUDFLARE_WORKER_API_TOKEN` が同じBearer値であること。旧API Workerを再デプロイする場合は次を使う。
 
 ```bash

@@ -29,7 +29,10 @@ export class HttpError extends Error {
   }
 }
 
-export function assertAuth(request: Request, token: string): void {
+export function assertAuth(request: Request, token: unknown): void {
+  if (typeof token !== 'string' || token.length === 0) {
+    throw new HttpError('認証に失敗しました', 401)
+  }
   const authorization = request.headers.get('authorization')
   if (authorization !== `Bearer ${token}`) {
     throw new HttpError('認証に失敗しました', 401)

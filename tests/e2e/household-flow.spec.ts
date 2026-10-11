@@ -214,7 +214,8 @@ test.describe('月詳細ページ', () => {
     await page.getByRole('button', { name: 'CSV出力' }).click()
 
     const download = await downloadPromise
-    expect(download.suggestedFilename()).toBe('家計データ_2026年2月.csv')
+    // WebKit/macOSはファイル名をUnicode分解形で返すため、同じ文字として比較する。
+    expect(download.suggestedFilename().normalize('NFC')).toBe('家計データ_2026年2月.csv')
   })
 })
 

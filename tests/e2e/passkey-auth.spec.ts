@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test'
 import { login, resetMockData } from './helpers'
 
-test('世帯パスキーを登録し、試行cookieを消費して署名認証できる', async ({ page, context, request }) => {
+test('世帯パスキーを登録し、試行cookieを消費して署名認証できる', async ({ page, context, request, browserName }) => {
+  test.skip(browserName !== 'chromium', '仮想WebAuthn認証器のCDP操作はChromium専用')
   await resetMockData(request)
   const cdp = await context.newCDPSession(page)
   await cdp.send('WebAuthn.enable')

@@ -17,8 +17,8 @@ test.describe('ウェイトリストLP', () => {
       })
     ).toBeVisible()
 
-    // シミュレーター
-    await page.getByLabel('あなたの月収').fill('300000')
+    // シミュレーター。最初のnumber入力はWebKitでもReactへ伝わるキー入力を使う。
+    await page.getByLabel('あなたの月収').pressSequentially('300000')
     await page.getByLabel('パートナーの月収').fill('200000')
     // フロー図のaria-label（「…共通経費18万円を…」）と部分一致しないよう厳密一致で指定
     await page.getByLabel('共通経費', { exact: true }).fill('180000')

@@ -152,10 +152,23 @@ Playwrightによるブラウザテスト。
     command: 'npm run dev:mock',
   },
   projects: [
-    { name: 'chromium' }
+    { name: 'chromium' },
+    { name: 'firefox' },
+    { name: 'webkit' }
   ]
 }
 ```
+
+全3ブラウザの実行前に `npx playwright install chromium firefox webkit` を実行する。
+`npm run test:e2e` は3プロジェクトを実行し、1種類に絞る場合は
+`npm run test:e2e -- --project=webkit` のように指定する。
+CIではブラウザごとのmatrix Jobで、各ブラウザをインストールして同じE2Eスイートを実行し、レポートを別々に保存する。
+各Job内は共有モックDBへのリセットが競合しないよう、従来どおり1 workerで直列実行する。
+
+`passkey-auth.spec.ts` の仮想認証器テストのみ、ChromiumのCDP WebAuthn APIに依存するためFirefox/WebKitで理由付きskipとなる。
+通常のログイン・家計操作・レスポンシブ表示のテストは3ブラウザで実行する。
+WebKitはSafari相当のエンジン検証であり、実iOSのソフトウェアキーボードや実端末でのパスキー動作を保証するものではない。
+Firebase専用JobはChromiumを使用し、通常のE2E Jobが3ブラウザを担当する。
 
 ## テスト環境
 

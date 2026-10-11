@@ -42,18 +42,42 @@ test('4か月データから家庭全体の診断を生成して保存結果を�
 
   const trigger = page.getByRole('button', { name: 'AIで今月を振り返る' })
   await trigger.click()
-  await page.getByRole('button', { name: '診断を始める' }).click()
+  const startButton = page.getByRole('button', { name: '診断を始める' })
+  await expect(startButton).toBeVisible()
 
-  await expect(page.getByRole('status')).toHaveText('支出を整理しています')
-  await page.keyboard.press('Escape')
-  await expect(page.getByRole('dialog')).not.toBeVisible()
-  await trigger.click()
-  await expect(page.getByRole('status')).toHaveText('過去の傾向と比較しています', {
-    timeout: 2_000,
+  // 応答速度に左右されず進行表示を検証するため、生成Actionの応答だけを保持する。
+  let releaseResponse!: () => void
+  const responseGate = new Promise<void>((resolve) => { releaseResponse = resolve })
+  let heldActions = 0
+  await page.route('**/2026/02', async (route) => {
+    const actionRequest = route.request()
+    if (actionRequest.method() !== 'POST' || !actionRequest.headers()['next-action']) {
+      await route.continue()
+      return
+    }
+    heldActions += 1
+    const response = await route.fetch()
+    await responseGate
+    await route.fulfill({ response })
   })
-  await expect(page.getByRole('status')).toHaveText('振り返りを作成しています', {
-    timeout: 2_000,
-  })
+
+  await startButton.click()
+
+  try {
+    await expect(page.getByRole('status')).toHaveText('支出を整理しています')
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).not.toBeVisible()
+    await trigger.click()
+    await expect(page.getByRole('status')).toHaveText('過去の傾向と比較しています', {
+      timeout: 2_000,
+    })
+    await expect(page.getByRole('status')).toHaveText('振り返りを作成しています', {
+      timeout: 2_000,
+    })
+  } finally {
+    releaseResponse()
+  }
+  expect(heldActions).toBe(1)
 
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByText('今月のまとめ')).toBeVisible()

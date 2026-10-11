@@ -7,6 +7,10 @@ on:
 
 jobs:
   e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -21,10 +25,10 @@ jobs:
         run: npm ci
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps ${{ matrix.browser }}
 
       - name: Run Playwright tests
-        run: npx playwright test
+        run: npx playwright test --project=${{ matrix.browser }}
         env:
           CI: true
 
@@ -32,6 +36,6 @@ jobs:
         uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.browser }}
           path: playwright-report/
           retention-days: 30

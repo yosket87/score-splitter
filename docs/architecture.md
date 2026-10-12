@@ -51,7 +51,7 @@ score-splitter/
 │   │   │   ├── copy-month.ts     # 月コピーAPI
 │   │   │   ├── monthly-summary.ts # 月次集計API
 │   │   │   └── login-attempts.ts # ログイン試行API
-│   │   ├── utils/                # ユーティリティ
+│   │   ├── helpers/                # ユーティリティ
 │   │   │   ├── calculation.ts    # 計算ロジック
 │   │   │   └── format.ts         # フォーマット関数
 │   │   └── validations/          # バリデーション
@@ -116,7 +116,7 @@ Next.js 16のApp Routerを使用し、Server ComponentsとServer Actionsを中�
 2. **アプリケーション層**: `app/actions/`
    - ビジネスロジックとデータ操作
 
-3. **ドメイン層**: `lib/utils/`, `lib/validations/`
+3. **ドメイン層**: `lib/helpers/`, `lib/validations/`
    - 計算ロジック、バリデーション
 
 4. **インフラ層**: `lib/api/`, `cloudflare/worker/`

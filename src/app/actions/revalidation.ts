@@ -1,5 +1,5 @@
 import { revalidatePath } from 'next/cache'
-import { isValidMonth, monthToPath } from '@/lib/utils/format'
+import { isValidMonth, monthToPath } from '@/lib/helpers/format'
 
 export function revalidateHouseholdData(month?: string): void {
   if (!month || !isValidMonth(month)) {

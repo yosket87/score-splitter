@@ -4,7 +4,7 @@ import { SectionShell, EntryRow } from '@/components/entry-section'
 import { AddEntryModal } from '@/features/add-entry'
 import { EntryActions } from '@/features/entry-actions'
 import { updateExpense, deleteExpense, toggleExpenseCarryover } from '@/app/actions/expense'
-import { formatCurrency } from '@/lib/utils/format'
+import { formatCurrency } from '@/lib/helpers/format'
 import type { Expense } from '@/types'
 
 interface ExpenseSectionProps {

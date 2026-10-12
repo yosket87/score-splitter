@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { z } from 'zod'
-import { isValidMonth } from '@/lib/utils/format'
+import { isValidMonth } from '@/lib/helpers/format'
 import { validSession, apiSession } from './auth-handlers'
 import { correctMockPayment, getMockPaymentOperation, getMockPaymentStatus, recordMockPayment } from './payment-status'
 import { HttpError } from '../../cloudflare/worker/src/http'

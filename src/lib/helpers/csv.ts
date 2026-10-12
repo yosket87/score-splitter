@@ -5,9 +5,9 @@ import {
   filterCarryoverExpenses,
   filterClearedCarryovers,
   getSettlementDirectionLabel,
-} from '@/lib/utils/calculation'
+} from '@/lib/helpers/calculation'
 import { PERSON_LABELS } from '@/lib/constants'
-import { formatMonth } from '@/lib/utils/format'
+import { formatMonth } from '@/lib/helpers/format'
 
 const BOM = '\uFEFF'
 

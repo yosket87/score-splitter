@@ -1,4 +1,4 @@
-import { calculateSettlement } from '@/lib/utils/calculation'
+import { calculateSettlement } from '@/lib/helpers/calculation'
 
 export interface SimulatorInput {
   myIncome: number

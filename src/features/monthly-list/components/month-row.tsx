@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { formatCurrency, formatMonth, monthToPath } from '@/lib/utils/format'
+import { formatCurrency, formatMonth, monthToPath } from '@/lib/helpers/format'
 import type { MonthlySummary } from '@/types'
 
 interface MonthRowProps {

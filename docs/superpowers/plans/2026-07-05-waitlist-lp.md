@@ -635,7 +635,7 @@ git commit -m "feat: ウェイトリスト登録のServer Actionとバリデー�
 - Test: `tests/unit/features/waitlist-lp-utils.test.ts`
 
 **Interfaces:**
-- Consumes: `calculateSettlement(incomes, expenses, carryovers?)`（`src/lib/utils/calculation.ts`）
+- Consumes: `calculateSettlement(incomes, expenses, carryovers?)`（`src/lib/helpers/calculation.ts`）
 - Produces:
   - `SimulatorInput = { myIncome: number; partnerIncome: number; sharedExpense: number }`
   - `SimulatorResult = { allowance: number; amount: number; payer: 'me' | 'partner' }`
@@ -701,7 +701,7 @@ Expected: FAIL（モジュールが存在しない）
 `src/features/waitlist-lp/utils.ts`:
 
 ```ts
-import { calculateSettlement } from '@/lib/utils/calculation'
+import { calculateSettlement } from '@/lib/helpers/calculation'
 
 export interface SimulatorInput {
   myIncome: number
@@ -1107,7 +1107,7 @@ git commit -m "feat: ウェイトリストLPの静的セクションと利用状
 - Test: `tests/components/features/waitlist-lp/settlement-simulator.test.tsx`
 
 **Interfaces:**
-- Consumes: `simulateSettlement` / `SimulatorInput`（Task 3）、`useSimulatorUsage`（Task 4）、`formatCurrency`（`src/lib/utils/format.ts`）、`Card` / `Input` / `Label`（`@/components/ui/*`）
+- Consumes: `simulateSettlement` / `SimulatorInput`（Task 3）、`useSimulatorUsage`（Task 4）、`formatCurrency`（`src/lib/helpers/format.ts`）、`Card` / `Input` / `Label`（`@/components/ui/*`）
 - Produces: `SettlementSimulator`（propsなし）。入力ラベルは「あなたの月収」「パートナーの月収」「共通経費」。結果表示に `ひとりの取り分` と精算額（例: `¥40,000`）、方向（`パートナー → あなた` / `あなた → パートナー`）を含む。初回入力時に `markSimulatorUsed()` を呼ぶ
 
 - [ ] **Step 1: 失敗するテストを書く**
@@ -1186,7 +1186,7 @@ import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { formatCurrency } from '@/lib/utils/format'
+import { formatCurrency } from '@/lib/helpers/format'
 import { simulateSettlement, type SimulatorInput } from '../utils'
 import { useSimulatorUsage } from './simulator-usage-provider'
 

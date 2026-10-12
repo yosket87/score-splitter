@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   calculateMonthBalance,
   aggregateMonthlySummaries,
-} from '@/lib/utils/monthly-summary'
+} from '@/lib/helpers/monthly-summary'
 import type { MonthlyAmountRow } from '@/types'
 
 describe('calculateMonthBalance', () => {

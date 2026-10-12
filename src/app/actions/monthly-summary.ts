@@ -1,7 +1,7 @@
 'use server'
 
 import { getMonthlyAmounts } from '@/lib/api/monthly-summary'
-import { aggregateMonthlySummaries } from '@/lib/utils/monthly-summary'
+import { aggregateMonthlySummaries } from '@/lib/helpers/monthly-summary'
 import { requireHouseholdContext } from '@/lib/household-context'
 import type { ActionResult, MonthlySummary } from '@/types'
 

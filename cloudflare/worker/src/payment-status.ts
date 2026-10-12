@@ -6,7 +6,7 @@ import type {
   PaymentStatus,
   PaymentOperationResult,
 } from '../../../src/types/payment-status'
-import { buildPaymentStatus } from '../../../src/lib/utils/payment-status'
+import { buildPaymentStatus } from '../../../src/lib/helpers/payment-status'
 import {
   recordPaymentSchema,
   correctPaymentSchema,

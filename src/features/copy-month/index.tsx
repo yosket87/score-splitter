@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { getCopyMonthPreview, copyMonthData } from '@/app/actions/copy-month'
-import { formatMonth } from '@/lib/utils/format'
+import { formatMonth } from '@/lib/helpers/format'
 import { CopyItemGroup } from './components/copy-item-group'
 import { useCopySelection } from './use-copy-selection'
 import type {

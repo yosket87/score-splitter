@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { CalendarDays, ChevronDown } from 'lucide-react'
 import { MonthRow } from './components/month-row'
 import { YearlyBarChart } from '@/components/charts/yearly-bar-chart'
-import { formatCurrency, monthToPath, parseMonth } from '@/lib/utils/format'
+import { formatCurrency, monthToPath, parseMonth } from '@/lib/helpers/format'
 import type { MonthlySummary } from '@/types'
 
 interface MonthlyListSectionProps {

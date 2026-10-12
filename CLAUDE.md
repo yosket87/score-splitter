@@ -55,7 +55,7 @@ src/
 ├── hooks/           # カスタムフック
 ├── lib/
 │   ├── api/         # Cloudflare Worker APIクライアント
-│   ├── utils/       # ユーティリティ (計算、フォーマット)
+│   ├── helpers/       # ユーティリティ (計算、フォーマット)
 │   └── validations/ # Zodスキーマ
 └── types/           # 型定義
 tests/

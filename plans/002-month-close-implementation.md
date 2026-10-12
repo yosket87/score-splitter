@@ -13,7 +13,7 @@
 
 主な実装ファイル:
 
-- 新規 `src/types/payment-status.ts`、`src/lib/validations/payment-status.ts`、`src/lib/utils/payment-status.ts`
+- 新規 `src/types/payment-status.ts`、`src/lib/validations/payment-status.ts`、`src/lib/helpers/payment-status.ts`
 - 新規 `cloudflare/worker/src/payment-status.ts`、`payment-store.ts`
 - 新規 `cloudflare/worker/migrations/0008_add_payment_records.sql`（実装開始時に番号再確認）
 - 新規 `tests/unit/payment-status.test.ts`、`tests/unit/cloudflare/payment-store.test.ts`

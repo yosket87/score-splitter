@@ -10,7 +10,7 @@ Web (Next.js) → Server Actions / RSC ─┐
 SwiftUI → /api/v1 Route Handler ─────┘
 ```
 
-`src/app/api/v1/[...path]/route.ts`がHTTP入口、`src/lib/mobile-api/`が入力・認証・応答処理を担当する。D1の操作・世帯認可は`cloudflare/worker/src/`の既存関数を利用し、精算は`src/lib/utils/calculation.ts`の同じ関数で算出する。iOS側で精算ロジックを再実装しない。
+`src/app/api/v1/[...path]/route.ts`がHTTP入口、`src/lib/mobile-api/`が入力・認証・応答処理を担当する。D1の操作・世帯認可は`cloudflare/worker/src/`の既存関数を利用し、精算は`src/lib/helpers/calculation.ts`の同じ関数で算出する。iOS側で精算ロジックを再実装しない。
 
 コードの共有とサービスの独立配備を分けて考え、初期版ではAPIも既存Next.js/OpenNext Workerで実行する。API専用Workerへの分離や`apps/web/`への移動は本変更では行わない。DB migrationも追加しない。
 

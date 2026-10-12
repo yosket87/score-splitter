@@ -4,7 +4,7 @@ import { SectionShell, EntryRow } from '@/components/entry-section'
 import { AddEntryModal } from '@/features/add-entry'
 import { EntryActions } from '@/features/entry-actions'
 import { updateIncome, deleteIncome } from '@/app/actions/income'
-import { formatCurrency } from '@/lib/utils/format'
+import { formatCurrency } from '@/lib/helpers/format'
 import type { Income } from '@/types'
 
 interface IncomeSectionProps {

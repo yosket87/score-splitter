@@ -2,8 +2,8 @@
 
 import { Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { generateMonthlyCsv, downloadCsv } from '@/lib/utils/csv'
-import { formatMonth } from '@/lib/utils/format'
+import { generateMonthlyCsv, downloadCsv } from '@/lib/helpers/csv'
+import { formatMonth } from '@/lib/helpers/format'
 import type { Income, Expense, Carryover } from '@/types'
 
 interface ExportCsvButtonProps {

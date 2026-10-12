@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { Header } from '@/components/layout/header'
 import { MonthlyListSection } from '@/features/monthly-list'
 import { getMonthlySummaries } from '@/app/actions/monthly-summary'
-import { isValidYear } from '@/lib/utils/format'
+import { isValidYear } from '@/lib/helpers/format'
 import { requireAuth } from '@/lib/webauthn/session'
 
 interface YearPageProps {

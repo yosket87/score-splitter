@@ -1,5 +1,5 @@
 import { assertHouseholdContext, type HouseholdContext } from '../../cloudflare/worker/src/households'
-import { buildPaymentStatus } from '@/lib/utils/payment-status'
+import { buildPaymentStatus } from '@/lib/helpers/payment-status'
 import { assertPaymentDate, correctPaymentSchema, recordPaymentSchema } from '@/lib/validations/payment-status'
 import type { Carryover, Expense, Income, Session } from '@/types'
 import type { CorrectPaymentInput, PaymentOperationResult, PaymentRecord, PaymentSnapshot, RecordPaymentInput } from '@/types/payment-status'

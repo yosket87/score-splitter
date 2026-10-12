@@ -7,7 +7,7 @@ import {
   getDaysInMonth,
   isValidMonth,
   parseMonth,
-} from '@/lib/utils/format'
+} from '@/lib/helpers/format'
 
 describe('formatCurrency', () => {
   it('正の値をカンマ区切りで表示する', () => {

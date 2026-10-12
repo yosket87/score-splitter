@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generateMonthlyCsv } from '@/lib/utils/csv'
+import { generateMonthlyCsv } from '@/lib/helpers/csv'
 import type { Income, Expense, Carryover } from '@/types'
 
 describe('generateMonthlyCsv', () => {

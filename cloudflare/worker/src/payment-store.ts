@@ -7,7 +7,7 @@ import type {
   PaymentRecord,
   PaymentSnapshot,
 } from '../../../src/types/payment-status'
-import type { PaymentEntries } from '../../../src/lib/utils/payment-status'
+import type { PaymentEntries } from '../../../src/lib/helpers/payment-status'
 import { mapIncome, mapExpense, mapCarryover } from './records'
 import { HttpError } from './http'
 

@@ -2,8 +2,8 @@
 
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { ChevronDown } from 'lucide-react'
-import { getSettlementDirectionLabel } from '@/lib/utils/calculation'
-import { formatCurrency } from '@/lib/utils/format'
+import { getSettlementDirectionLabel } from '@/lib/helpers/calculation'
+import { formatCurrency } from '@/lib/helpers/format'
 import type { CalculationResult } from '@/types'
 
 interface SettlementBreakdownProps {

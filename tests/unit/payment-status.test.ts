@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildPaymentStatus } from '@/lib/utils/payment-status'
+import { buildPaymentStatus } from '@/lib/helpers/payment-status'
 import { recordPaymentSchema, assertPaymentDate } from '@/lib/validations/payment-status'
 import type { PaymentRecord } from '@/types/payment-status'
 const payment = (amount: number, voidedAt: string | null = null) => ({ signedYen: amount, voidedAt }) as PaymentRecord

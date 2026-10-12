@@ -5,8 +5,8 @@ on:
     paths:
       - 'cloudflare/worker/migrations/**'
       - 'cloudflare/worker/src/**'
-      - 'src/lib/utils/calculation.ts'
-      - 'src/lib/utils/payment-status.ts'
+      - 'src/lib/helpers/calculation.ts'
+      - 'src/lib/helpers/payment-status.ts'
       - 'src/lib/validations/payment-status.ts'
       - 'src/types/payment-status.ts'
       - 'src/types/auth.ts'
@@ -32,7 +32,7 @@ on:
     branches: [main]
     paths:
       - 'cloudflare/worker/**'
-      - 'src/lib/utils/**'
+      - 'src/lib/helpers/**'
       - 'src/lib/validations/payment-status.ts'
       - 'src/types/payment-status.ts'
       - 'src/types/auth.ts'

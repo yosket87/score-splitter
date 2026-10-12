@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PaymentStatusPanel } from '@/features/payment-status'
-import { calculateSettlement } from '@/lib/utils/calculation'
+import { calculateSettlement } from '@/lib/helpers/calculation'
 import type { PaymentStatus } from '@/types/payment-status'
 const actions = vi.hoisted(() => ({ getPaymentStatus: vi.fn(), recordPayment: vi.fn(), correctPayment: vi.fn(), getPaymentOperation: vi.fn(), refresh: vi.fn() }))
 vi.mock('@/app/actions/payment-status', () => actions)

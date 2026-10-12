@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { AlertCircle, CheckCircle2, Lightbulb, TrendingUp } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils/format'
+import { formatCurrency } from '@/lib/helpers/format'
 import type {
   AiDiagnosisView,
   DiagnosisViewItem,

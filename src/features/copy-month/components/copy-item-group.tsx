@@ -1,7 +1,7 @@
 'use client'
 
 import { PERSON_LABELS } from '@/lib/constants'
-import { formatCurrency } from '@/lib/utils/format'
+import { formatCurrency } from '@/lib/helpers/format'
 import type { CopyItem } from '@/types'
 import type { ItemSelection } from '../types'
 

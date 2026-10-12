@@ -59,7 +59,7 @@ src/
 ├── hooks/           # カスタムフック
 ├── lib/
 │   ├── api/         # D1直接アクセスのアダプター（USE_MOCKS時のみ旧HTTP/MSW）
-│   ├── utils/       # ユーティリティ (計算、フォーマット)
+│   ├── helpers/       # ユーティリティ (計算、フォーマット)
 │   └── validations/ # Zodスキーマ
 └── types/           # 型定義
 tests/

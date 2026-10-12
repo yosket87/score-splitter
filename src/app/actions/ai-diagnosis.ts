@@ -9,7 +9,7 @@ import {
   saveExpenseCategories,
 } from '@/lib/api/ai-diagnosis'
 import { ApiError } from '@/lib/api/client'
-import { isValidMonth } from '@/lib/utils/format'
+import { isValidMonth } from '@/lib/helpers/format'
 import { requireHouseholdContext, type HouseholdContext } from '@/lib/household-context'
 import type {
   AiDiagnosisView,

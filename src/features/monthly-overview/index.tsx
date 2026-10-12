@@ -16,8 +16,8 @@ import { SettlementBreakdown } from './components/settlement-breakdown'
 import {
   calculateSettlement,
   getSettlementDirectionLabel,
-} from '@/lib/utils/calculation'
-import { calculateMonthBalance } from '@/lib/utils/monthly-summary'
+} from '@/lib/helpers/calculation'
+import { calculateMonthBalance } from '@/lib/helpers/monthly-summary'
 import {
   addMonths,
   formatCurrency,
@@ -26,7 +26,7 @@ import {
   getPreviousMonth,
   monthToPath,
   parseMonth,
-} from '@/lib/utils/format'
+} from '@/lib/helpers/format'
 import type { Carryover, Expense, Income, MonthlySummary } from '@/types'
 
 export interface MonthlyOverviewSummary {

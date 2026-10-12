@@ -5,7 +5,7 @@ import {
   filterCarryoverExpenses,
   filterClearedCarryovers,
   getSettlementDirectionLabel,
-} from '@/lib/utils/calculation'
+} from '@/lib/helpers/calculation'
 import type { Income, Expense, Carryover } from '@/types'
 
 describe('calculateSettlement', () => {

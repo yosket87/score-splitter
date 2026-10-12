@@ -1,7 +1,7 @@
 # Plan 001: 現行の月次画面に精算の内訳を追加する
 
 > この計画を上から実行し、検証結果を記録する。実装担当は別ブランチで作業する。
-> 最初に `git diff --stat 03ef7db..HEAD -- src/features/monthly-overview src/lib/utils/calculation.ts src/lib/utils/format.ts src/components/ui/collapsible.tsx tests/components/features/monthly-overview.test.tsx tests/unit/calculation.test.ts` を実行し、以下の抜粋と現コードを照合する。未コミット差分も `git status --short` と `git diff` で確認し、既存の変更を上書きしない。
+> 最初に `git diff --stat 03ef7db..HEAD -- src/features/monthly-overview src/lib/helpers/calculation.ts src/lib/helpers/format.ts src/components/ui/collapsible.tsx tests/components/features/monthly-overview.test.tsx tests/unit/calculation.test.ts` を実行し、以下の抜粋と現コードを照合する。未コミット差分も `git status --short` と `git diff` で確認し、既存の変更を上書きしない。
 
 ## Status
 
@@ -30,7 +30,7 @@ const settlementDirection = getSettlementDirectionLabel(result.settlement)
 ```
 
 - 同ファイルの精算額ブロック直後に、月収支・お小遣いカードが並び、その下に `TrendCard` がある。
-- `src/lib/utils/calculation.ts:20` は通常支出と清算対象繰越を精算対象にする。
+- `src/lib/helpers/calculation.ts:20` は通常支出と清算対象繰越を精算対象にする。
 
 ```ts
 const actualExpenses = filterActualExpenses(expenses)
@@ -46,7 +46,7 @@ const allowance = (totalIncome + totalExpense) / 2
 const settlement = husbandTotal - allowance
 ```
 
-- `src/lib/utils/format.ts:15` は表示時に `Math.floor(Math.abs(value))` を使う。計算には0.5円が残る可能性があり、表示値だけを引き算すると1円ずれるケースがある。
+- `src/lib/helpers/format.ts:15` は表示時に `Math.floor(Math.abs(value))` を使う。計算には0.5円が残る可能性があり、表示値だけを引き算すると1円ずれるケースがある。
 - `src/components/ui/collapsible.tsx` が Radix の `Collapsible` / `CollapsibleTrigger` / `CollapsibleContent` を公開している。既存部品を利用する。
 - テストは `tests/components/features/monthly-overview.test.tsx` の `render` / `screen` / `within` パターンと、`tests/unit/calculation.test.ts` の繰越ケースを踏襲する。
 
@@ -70,7 +70,7 @@ const settlement = husbandTotal - allowance
 - `tests/e2e/settlement-breakdown.spec.ts`（新規）
 - `plans/README.md` の進捗と本計画の検証記録
 
-参照のみ: `src/lib/utils/calculation.ts`, `src/lib/utils/format.ts`, `src/types/index.ts`, `src/components/ui/collapsible.tsx`, `src/app/[year]/[month]/page.tsx`, `src/mocks/`, `tests/e2e/helpers.ts`。
+参照のみ: `src/lib/helpers/calculation.ts`, `src/lib/helpers/format.ts`, `src/types/index.ts`, `src/components/ui/collapsible.tsx`, `src/app/[year]/[month]/page.tsx`, `src/mocks/`, `tests/e2e/helpers.ts`。
 
 対象外: DB・API・認証・LP・グローバルCSS・精算完了状態・入力項目やバリデーションの変更・元のCSV形式変更。
 
@@ -131,7 +131,7 @@ E2Eでは精算額が内訳開閉で変わらないこと、月移動後に新�
 
 - 基準 `03ef7db` から月次要約にはAI診断起点が追加されていた。既存起点を保ち、精算額と月収支の間に内訳を追加した。
 - 共通 `collapsible.tsx` は `d1a0c15` で削除済み。利用者の承諾により、内訳部品から既存依存 `@radix-ui/react-collapsible` を直接利用した。共通部品の復元・依存追加は不要。
-- `calculateMonthBalance` は `src/lib/utils/monthly-summary.ts` にあり、繰越扱いの支出も月収支に含む。内訳は既存 `calculateSettlement` の結果を受け取り、繰越扱い支出・未清算繰越を除外し、清算対象繰越のみを含む。計算関数は変更していない。
+- `calculateMonthBalance` は `src/lib/helpers/monthly-summary.ts` にあり、繰越扱いの支出も月収支に含む。内訳は既存 `calculateSettlement` の結果を受け取り、繰越扱い支出・未清算繰越を除外し、清算対象繰越のみを含む。計算関数は変更していない。
 - 内訳に限って0.5円を表示し、精算額の符号は方向へ、差引・お小遣いの負数は金額へ反映する。上部・CSVの整数表示は維持。
 - `npm ci` でロックファイルの依存を導入し、Next.js 16.3.4の同梱 `use-client` ガイドを確認した。
 

@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { animate, motion, useMotionValue, useTransform } from 'motion/react'
-import { formatCurrency } from '@/lib/utils/format'
+import { formatCurrency } from '@/lib/helpers/format'
 import { useMotionPrefs } from './use-motion-prefs'
 import { motionDuration, motionEase } from './tokens'
 

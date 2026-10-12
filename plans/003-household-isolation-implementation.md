@@ -83,7 +83,7 @@
 | `src/app/[year]/[month]/page.tsx:23,31,61`、`src/app/[year]/page.tsx:1`、`src/app/page.tsx:1`、`src/app/settings/page.tsx:6,25` | 世帯を解決して取得し、Client境界にサーバー由来scopeを渡す |
 | `src/features/monthly-overview/index.tsx:188,225`、`src/features/payment-status/index.tsx:40,77,133`、`src/features/ai-diagnosis/use-ai-diagnosis.ts:32,49,98,289` | React key・storage・遅延応答の有効性判定に世帯を含める。旧storageキーを別世帯へ自動移管/再送しない。既存世帯の未確認操作は、サーバー側の操作結果・履歴から確認できる導線を維持 |
 | `src/features/copy-month/index.tsx:37,68,96`、`src/features/passkey/index.tsx:12,16` | 世帯変更/再ログイン時の選択・preview・一覧状態を破棄し、古い応答を無視 |
-| `src/app/actions/revalidation.ts:4`、`src/features/export-csv/index.tsx:23`、`src/lib/utils/calculation.ts:1`、`src/lib/utils/csv.ts:1` | 取得/再取得の世帯分離とCSV出力を検証。URL、計算式、CSV形式は維持し、新しい共有キャッシュは導入しない |
+| `src/app/actions/revalidation.ts:4`、`src/features/export-csv/index.tsx:23`、`src/lib/helpers/calculation.ts:1`、`src/lib/helpers/csv.ts:1` | 取得/再取得の世帯分離とCSV出力を検証。URL、計算式、CSV形式は維持し、新しい共有キャッシュは導入しない |
 | `src/mocks/data.ts:251`、`db.ts:30,227,235`、`handlers.ts:85,95,107,141,168,372,600`、`payment-handlers.ts:13,18`、`payment-status.ts:8` | 2世帯fixture、セッション認可、全読書き・AI・振込・コピーを実装と同じ契約へ。resetも世帯間でテストを汚染させない |
 | `scripts/backup-production-d1.mjs:25,40,339,396,642`、`tests/unit/scripts/backup-production-d1.test.ts:1` | migration段階に応じた全テーブル照合、manifest更新、復元検証。AI/振込/householdsの検証漏れを拒否 |
 | `scripts/test-payment-d1.mjs:1`、`scripts/test-household-d1.mjs`（新規）、`tests/helpers/cloudflare-worker-fake.ts:33,61,88,149` | 実D1用fixture/実関数呼出しとFakeを世帯対応。実SQLによる越境・制約・trigger検証を主証拠にする |

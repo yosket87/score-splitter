@@ -6,6 +6,7 @@ import {
 } from '@/lib/api/copy-month'
 import { revalidateHouseholdData } from './revalidation'
 import { requireHouseholdContext } from '@/lib/household-context'
+import { copyMonthOptionsSchema, copyMonthPreviewInputSchema } from '@/lib/validations/copy-month'
 import type {
   ActionResult,
   CopyMonthOptions,
@@ -22,9 +23,13 @@ export async function getCopyMonthPreview(
   targetMonth: string
 ): Promise<ActionResult<CopyMonthPreview>> {
   const context = await requireHouseholdContext()
+  const parsed = copyMonthPreviewInputSchema.safeParse({ sourceMonth, targetMonth })
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message }
+  }
 
   try {
-    const data = await getCopyMonthPreviewByApi(context, sourceMonth, targetMonth)
+    const data = await getCopyMonthPreviewByApi(context, parsed.data.sourceMonth, parsed.data.targetMonth)
     return { success: true, data }
   } catch (error) {
     console.error('月コピープレビュー取得エラー:', error)
@@ -39,9 +44,13 @@ export async function copyMonthData(
   options: CopyMonthOptions
 ): Promise<ActionResult<CopyMonthResult>> {
   const context = await requireHouseholdContext()
+  const parsed = copyMonthOptionsSchema.safeParse(options)
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message }
+  }
 
   try {
-    const result = await copyMonthDataByApi(context, options)
+    const result = await copyMonthDataByApi(context, parsed.data)
     if (!result.success) {
       return {
         success: false,
@@ -49,7 +58,7 @@ export async function copyMonthData(
       }
     }
 
-    revalidateHouseholdData(options.targetMonth)
+    revalidateHouseholdData(parsed.data.targetMonth)
     return { success: true, data: result }
   } catch (error) {
     console.error('月データコピーエラー:', error)

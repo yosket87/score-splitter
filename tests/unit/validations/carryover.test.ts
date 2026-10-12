@@ -24,6 +24,21 @@ describe('carryoverSchema', () => {
   })
 
   describe('月形式のバリデーション', () => {
+    it.each(['202600', '202613', '000099'])('月の範囲外（%s）でエラー', (month) => {
+      const result = carryoverSchema.safeParse({ ...validData, month })
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues[0].message).toBe('月形式が不正です')
+      }
+    })
+
+    it.each(Array.from({ length: 12 }, (_, index) => `2026${String(index + 1).padStart(2, '0')}`))(
+      '有効な月（%s）を受け入れる',
+      (month) => {
+        expect(carryoverSchema.safeParse({ ...validData, month }).success).toBe(true)
+      }
+    )
+
     it('不正な形式（桁数不足）でエラー', () => {
       const result = carryoverSchema.safeParse({
         ...validData,

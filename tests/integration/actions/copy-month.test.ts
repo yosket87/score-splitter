@@ -109,3 +109,70 @@ describe('copy-month actions', () => {
     })
   })
 })
+
+// Actionの検証を外すと、不正入力がAPIへ渡されることを検出する。
+describe('copy-month input boundary', () => {
+  const item = {
+    id: 'income-1', label: '給料', amount: 300000,
+    person: 'husband', type: 'income', itemCopyMode: 'withAmount',
+  }
+  const options = {
+    sourceMonth: '202601', targetMonth: '202602', mode: 'add',
+    includeCarryover: false, selectedItems: [item],
+  }
+
+  beforeEach(() => {
+    clearApiMocks()
+    vi.clearAllMocks()
+    mockAuthenticatedSession()
+  })
+
+  it.each([
+    ['202600', '202602'], ['202613', '202602'], ['202601', '202600'],
+    ['202601', '202613'], ['2026-01', '202602'], ['', '202602'],
+  ])('不正な月 %s → %s のプレビューをAPI前に拒否する', async (source, target) => {
+    const result = await getCopyMonthPreview(source, target)
+    expect(result).toMatchObject({ success: false, error: expect.any(String) })
+    expect(mockCopyMonthApi.getCopyMonthPreview).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    null, [], { ...options, sourceMonth: '202600' },
+    { ...options, targetMonth: '202613' },
+    { ...options, targetMonth: options.sourceMonth },
+    { ...options, mode: 'unknown' }, { ...options, includeCarryover: 'false' },
+    { ...options, selectedItems: null }, { ...options, carryoverFingerprint: 123 },
+    ...[
+      { id: '' }, { id: '  ' }, { label: '' }, { person: 'other' },
+      { type: 'carryover' }, { itemCopyMode: 'unknown' },
+      { amount: '100' }, { amount: 0 }, { amount: -1 }, { amount: 1.5 },
+      { amount: Infinity }, { type: 'expense', amount: 100 },
+    ].map(patch => ({ ...options, selectedItems: [{ ...item, ...patch }] })),
+  ])('不正なコピー入力 %# をAPIと再検証前に拒否する', async (input) => {
+    const result = await copyMonthData(input as unknown as CopyMonthOptions)
+    expect(result).toMatchObject({ success: false, error: expect.any(String) })
+    expect(mockCopyMonthApi.copyMonthData).not.toHaveBeenCalled()
+    expect(mockRevalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('不正入力でも認証を先に要求する', async () => {
+    mockUnauthenticatedSession()
+    await expect(copyMonthData(null as unknown as CopyMonthOptions)).rejects.toThrow('NEXT_REDIRECT:/login')
+    expect(mockCopyMonthApi.copyMonthData).not.toHaveBeenCalled()
+  })
+
+  it.each(['add', 'skip', 'replace'] as const)('正常な%s・項目名のみ・繰越指紋を保持する', async mode => {
+    const input: CopyMonthOptions = {
+      ...options, mode, includeCarryover: true, carryoverFingerprint: 'fingerprint',
+      selectedItems: [
+        { ...item, person: 'husband', type: 'income', itemCopyMode: 'withAmount' },
+        { ...item, id: 'expense-1', amount: -200, person: 'wife', type: 'expense', itemCopyMode: 'withAmount' },
+        { ...item, id: 'expense-2', amount: 0, person: 'wife', type: 'expense', itemCopyMode: 'labelOnly' },
+      ],
+    }
+    const data = { success: true, copied: { incomes: 1, expenses: 2, carryovers: 1 }, skipped: { incomes: 0, expenses: 0, carryovers: 0 } }
+    mockCopyMonthApi.copyMonthData.mockResolvedValueOnce(data)
+    expect(await copyMonthData(input)).toEqual({ success: true, data })
+    expect(mockCopyMonthApi.copyMonthData).toHaveBeenCalledWith(expect.any(Object), input)
+  })
+})

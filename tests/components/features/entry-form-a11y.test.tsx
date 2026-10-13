@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { AddEntryForm } from '@/features/add-entry/components/add-entry-form'
 import { AddEntryModal } from '@/features/add-entry/components/add-entry-modal'
 import { AddEntrySheet } from '@/features/add-entry/components/add-entry-sheet'
+import { AddEntryFab } from '@/features/add-entry'
 import { EditModal } from '@/features/edit-entry'
 import { createIncome } from '@/app/actions/income'
 
@@ -44,6 +45,32 @@ function expectMinimumSwitchTarget(control: HTMLElement) {
 }
 
 describe('entry form a11y', () => {
+  it('追加モーダルから初期担当者をフォームへ渡す', async () => {
+    render(<AddEntryModal type="income" month="202601" defaultPerson="wife" />)
+    await userEvent.click(screen.getByRole('button', { name: '項目を追加' }))
+    expect(screen.getByRole('radio', { name: '妻' })).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('追加バーから初期担当者をシートへ渡す', async () => {
+    render(<AddEntryFab month="202601" defaultPerson="wife" />)
+    await userEvent.click(screen.getByRole('button', { name: '項目を追加' }))
+    expect(screen.getByRole('radio', { name: '妻' })).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('追加シートは指定した初期担当者へ送信成功後に戻す', async () => {
+    vi.mocked(createIncome).mockResolvedValue({ success: true })
+    const onOpenChange = vi.fn()
+    render(<AddEntrySheet open month="202601" defaultPerson="wife" onOpenChange={onOpenChange} />)
+    expect(screen.getByRole('radio', { name: '妻' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByRole('radio', { name: '収入' }))
+    fireEvent.click(screen.getByRole('radio', { name: '夫' }))
+    fireEvent.change(screen.getByLabelText('項目名'), { target: { value: '給与' } })
+    fireEvent.change(screen.getByLabelText('金額'), { target: { value: '100' } })
+    fireEvent.click(screen.getByRole('button', { name: '収入を追加' }))
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(screen.getByRole('radio', { name: '妻' })).toHaveAttribute('aria-checked', 'true')
+  })
+
   it('追加フォームの項目名・金額入力がlabelで取得できる', () => {
     render(
       <AddEntryForm

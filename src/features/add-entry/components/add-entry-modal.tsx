@@ -6,15 +6,16 @@ import { TYPE_LABELS } from '@/lib/constants'
 import { Button } from '@/components/ui/button'
 import { ResponsiveModal } from '@/components/ui/responsive-modal'
 import { AddEntryForm } from './add-entry-form'
-import type { EntryType } from '@/types'
+import type { EntryType, Person } from '@/types'
 
 interface AddEntryModalProps {
   type: EntryType
   month: string
+  defaultPerson?: Person
 }
 
 
-export function AddEntryModal({ type, month }: AddEntryModalProps) {
+export function AddEntryModal({ type, month, defaultPerson }: AddEntryModalProps) {
   const [open, setOpen] = useState(false)
   const title = `${TYPE_LABELS[type]}を追加`
 
@@ -29,6 +30,7 @@ export function AddEntryModal({ type, month }: AddEntryModalProps) {
     <AddEntryForm
       type={type}
       month={month}
+      defaultPerson={defaultPerson}
       onSuccess={() => setOpen(false)}
       onCancel={() => setOpen(false)}
     />

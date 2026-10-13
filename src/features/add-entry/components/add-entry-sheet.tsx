@@ -21,6 +21,7 @@ interface AddEntrySheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   month: string
+  defaultPerson?: Person
 }
 
 interface SheetSubmitButtonProps {
@@ -47,9 +48,11 @@ function SheetSubmitButton({
   )
 }
 
-export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps) {
+export function AddEntrySheet({
+  open, onOpenChange, month, defaultPerson = 'husband',
+}: AddEntrySheetProps) {
   const [entryType, setEntryType] = useState<EntryType>('expense')
-  const [person, setPerson] = useState<Person>('husband')
+  const [person, setPerson] = useState<Person>(defaultPerson)
   const [isCarryover, setIsCarryover] = useState(false)
   const [isCleared, setIsCleared] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -59,7 +62,7 @@ export function AddEntrySheet({ open, onOpenChange, month }: AddEntrySheetProps)
   function resetFormState() {
     formRef.current?.reset()
     setEntryType('expense')
-    setPerson('husband')
+    setPerson(defaultPerson)
     setIsCarryover(false)
     setIsCleared(false)
   }

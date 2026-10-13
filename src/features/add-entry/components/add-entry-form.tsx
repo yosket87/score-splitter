@@ -11,12 +11,15 @@ import type { EntryType, Person } from '@/types'
 interface AddEntryFormProps {
   type: EntryType
   month: string
+  defaultPerson?: Person
   onSuccess: () => void
   onCancel: () => void
 }
-export function AddEntryForm({ type, month, onSuccess, onCancel }: AddEntryFormProps) {
+export function AddEntryForm({
+  type, month, defaultPerson = 'husband', onSuccess, onCancel,
+}: AddEntryFormProps) {
   const [error, setError] = useState<string | null>(null)
-  const [person, setPerson] = useState<Person>('husband')
+  const [person, setPerson] = useState<Person>(defaultPerson)
   const [isCarryover, setIsCarryover] = useState(false)
   const [isCleared, setIsCleared] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
@@ -37,7 +40,7 @@ export function AddEntryForm({ type, month, onSuccess, onCancel }: AddEntryFormP
 
     if (result.success) {
       formRef.current?.reset()
-      setPerson('husband')
+      setPerson(defaultPerson)
       setIsCarryover(false)
       setIsCleared(false)
       onSuccess()

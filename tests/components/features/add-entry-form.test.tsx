@@ -19,6 +19,39 @@ function fillRequiredFields(label: string, amount: string) {
 }
 
 describe('AddEntryForm', () => {
+  it.each(['income', 'expense', 'carryover'] as const)(
+    '%sの初期担当者を指定でき、成功後もその担当者へ戻す',
+    async (type) => {
+      const onSuccess = vi.fn()
+      const createAction = { income: createIncome, expense: createExpense, carryover: createCarryover }[type]
+      vi.mocked(createAction).mockResolvedValue({ success: true })
+      render(
+        <AddEntryForm type={type} month="202607" defaultPerson="wife"
+          onSuccess={onSuccess} onCancel={vi.fn()} />
+      )
+      expect(screen.getByRole('radio', { name: '妻' })).toHaveAttribute('aria-checked', 'true')
+      fillRequiredFields('テスト項目', '100')
+      fireEvent.click(screen.getByRole('radio', { name: '夫' }))
+      fireEvent.submit(screen.getByLabelText('項目名').closest('form')!)
+      await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce())
+      expect(vi.mocked(createAction).mock.calls[0][0].get('person')).toBe('husband')
+      expect(screen.getByRole('radio', { name: '妻' })).toHaveAttribute('aria-checked', 'true')
+    }
+  )
+
+  it('送信失敗時は指定した初期担当者へ戻さず現在の選択を維持する', async () => {
+    vi.mocked(createIncome).mockResolvedValue({ success: false, error: '登録できません' })
+    render(
+      <AddEntryForm type="income" month="202607" defaultPerson="wife"
+        onSuccess={vi.fn()} onCancel={vi.fn()} />
+    )
+    fillRequiredFields('給与', '100')
+    fireEvent.click(screen.getByRole('radio', { name: '夫' }))
+    fireEvent.click(screen.getByRole('button', { name: '収入を追加' }))
+    expect(await screen.findByText('登録できません')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: '夫' })).toHaveAttribute('aria-checked', 'true')
+  })
+
   it('支出の担当者と繰越フラグを送信し、成功後にフォームを初期化する', async () => {
     const onSuccess = vi.fn()
     vi.mocked(createExpense).mockImplementation(async (formData) => {

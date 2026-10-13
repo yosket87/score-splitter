@@ -55,6 +55,35 @@ afterEach(() => {
 })
 
 describe('CopyMonthDialog', () => {
+  it('種類別チェックボックスを一部選択・全選択・全解除へ同期する', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getCopyMonthPreview).mockResolvedValueOnce({
+      success: true,
+      data: {
+        sourceMonth: '202603', targetMonth: '202604', existingCount: 0,
+        carryoverFingerprint: 'dummy-fingerprint', carryoverCount: 0,
+        items: [
+          { id: 'income-1', label: '給与', amount: 100, person: 'husband', type: 'income' },
+          { id: 'income-2', label: '手当', amount: 20, person: 'wife', type: 'income' },
+          { id: 'expense-1', label: '食費', amount: -30, person: 'wife', type: 'expense' },
+        ],
+      },
+    })
+    render(<CopyMonthDialog householdId="A" currentMonth="202604" previousMonth="202603" />)
+    await user.click(screen.getByRole('button', { name: '前月からコピー' }))
+    const incomeGroup = await screen.findByRole('checkbox', { name: /^収入/ })
+    expect(incomeGroup).toBeChecked()
+    await user.click(screen.getByLabelText('給与を選択'))
+    expect(incomeGroup).toBePartiallyChecked()
+    await user.click(incomeGroup)
+    expect(incomeGroup).toBeChecked()
+    expect(incomeGroup).not.toBePartiallyChecked()
+    await user.click(incomeGroup)
+    expect(incomeGroup).not.toBeChecked()
+    expect(incomeGroup).not.toBePartiallyChecked()
+    expect(screen.getByLabelText('食費を選択')).toBeChecked()
+  })
+
   it('説明を関連付け、44px操作とEscape後のフォーカス復帰を維持する', async () => {
     const user = userEvent.setup()
     const consoleError = vi.spyOn(console, 'error')

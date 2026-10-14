@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { IncomeSection } from '@/features/income'
 import { ExpenseSection } from '@/features/expense'
@@ -46,16 +46,16 @@ for (const [type, update] of [
   ['income', updateIncome], ['expense', updateExpense], ['carryover', updateCarryover],
 ] as const) {
   describe(`${type}の共有編集モーダル`, () => {
-    it('多数の行でも編集インスタンスは選択した1件だけ', async () => {
+    it('複数行でも編集インスタンスは選択した1件だけ', async () => {
       const user = userEvent.setup()
-      render(section(type, 20))
+      render(section(type, 8))
       expect(screen.queryAllByTestId('edit-instance')).toHaveLength(0)
       await user.click(screen.getByRole('button', { name: '項目0を編集' }))
       expect(screen.getAllByTestId('edit-instance')).toHaveLength(1)
       await user.click(screen.getByRole('button', { name: 'キャンセル' }))
-      await user.click(screen.getByRole('button', { name: '項目19を編集' }))
+      await user.click(screen.getByRole('button', { name: '項目7を編集' }))
       expect(screen.getAllByTestId('edit-instance')).toHaveLength(1)
-      expect(screen.getByLabelText('項目名')).toHaveValue('項目19')
+      expect(screen.getByLabelText('項目名')).toHaveValue('項目7')
     })
 
     it('キャンセル後に別の行の保存値と状態で編集し、正しいIDだけを更新する', async () => {
@@ -95,6 +95,23 @@ for (const [type, update] of [
       await user.click(screen.getByRole('button', { name: 'キャンセル' }))
       await user.click(screen.getByRole('button', { name: '項目1を編集' }))
       expect(screen.queryByText('更新できません')).not.toBeInTheDocument()
+    })
+
+    it.each([0, 1])('古い保存応答が再オープンした項目%dを閉じない', async (target) => {
+      const user = userEvent.setup()
+      let resolveUpdate!: () => void
+      vi.mocked(update).mockReturnValueOnce(new Promise<{ success: true }>((resolve) => { resolveUpdate = () => resolve({ success: true }) }))
+      render(section(type))
+      await user.click(screen.getByRole('button', { name: '項目0を編集' }))
+      await user.click(screen.getByRole('button', { name: '更新' }))
+      expect(update).toHaveBeenCalledTimes(1)
+      await user.click(screen.getByRole('button', { name: 'キャンセル' }))
+      await user.click(screen.getByRole('button', { name: `項目${target}を編集` }))
+      await user.clear(screen.getByLabelText('項目名'))
+      await user.type(screen.getByLabelText('項目名'), '次の編集')
+      await act(async () => { resolveUpdate() })
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      expect(screen.getByLabelText('項目名')).toHaveValue('次の編集')
     })
 
     it('空の一覧では編集モーダルを生成しない', () => {

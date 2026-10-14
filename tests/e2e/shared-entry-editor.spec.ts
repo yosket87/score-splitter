@@ -7,10 +7,7 @@ async function openEditor(page: Page, row: Locator, label: string, mobile: boole
   if (mobile) await page.getByRole('menuitem', { name: '編集', exact: true }).click()
   await expect(page.getByRole('dialog')).toHaveCount(1)
   await expect(page.getByRole('menu')).toHaveCount(0)
-  await expect.poll(() => page.getByRole('dialog').evaluate((element) => {
-    const style = getComputedStyle(element)
-    return style.opacity === '1' && ['none', 'matrix(1, 0, 0, 1, 0, 0)'].includes(style.transform)
-  })).toBe(true)
+  await expect(page.getByRole('dialog')).toBeVisible()
   return trigger
 }
 
@@ -52,6 +49,8 @@ for (const width of [390, 1280]) {
       await expect(dialog.getByLabel('金額', { exact: true })).toHaveValue(secondAmount)
       await expect(dialog.getByRole('radio', { name: '妻', exact: true })).toHaveAttribute('aria-checked', 'true')
       if (section === 'expense') {
+        // 撮影時だけ、変換行列の文字列表現に依存せず終了を待つ。
+        await dialog.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished.catch(() => {}))))
         await page.screenshot({ path: testInfo.outputPath(`editor-${width}.png`) })
       }
       const updatedLabel = `${section}更新`

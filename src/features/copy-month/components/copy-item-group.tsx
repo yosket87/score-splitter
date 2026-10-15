@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import { PERSON_LABELS } from '@/lib/constants'
 import { formatCurrency } from '@/lib/helpers/format'
 import type { CopyItem } from '@/types'
@@ -8,7 +9,7 @@ import type { ItemSelection } from '../types'
 interface CopyItemGroupProps {
   type: 'income' | 'expense'
   items: CopyItem[]
-  selections: Map<string, ItemSelection>
+  selections: Record<string, ItemSelection>
   onSelectionChange: (id: string, selection: ItemSelection) => void
   onToggleAll: (type: 'income' | 'expense') => void
 }
@@ -20,14 +21,21 @@ export function CopyItemGroup({
   onSelectionChange,
   onToggleAll,
 }: CopyItemGroupProps) {
-  if (items.length === 0) return null
-
+  const groupCheckboxRef = useRef<HTMLInputElement>(null)
   const typeLabel = type === 'income' ? '収入' : '支出'
   const selectedInGroup = items.filter(
-    (item) => selections.get(item.id) !== 'none'
+    (item) => selections[item.id] !== 'none'
   ).length
   const allSelected = selectedInGroup === items.length
   const someSelected = selectedInGroup > 0 && selectedInGroup < items.length
+
+  useEffect(() => {
+    if (groupCheckboxRef.current) {
+      groupCheckboxRef.current.indeterminate = someSelected
+    }
+  }, [someSelected])
+
+  if (items.length === 0) return null
 
   return (
     <div key={type} className="space-y-2">
@@ -35,9 +43,7 @@ export function CopyItemGroup({
         <input
           type="checkbox"
           checked={allSelected}
-          ref={(el) => {
-            if (el) el.indeterminate = someSelected
-          }}
+          ref={groupCheckboxRef}
           onChange={() => onToggleAll(type)}
           className="h-4 w-4 rounded border-input focus-visible:ring-2 focus-visible:ring-ring/50"
         />
@@ -46,7 +52,7 @@ export function CopyItemGroup({
       </label>
       <div className="ml-6 space-y-1">
         {items.map((item) => {
-          const selection = selections.get(item.id) || 'none'
+          const selection = selections[item.id] || 'none'
           const isSelected = selection !== 'none'
 
           return (

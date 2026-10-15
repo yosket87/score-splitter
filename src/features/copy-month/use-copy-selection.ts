@@ -10,9 +10,7 @@ import type {
 import type { ItemSelection } from './types'
 
 export function useCopySelection(preview: CopyMonthPreview | null) {
-  const [itemSelections, setItemSelections] = useState<Map<string, ItemSelection>>(
-    new Map()
-  )
+  const [itemSelections, setItemSelections] = useState<Record<string, ItemSelection>>({})
   const [includeCarryover, setIncludeCarryover] = useState(true)
 
   const groupedItems = useMemo(() => {
@@ -27,16 +25,16 @@ export function useCopySelection(preview: CopyMonthPreview | null) {
     if (!preview) return []
     return preview.items
       .filter((item) => {
-        const selection = itemSelections.get(item.id)
+        const selection = itemSelections[item.id]
         return selection && selection !== 'none'
       })
       .map((item) => ({
         ...item,
-        itemCopyMode: (itemSelections.get(item.id) as ItemCopyMode) || 'withAmount',
+        itemCopyMode: (itemSelections[item.id] as ItemCopyMode) || 'withAmount',
       }))
   }, [itemSelections, preview])
 
-  const selectedCount = Array.from(itemSelections.values()).filter(
+  const selectedCount = Object.values(itemSelections).filter(
     (s) => s !== 'none'
   ).length
   const canCopy = selectedCount > 0 || includeCarryover
@@ -44,38 +42,29 @@ export function useCopySelection(preview: CopyMonthPreview | null) {
     selectedCount + (includeCarryover && preview ? preview.carryoverCount : 0)
 
   const resetSelection = useCallback(() => {
-    setItemSelections(new Map())
+    setItemSelections({})
     setIncludeCarryover(true)
   }, [])
 
   const initializeSelection = useCallback((items: CopyItem[]) => {
-    const selections = new Map<string, ItemSelection>()
-    items.forEach((item) => {
-      selections.set(item.id, 'withAmount')
-    })
-    setItemSelections(selections)
+    setItemSelections(Object.fromEntries(items.map((item) => [item.id, 'withAmount'])))
   }, [])
 
   const setItemSelection = useCallback((id: string, selection: ItemSelection) => {
-    setItemSelections((prev) => {
-      const next = new Map(prev)
-      next.set(id, selection)
-      return next
-    })
+    setItemSelections((prev) => ({ ...prev, [id]: selection }))
   }, [])
 
   const toggleAllInType = useCallback((type: 'income' | 'expense') => {
     const items = groupedItems[type]
     const allSelected = items.every(
-      (item) => itemSelections.get(item.id) !== 'none'
+      (item) => itemSelections[item.id] !== 'none'
     )
 
     setItemSelections((prev) => {
-      const next = new Map(prev)
-      items.forEach((item) => {
-        next.set(item.id, allSelected ? 'none' : 'withAmount')
-      })
-      return next
+      return {
+        ...prev,
+        ...Object.fromEntries(items.map((item) => [item.id, allSelected ? 'none' : 'withAmount'])),
+      }
     })
   }, [groupedItems, itemSelections])
 
@@ -87,11 +76,7 @@ export function useCopySelection(preview: CopyMonthPreview | null) {
 
   const deselectAll = useCallback(() => {
     if (!preview) return
-    const selections = new Map<string, ItemSelection>()
-    preview.items.forEach((item) => {
-      selections.set(item.id, 'none')
-    })
-    setItemSelections(selections)
+    setItemSelections(Object.fromEntries(preview.items.map((item) => [item.id, 'none'])))
     setIncludeCarryover(false)
   }, [preview])
 

@@ -94,6 +94,57 @@ describe('月コピーのワークフロー', () => {
     expect(screen.getByLabelText('給与を選択')).toBeChecked()
   })
 
+  it('置換確認後に追加から置換へ戻すと、改めて確認するまで書き込まない', async () => {
+    vi.mocked(copyMonthData).mockResolvedValueOnce(success)
+    renderDialog()
+    await userEvent.click(screen.getByRole('button', { name: '前月からコピー' }))
+    await screen.findByLabelText('給与を選択')
+    await userEvent.click(screen.getByRole('combobox', { name: '' }))
+    await userEvent.click(screen.getByRole('option', { name: '置換（既存データを削除してコピー）' }))
+    await userEvent.click(screen.getByRole('button', { name: 'コピーする (3件)' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('既存の2件を削除してコピーします')
+    expect(copyMonthData).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('combobox', { name: '' }))
+    await userEvent.click(screen.getByRole('option', { name: '追加（既存データを残す）' }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('combobox', { name: '' }))
+    await userEvent.click(screen.getByRole('option', { name: '置換（既存データを削除してコピー）' }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'コピーする (3件)' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('既存の2件を削除してコピーします')
+    expect(copyMonthData).not.toHaveBeenCalled()
+    expect(refresh).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: '既存データを削除してコピー' }))
+    expect(copyMonthData).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ mode: 'replace' }))
+  })
+
+  it('置換確認後に閉じて再表示すると、改めて確認するまで書き込まない', async () => {
+    vi.mocked(copyMonthData).mockResolvedValueOnce(success)
+    renderDialog()
+    await userEvent.click(screen.getByRole('button', { name: '前月からコピー' }))
+    await screen.findByLabelText('給与を選択')
+    await userEvent.click(screen.getByRole('combobox', { name: '' }))
+    await userEvent.click(screen.getByRole('option', { name: '置換（既存データを削除してコピー）' }))
+    await userEvent.click(screen.getByRole('button', { name: 'コピーする (3件)' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('既存の2件を削除してコピーします')
+    expect(copyMonthData).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: 'キャンセル' }))
+    await userEvent.click(screen.getByRole('button', { name: '前月からコピー' }))
+    await screen.findByLabelText('給与を選択')
+    expect(screen.getByRole('combobox', { name: '' })).toHaveTextContent('置換（既存データを削除してコピー）')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'コピーする (3件)' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('既存の2件を削除してコピーします')
+    expect(copyMonthData).not.toHaveBeenCalled()
+    expect(refresh).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: '既存データを削除してコピー' }))
+    expect(copyMonthData).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ mode: 'replace' }))
+  })
+
   it('コピー失敗時は項目名のみ・除外指定を保持して再試行し、成功件数とskip件数を通知する', async () => {
     vi.mocked(copyMonthData).mockResolvedValueOnce({ success: false, error: '再試行してください' }).mockResolvedValueOnce(success)
     renderDialog()

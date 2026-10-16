@@ -1,6 +1,13 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { PERSON_LABELS } from '@/lib/constants'
 import { formatCurrency } from '@/lib/helpers/format'
 import type { CopyItem } from '@/types'
@@ -82,17 +89,25 @@ export function CopyItemGroup({
                 {formatCurrency(item.amount)}
               </span>
               {isSelected && (
-                <select
+                <Select
                   value={selection}
-                  onChange={(e) =>
-                    onSelectionChange(item.id, e.target.value as ItemSelection)
-                  }
-                  aria-label={`${item.label}のコピーモード`}
-                  className="min-h-11 rounded border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  onValueChange={(value) => {
+                    if (value === 'withAmount' || value === 'labelOnly') {
+                      onSelectionChange(item.id, value)
+                    }
+                  }}
                 >
-                  <option value="withAmount">金額込み</option>
-                  <option value="labelOnly">項目名のみ</option>
-                </select>
+                  <SelectTrigger
+                    aria-label={`${item.label}のコピーモード`}
+                    className="min-h-11 shrink-0 gap-1 px-2 text-xs"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="withAmount">金額込み</SelectItem>
+                    <SelectItem value="labelOnly">項目名のみ</SelectItem>
+                  </SelectContent>
+                </Select>
               )}
             </div>
           )

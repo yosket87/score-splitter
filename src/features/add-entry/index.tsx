@@ -2,14 +2,16 @@
 
 import { useState } from 'react'
 import { AddEntrySheet } from './components/add-entry-sheet'
+import type { Person } from '@/types'
 
 export { AddEntryModal } from './components/add-entry-modal'
 
 interface AddEntryFabProps {
   month: string
+  defaultPerson?: Person
 }
 
-export function AddEntryFab({ month }: AddEntryFabProps) {
+export function AddEntryFab({ month, defaultPerson }: AddEntryFabProps) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -25,7 +27,7 @@ export function AddEntryFab({ month }: AddEntryFabProps) {
           <span className="text-[13px] font-semibold">項目を追加</span>
         </button>
       </div>
-      <AddEntrySheet open={open} onOpenChange={setOpen} month={month} />
+      <AddEntrySheet open={open} onOpenChange={setOpen} month={month} defaultPerson={defaultPerson} />
     </>
   )
 }

@@ -9,12 +9,12 @@ import { EntryToggleButton } from '@/components/entry-toggle-button'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { EditModal, type EditEntryProps } from '@/features/edit-entry'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import type { ActionResult } from '@/types'
 
 interface EntryActionsProps {
-  edit: EditEntryProps
+  label: string
+  onEdit: (trigger: HTMLButtonElement) => void
   onDelete: () => Promise<ActionResult>
   toggle?: {
     active: boolean
@@ -26,10 +26,11 @@ interface EntryActionsProps {
   }
 }
 
-export function EntryActions({ edit, onDelete, toggle }: EntryActionsProps) {
+export function EntryActions({ label, onEdit, onDelete, toggle }: EntryActionsProps) {
   const isMobile = useIsMobile()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [dialog, setDialog] = useState<'edit' | 'delete' | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const openingEditor = useRef(false)
   const [pending, startTransition] = useTransition()
   const menuTrigger = useRef<HTMLButtonElement>(null)
 
@@ -63,7 +64,7 @@ export function EntryActions({ edit, onDelete, toggle }: EntryActionsProps) {
               type="button"
               variant="ghost"
               size="icon-lg"
-              aria-label={`${edit.label}のメニュー`}
+              aria-label={`${label}のメニュー`}
               className="rounded-xl bg-muted/60 text-muted-foreground md:hidden"
             >
               <Ellipsis aria-hidden="true" className="size-5" />
@@ -73,10 +74,16 @@ export function EntryActions({ edit, onDelete, toggle }: EntryActionsProps) {
             align="end"
             className="w-52 rounded-xl p-1.5"
             onCloseAutoFocus={(event) => {
-              if (dialog) event.preventDefault()
+              if (deleteOpen || openingEditor.current) event.preventDefault()
+              openingEditor.current = false
             }}
           >
-            <DropdownMenuItem className="min-h-12 gap-3 rounded-lg px-3" disabled={pending} onSelect={() => setDialog('edit')}>
+            <DropdownMenuItem className="min-h-12 gap-3 rounded-lg px-3" disabled={pending} onSelect={() => {
+              if (menuTrigger.current) {
+                openingEditor.current = true
+                onEdit(menuTrigger.current)
+              }
+            }}>
               <Pencil aria-hidden="true" />編集
             </DropdownMenuItem>
             {toggle && (
@@ -95,7 +102,7 @@ export function EntryActions({ edit, onDelete, toggle }: EntryActionsProps) {
                 {toggle.label}
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem className="min-h-12 gap-3 rounded-lg px-3" variant="destructive" disabled={pending} onSelect={() => setDialog('delete')}>
+            <DropdownMenuItem className="min-h-12 gap-3 rounded-lg px-3" variant="destructive" disabled={pending} onSelect={() => setDeleteOpen(true)}>
               <Trash2 aria-hidden="true" />削除
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -111,19 +118,25 @@ export function EntryActions({ edit, onDelete, toggle }: EntryActionsProps) {
           />
         </form>
       )}
-      {/* メニューを閉じても編集・削除のダイアログが消えないよう、外側に置く。 */}
-      <EditModal
-        {...edit}
-        open={dialog === 'edit'}
-        onOpenChange={(open) => setDialog(open ? 'edit' : null)}
-        trigger={isMobile ? null : undefined}
-        onCloseAutoFocus={restoreMenuFocus}
-      />
+      {!isMobile && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={`${label}を編集`}
+          aria-haspopup="dialog"
+          className="text-muted-foreground hover:text-accent hover:bg-accent/10 transition-colors"
+          onClick={(event) => onEdit(event.currentTarget)}
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+      )}
+      {/* メニューを閉じても削除のダイアログが消えないよう、外側に置く。 */}
       <DeleteButton
-        itemName={edit.label}
+        itemName={label}
         onDelete={onDelete}
-        open={dialog === 'delete'}
-        onOpenChange={(open) => setDialog(open ? 'delete' : null)}
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
         trigger={isMobile ? null : undefined}
         onCloseAutoFocus={restoreMenuFocus}
       />

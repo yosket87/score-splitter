@@ -55,6 +55,46 @@ afterEach(() => {
 })
 
 describe('CopyMonthDialog', () => {
+  it('モード一覧のEscapeは選択と親画面を保ち、選択解除と再表示で初期値へ戻す', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getCopyMonthPreview).mockResolvedValue({
+      success: true,
+      data: {
+        sourceMonth: '202603', targetMonth: '202604', existingCount: 0,
+        carryoverFingerprint: 'dummy-fingerprint', carryoverCount: 0,
+        items: [
+          { id: 'income-1', label: '給与', amount: 100, person: 'husband', type: 'income' },
+          { id: 'expense-1', label: '食費', amount: -30, person: 'wife', type: 'expense' },
+        ],
+      },
+    })
+    render(<CopyMonthDialog householdId="A" currentMonth="202604" previousMonth="202603" />)
+    const open = screen.getByRole('button', { name: '前月からコピー' })
+    await user.click(open)
+    const salaryMode = await screen.findByRole('combobox', { name: '給与のコピーモード' })
+    expect(salaryMode).toHaveTextContent('金額込み')
+    expect(salaryMode).toHaveClass('min-h-11')
+    await user.click(salaryMode)
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(salaryMode).toHaveTextContent('金額込み')
+    await user.click(salaryMode)
+    await user.click(screen.getByRole('option', { name: '項目名のみ' }))
+    expect(salaryMode).toHaveTextContent('項目名のみ')
+    expect(screen.getByRole('combobox', { name: '食費のコピーモード' })).toHaveTextContent('金額込み')
+    await user.click(screen.getByRole('checkbox', { name: '給与を選択' }))
+    expect(screen.queryByRole('combobox', { name: '給与のコピーモード' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('checkbox', { name: '給与を選択' }))
+    expect(screen.getByRole('combobox', { name: '給与のコピーモード' })).toHaveTextContent('金額込み')
+    await user.click(screen.getByRole('combobox', { name: '給与のコピーモード' }))
+    await user.click(screen.getByRole('option', { name: '項目名のみ' }))
+    await user.click(screen.getByRole('button', { name: 'キャンセル' }))
+    await user.click(open)
+    expect(await screen.findByRole('combobox', { name: '給与のコピーモード' })).toHaveTextContent('金額込み')
+    expect(copyMonthData).not.toHaveBeenCalled()
+  })
+
   it('種類別チェックボックスを一部選択・全選択・全解除へ同期する', async () => {
     const user = userEvent.setup()
     vi.mocked(getCopyMonthPreview).mockResolvedValueOnce({
@@ -264,10 +304,8 @@ describe('CopyMonthDialog', () => {
     await user.click(screen.getByRole('button', { name: '前月からコピー' }))
     await screen.findByText('コピー対象を選択')
 
-    await user.selectOptions(
-      screen.getByLabelText('給料のコピーモード'),
-      'labelOnly'
-    )
+    await user.click(screen.getByRole('combobox', { name: '給料のコピーモード' }))
+    await user.click(screen.getByRole('option', { name: '項目名のみ' }))
     await user.click(screen.getByRole('button', { name: 'コピーする (2件)' }))
 
     await waitFor(() => {

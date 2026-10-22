@@ -25,6 +25,7 @@ on:
       - 'tests/fixtures/google-identity.sql'
       - 'tests/helpers/identity-sqlite.ts'
       - 'tests/unit/cloudflare/identity-*.test.ts'
+      - 'scripts/miniflare-fixture.mjs'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/payment-d1.yml'
@@ -51,6 +52,7 @@ on:
       - 'tests/fixtures/google-identity.sql'
       - 'tests/helpers/identity-sqlite.ts'
       - 'tests/unit/cloudflare/identity-*.test.ts'
+      - 'scripts/miniflare-fixture.mjs'
       - 'package*.json'
       - '.github/workflows/payment-d1.yml'
   schedule:

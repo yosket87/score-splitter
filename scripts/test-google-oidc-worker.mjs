@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
-import { Miniflare } from 'miniflare'
+import { createMiniflare } from './miniflare-fixture.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 const temporaryDirectory = await mkdtemp(join(tmpdir(), 'google-oidc-worker-'))
@@ -19,7 +19,7 @@ try {
     outfile: output,
   })
   // Node互換フラグなしでproductionモジュールをworkerd内で実行する。
-  worker = new Miniflare({
+  worker = createMiniflare({
     modules: true,
     script: await readFile(output, 'utf8'),
     compatibilityDate: '2026-07-08',

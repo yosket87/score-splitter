@@ -2,14 +2,14 @@ import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { Miniflare } from 'miniflare'
+import { createMiniflare } from './miniflare-fixture.mjs'
 
 // 正規0013へ更新済みの専用cloneへ現共有関数を接続する。歴史DBを直接変更しない。
 export async function verifyHouseholdFunctions(temp, state, restored = false) {
   const output = join(temp, 'shared-functions.mjs')
   await build({ stdin: { contents: ['records', 'copy-month', 'sessions', 'passkeys', 'challenges', 'ai-diagnosis-store', 'payment-status'].map(name => `export * from './cloudflare/worker/src/${name}.ts'`).join(';'), resolveDir: process.cwd(), loader: 'ts' }, bundle: true, platform: 'node', format: 'esm', outfile: output })
   const api = await import(pathToFileURL(output).href)
-  const mf = new Miniflare({ modules: true, script: 'export default {fetch(){return new Response("test")}}', compatibilityDate: '2026-07-08', d1Databases: { DB: '00000000-0000-0000-0000-000000000001' }, d1Persist: join(state, 'v3/d1') })
+  const mf = createMiniflare({ modules: true, script: 'export default {fetch(){return new Response("test")}}', compatibilityDate: '2026-07-08', d1Databases: { DB: '00000000-0000-0000-0000-000000000001' }, resourcePersistencePath: join(state, 'v3') })
   try {
     const db = await mf.getD1Database('DB')
     const a = { householdId: (await db.prepare("SELECT id FROM households WHERE legacy_auth_key='legacy'").first()).id, person: null, authMethod: 'password' }

@@ -4,7 +4,7 @@ import { chmodSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Miniflare } from 'miniflare'
+import { createMiniflare } from './miniflare-fixture.mjs'
 import {
   BACKUP_MIGRATIONS,
   SCHEMA_TABLES_SQL,
@@ -36,12 +36,11 @@ function querySqlite(databasePath, sql) {
 const quoteIdentifier = (name) => `"${name.replaceAll('"', '""')}"`
 
 // 本番設定や認証情報を使わず、毎回独立したローカルD1のexportを検証する。
-const mf = new Miniflare({
+const mf = createMiniflare({
   modules: true,
   script: 'export default {}',
   compatibilityDate: '2026-07-08',
   d1Databases: { DB: 'backup-export-test' },
-  d1Persist: false,
 })
 
 try {

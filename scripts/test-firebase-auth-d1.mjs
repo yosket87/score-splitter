@@ -136,12 +136,12 @@ try {
 }
 
 // 認証ドメインのbatchは実workerd D1へ接続し、SQLiteアダプターとの差も検査する。
-const { Miniflare } = await import('miniflare')
+const { createMiniflare } = await import('./miniflare-fixture.mjs')
 const { build } = await import('esbuild')
 const { pathToFileURL } = await import('node:url')
 const { approveFromVerifiedRequest, createWranglerDatabase, inspectRequest } = await import('./firebase-auth-admin.mjs')
 const authTemp=mkdtempSync(join(tmpdir(),'firebase-domain-d1-'))
-const mf=new Miniflare({modules:true,script:'export default { fetch() { return new Response("fixture") } }',compatibilityDate:'2026-07-08',d1Databases:{DB:'firebase-fixture'},d1Persist:false})
+const mf=createMiniflare({modules:true,script:'export default { fetch() { return new Response("fixture") } }',compatibilityDate:'2026-07-08',d1Databases:{DB:'firebase-fixture'}})
 try {
  const output=join(authTemp,'domain.mjs')
  await build({stdin:{contents:`export * from './cloudflare/worker/src/firebase-login.ts';export * from './cloudflare/worker/src/firebase-migrations.ts';export * from './cloudflare/worker/src/firebase-revocation.ts';export * from './cloudflare/worker/src/firebase-session.ts';export * from './cloudflare/worker/src/firebase-rate-limit.ts';`,resolveDir:process.cwd(),loader:'ts'},bundle:true,platform:'node',format:'esm',outfile:output})

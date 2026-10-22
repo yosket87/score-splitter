@@ -21,6 +21,7 @@ on:
       - 'tests/helpers/google-oidc.ts'
       - 'scripts/test-google-oidc-worker.mjs'
       - 'scripts/fixtures/google-oidc-worker.ts'
+      - 'scripts/miniflare-fixture.mjs'
       - 'package*.json'
       - '.github/workflows/google-auth.yml'
   push:
@@ -44,6 +45,7 @@ on:
       - 'tests/helpers/google-oidc.ts'
       - 'scripts/test-google-oidc-worker.mjs'
       - 'scripts/fixtures/google-oidc-worker.ts'
+      - 'scripts/miniflare-fixture.mjs'
       - 'package*.json'
       - '.github/workflows/google-auth.yml'
 

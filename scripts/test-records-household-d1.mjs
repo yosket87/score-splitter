@@ -4,11 +4,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { build } from 'esbuild'
-import { Miniflare } from 'miniflare'
+import { createMiniflare } from './miniflare-fixture.mjs'
 
 // 毎回破棄するローカルD1だけで既存migrationと同じ制約・トリガーを検証する。
 const temp = await mkdtemp(join(tmpdir(),'records-household-d1-'))
-const mf = new Miniflare({modules:true,script:'export default {fetch(){return new Response("test")}}',compatibilityDate:'2026-07-08',d1Databases:{DB:'records-household-test'},d1Persist:false})
+const mf = createMiniflare({modules:true,script:'export default {fetch(){return new Response("test")}}',compatibilityDate:'2026-07-08',d1Databases:{DB:'records-household-test'}})
 try {
   const output=join(temp,'records.mjs')
   await build({stdin:{contents:"export * from './cloudflare/worker/src/records.ts';export * from './cloudflare/worker/src/copy-month.ts'",resolveDir:process.cwd(),loader:'ts'},bundle:true,platform:'node',format:'esm',outfile:output})

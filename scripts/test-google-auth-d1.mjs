@@ -6,13 +6,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { build } from 'esbuild'
-import { Miniflare } from 'miniflare'
+import { createMiniflare } from './miniflare-fixture.mjs'
 import { createWranglerDatabase, approveFromVerifiedRequest, inspectRequest } from './google-auth-admin.mjs'
 
 // Node専用の検証入口。実環境のbindingや設定を読まず、毎回独立したD1だけを使う。
 const temp = await mkdtemp(join(tmpdir(), 'google-auth-d1-'))
-const mf = new Miniflare({ modules: true, script: 'export default { fetch() { return new Response("fixture") } }',
-  compatibilityDate: '2026-07-08', d1Databases: { DB: 'google-auth-fixture' }, d1Persist: false })
+const mf = createMiniflare({ modules: true, script: 'export default { fetch() { return new Response("fixture") } }',
+  compatibilityDate: '2026-07-08', d1Databases: { DB: 'google-auth-fixture' } })
 try {
   const output = join(temp, 'auth.mjs')
   await build({ stdin: { contents: `

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { build } from 'esbuild'
-import { Miniflare } from 'miniflare'
+import { createMiniflare } from './miniflare-fixture.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 const temporaryDirectory = await mkdtemp(join(tmpdir(), 'firebase-token-worker-'))
@@ -24,7 +24,7 @@ try {
   let redirectStatus = 302
   const requests = []
   // Node互換フラグなしで本番検証関数と同じWebCrypto処理を実行する。
-  worker = new Miniflare({
+  worker = createMiniflare({
     modules: true, script: await readFile(output, 'utf8'), compatibilityDate: '2026-07-08',
     outboundService: async request => {
       requests.push(request.url)

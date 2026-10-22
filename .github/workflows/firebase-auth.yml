@@ -9,6 +9,7 @@ on:
       - 'scripts/fixtures/firebase-token-worker.ts'
       - 'scripts/backup-*.mjs'
       - 'tests/**'
+      - 'scripts/miniflare-fixture.mjs'
       - 'package*.json'
       - 'next.config.ts'
       - 'wrangler.jsonc'

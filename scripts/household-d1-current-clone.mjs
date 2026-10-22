@@ -2,14 +2,14 @@ import assert from 'node:assert/strict'
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
-import { Miniflare } from 'miniflare'
+import { createMiniflare } from './miniflare-fixture.mjs'
 import { verifyHouseholdFunctions } from './household-d1-boundaries.mjs'
 
 const databaseId = '00000000-0000-0000-0000-000000000001'
 const quote = name => `"${name.replaceAll('"', '""')}"`
 async function withDatabase(state, operation) {
-  const mf = new Miniflare({ modules: true, script: 'export default {fetch(){return new Response("test")}}',
-    compatibilityDate: '2026-07-08', d1Databases: { DB: databaseId }, d1Persist: join(state, 'v3/d1') })
+  const mf = createMiniflare({ modules: true, script: 'export default {fetch(){return new Response("test")}}',
+    compatibilityDate: '2026-07-08', d1Databases: { DB: databaseId }, resourcePersistencePath: join(state, 'v3') })
   try { return await operation(await mf.getD1Database('DB')) }
   finally { await mf.dispose() }
 }

@@ -8,6 +8,7 @@ on:
       - 'tests/unit/scripts/backup-*.test.ts'
       - 'tests/helpers/backup-sqlite-fixtures.ts'
       - 'cloudflare/worker/migrations/**'
+      - 'scripts/miniflare-fixture.mjs'
       - 'package*.json'
       - '.github/workflows/backup-d1.yml'
   push:
@@ -17,6 +18,7 @@ on:
       - 'scripts/test-backup-d1.mjs'
       - 'tests/helpers/backup-sqlite-fixtures.ts'
       - 'cloudflare/worker/migrations/**'
+      - 'scripts/miniflare-fixture.mjs'
       - 'package*.json'
       - '.github/workflows/backup-d1.yml'
   schedule:

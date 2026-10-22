@@ -109,7 +109,7 @@ PASS manifestはschemaVersion 4で、適用済みmigration名・照合対象表�
 npm run verify:d1:production-backup -- ~/Documents/Backups/score-splitter/d1/<UTC日時>/manifest.json
 ```
 
-バックアップ処理のローカルD1互換性は `npm run test:d1:backup` で検証する。隔離したMiniflare D1から実際にexportし、全15表の定義・保存値・振込履歴の更新削除禁止を復元後に照合する。リモートD1や本番設定は使用しない。通常Unitとは独立した `Backup D1 consistency` Jobが関連差分・nightlyで実行し、`npm run test:coverage:backup` でバックアップモジュール自体も80%以上のカバレッジを要求する。実行にはNode.js 22以上と `sqlite3` CLIが必要。
+バックアップ処理のローカルD1互換性は `npm run test:d1:backup` で検証する。隔離したMiniflare D1から実際にexportし、全15表の定義・保存値・振込履歴の更新削除禁止を復元後に照合する。リモートD1や本番設定は使用しない。通常Unitとは独立した `Backup D1 consistency` Jobが関連差分・nightlyで実行し、`npm run test:coverage:backup` でバックアップモジュール自体も80%以上のカバレッジを要求する。実行にはNode.js 22.23.4以上と `sqlite3` CLIが必要。
 
 本番PRは最初からDraftで作成し、Preview確認とバックアップscriptのPASS、ユーザーの明示承認が揃うまでReady for reviewへの変更・merge・本番デプロイを禁止する。Time Travel restoreは自動実行せず、データ破損時にユーザーが明示承認した場合だけ実施する。
 

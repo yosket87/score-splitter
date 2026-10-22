@@ -9,6 +9,7 @@ on:
       - 'scripts/fixtures/firebase-token-worker.ts'
       - 'scripts/backup-*.mjs'
       - 'tests/**'
+      - 'scripts/miniflare-fixture.mjs'
       - 'package*.json'
       - 'next.config.ts'
       - 'wrangler.jsonc'
@@ -27,7 +28,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '>=22.23.4 <23'
           cache: npm
       - run: npm ci
       - run: npm run test:firebase-token:worker
@@ -38,7 +39,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '>=22.23.4 <23'
           cache: npm
       - run: npm ci
       - run: npm run test:d1:firebase
@@ -49,7 +50,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '>=22.23.4 <23'
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium

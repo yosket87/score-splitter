@@ -25,9 +25,14 @@
 | 技術 | バージョン | 用途 |
 |-----|----------|------|
 | Cloudflare Workers | - | Next.js/OpenNext Workerのホスティング（本番・開発をnamed environmentで分離） |
-| @opennextjs/cloudflare | 1.20.x | Next.jsをWorkers上で動かすアダプタ |
+| @opennextjs/cloudflare | 1.20.13以上 | Next.jsをWorkers上で動かすアダプタ |
 | Cloudflare D1 | - | SQLiteベースの永続データベース |
-| Wrangler | 4.x | Cloudflare CLI（デプロイ・ローカル実行） |
+| Wrangler | 4.151.3以上 | Cloudflare CLI（デプロイ・ローカル実行） |
+| Miniflare | 5.20261019.1-beta | 隔離したWorkers/D1検証（Wranglerの内包版と一致させて固定） |
+
+Next.js 16.4ではプレビュー設定が独立した `server/preview-props.json` に移ったため、このファイルの埋め込みに対応するOpenNextが必要（[上流の修正](https://github.com/opennextjs/opennextjs-cloudflare/pull/1356)、1.20.12で対応）。更新時はビルド成功だけでなく、`npm run test:google-auth:production` で成果物をworkerd上で実行し、mock入口の404と認証境界を検証する。
+
+世帯migrationテストはWranglerとMiniflareでローカルD1の保存領域を共有するため、双方のworkerdを揃える。Miniflare 5では `resourcePersistencePath` にWranglerの `state/v3` を指定する（D1用の `d1` はMiniflareが追加する）。更新時は `npm run test:d1:household-migrations` でclone・migration・バックアップ復元まで検証する。
 
 本番・開発の通常リクエストは、Next.js/OpenNext WorkerのD1 bindingから `cloudflare/worker/src/` のD1ドメイン関数を呼び出す。`cloudflare/worker/src/index.ts` のHTTP入口とHTTPクライアントは、`USE_MOCKS=true` のMSWテストまたは旧APIへの切り戻し用に残す。
 

@@ -4,7 +4,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
-import { Miniflare } from 'miniflare'
+import { createMiniflare } from './miniflare-fixture.mjs'
 
 // Next/OpenNextのproduction成果物そのものをローカルworkerdで実行する。
 const entry = resolve('.open-next/google-auth-test-entry.mjs')
@@ -32,12 +32,12 @@ const modules = files.sort((a, b) => Number(b === 'google-auth-test-entry.js') -
 const runtimeOptions = { modules, modulesRoot: bundle,
   compatibilityDate: '2026-06-28', compatibilityFlags: ['nodejs_compat'],
   assets: { directory: resolve('.open-next/assets'), binding: 'ASSETS', routerConfig: { has_user_worker: true, invoke_user_worker_ahead_of_assets: true } },
-  d1Databases: { DB: 'google-auth-production-fixture' }, d1Persist: false,
+  d1Databases: { DB: 'google-auth-production-fixture' },
   bindings: { GOOGLE_OAUTH_CLIENT_ID: 'valid-dummy-client', GOOGLE_OAUTH_CLIENT_SECRET: 'valid-dummy-secret',
     GOOGLE_OAUTH_ORIGIN: 'https://app.example.com', USE_MOCKS: 'true', NODE_ENV: 'development', NEXT_RUNTIME: 'nodejs' },
   outboundService: () => { outbound++; return new Response('外部通信は禁止', { status: 502 }) },
 }
-mf = new Miniflare(runtimeOptions)
+mf = createMiniflare(runtimeOptions)
   const db = await mf.getD1Database('DB')
   for (const file of (await readdir('cloudflare/worker/migrations')).filter(file => file.endsWith('.sql')).sort()) {
     await db.exec((await readFile(`cloudflare/worker/migrations/${file}`, 'utf8')).replace(/--[^\n]*/g, '').replace(/\s+/g, ' '))
@@ -73,7 +73,7 @@ mf = new Miniflare(runtimeOptions)
     assert.doesNotMatch(await readFile(resolve(bundle, file), 'utf8'), /node:sqlite|\bminiflare\b|tests\/helpers\/(?:identity|auth)-sqlite/)
   }
   await mf.dispose()
-  mf = new Miniflare({ ...runtimeOptions, bindings: { ...runtimeOptions.bindings,
+  mf = createMiniflare({ ...runtimeOptions, bindings: { ...runtimeOptions.bindings,
     FIREBASE_PROJECT_ID: 'fixture-project', FIREBASE_API_KEY: 'public-fixture', FIREBASE_AUTH_DOMAIN: 'fixture-project.firebaseapp.com',
     FIREBASE_AUTH_ORIGIN: 'https://app.example.com', FIREBASE_GOOGLE_ENABLED: 'true', FIREBASE_APPLE_ENABLED: 'true', FIREBASE_AUTH_MOCK: 'true',
   } })

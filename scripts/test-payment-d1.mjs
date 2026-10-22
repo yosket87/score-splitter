@@ -4,11 +4,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { build } from 'esbuild'
-import { Miniflare } from 'miniflare'
+import { createMiniflare } from './miniflare-fixture.mjs'
 
 // 本番・開発DBへは接続せず、毎回独立したローカルD1で実関数を検証する。
 const temp = await mkdtemp(join(tmpdir(),'payment-d1-'))
-const mf = new Miniflare({ modules:true, script:'export default { fetch() { return new Response("test") } }', compatibilityDate:'2026-07-08', d1Databases:{DB:'payment-test'}, d1Persist:false })
+const mf = createMiniflare({ modules:true, script:'export default { fetch() { return new Response("test") } }', compatibilityDate:'2026-07-08', d1Databases:{DB:'payment-test'} })
 try {
   const output = join(temp,'payment.mjs')
   await build({

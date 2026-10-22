@@ -25,6 +25,7 @@ on:
       - 'tests/fixtures/google-identity.sql'
       - 'tests/helpers/identity-sqlite.ts'
       - 'tests/unit/cloudflare/identity-*.test.ts'
+      - 'scripts/miniflare-fixture.mjs'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/payment-d1.yml'
@@ -51,6 +52,7 @@ on:
       - 'tests/fixtures/google-identity.sql'
       - 'tests/helpers/identity-sqlite.ts'
       - 'tests/unit/cloudflare/identity-*.test.ts'
+      - 'scripts/miniflare-fixture.mjs'
       - 'package*.json'
       - '.github/workflows/payment-d1.yml'
   schedule:
@@ -73,7 +75,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: '>=22.23.4 <23'
           cache: npm
       - run: npm ci
       - name: 隔離ローカルD1で整合性を検証

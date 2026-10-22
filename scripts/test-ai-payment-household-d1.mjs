@@ -4,11 +4,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { build } from 'esbuild'
-import { Miniflare } from 'miniflare'
+import { createMiniflare } from './miniflare-fixture.mjs'
 
 // 実共有関数＋実migrationを一時ローカルD1に適用する。外部AIやremote D1は使わない。
 const temp = await mkdtemp(join(tmpdir(), 'ai-payment-household-'))
-const mf = new Miniflare({ modules: true, script: 'export default {fetch(){return new Response("test")}}', compatibilityDate: '2026-07-08', d1Databases: { DB: 'household' }, d1Persist: false })
+const mf = createMiniflare({ modules: true, script: 'export default {fetch(){return new Response("test")}}', compatibilityDate: '2026-07-08', d1Databases: { DB: 'household' } })
 try {
   const output = join(temp, 'api.mjs')
   await build({ stdin: { contents: "export * from './cloudflare/worker/src/ai-diagnosis-store.ts';export * from './cloudflare/worker/src/payment-status.ts'", resolveDir: process.cwd(), loader: 'ts' }, bundle: true, platform: 'node', format: 'esm', outfile: output })

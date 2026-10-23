@@ -3,17 +3,10 @@
 import { Copy, LoaderCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ResponsiveModal } from '@/components/ui/responsive-modal'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { formatMonth } from '@/lib/helpers/format'
 import { CopyItemGroup } from './components/copy-item-group'
+import { CopyModeSelect } from './components/copy-mode-select'
 import { useCopyMonth } from './use-copy-month'
-import type { CopyMode } from '@/types'
 
 interface CopyMonthDialogProps {
   householdId: string
@@ -154,30 +147,7 @@ function ScopedCopyMonthDialog({
 
               {/* 重複時の処理 */}
               {hasExistingData && (
-                <div>
-                  <p className="mb-2 font-medium">既存データの処理</p>
-                  <Select
-                    value={mode}
-                    onValueChange={(v) => {
-                      handleModeChange(v as CopyMode)
-                    }}
-                  >
-                    <SelectTrigger className="min-h-11">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="add">
-                        追加（既存データを残す）
-                      </SelectItem>
-                      <SelectItem value="skip">
-                        スキップ（同じ項目があればスキップ）
-                      </SelectItem>
-                      <SelectItem value="replace">
-                        置換（既存データを削除してコピー）
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <CopyModeSelect mode={mode} onModeChange={handleModeChange} />
               )}
 
               {requiresReplaceConfirmation &&

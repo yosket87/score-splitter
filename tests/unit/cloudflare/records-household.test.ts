@@ -142,10 +142,36 @@ describe('明細・コピーの世帯境界と原子性', () => {
   })
   it('skipは同一リクエスト内の通常同キー項目を従来どおり両方コピーする', async () => {
     await seed()
-    await seed()
+    await seed(A, 'income', { amount: 200 })
     const result = await copyMonthData(db, runtime, A, await options({ mode: 'skip' }))
     expect(result.copied.incomes).toBe(2)
+    expect((await listRecordsByMonth(db, A, 'income', '202609')).map(row => row.amount).sort()).toEqual([100, 200])
     expect((await copyMonthData(db, runtime, A, await options({ mode: 'skip' }))).skipped.incomes).toBe(2)
+  })
+  it.each(['income', 'expense'] as const)('skipの%sは既存の項目名・担当者で判定し金額や件数を比較しない', async (type) => {
+    const sign = type === 'income' ? 1 : -1
+    await seed(A, type, { amount: sign * 100 })
+    await seed(A, type, { amount: sign * 200 })
+    await seed(A, type, { person: 'wife', amount: sign * 300 })
+    const existing = await seed(A, type, { month: '202609', amount: sign * 900 })
+    const result = await copyMonthData(db, runtime, A, await options({ mode: 'skip', includeCarryover: false }))
+    const key = type === 'income' ? 'incomes' : 'expenses'
+    expect(result.skipped[key]).toBe(2)
+    expect(result.copied[key]).toBe(1)
+    const target = await listRecordsByMonth(db, A, type, '202609')
+    expect(target).toHaveLength(2)
+    expect(target).toEqual(expect.arrayContaining([existing, expect.objectContaining({ person: 'wife', amount: sign * 300 })]))
+  })
+  it('繰越は同じ項目名・担当者でも金額が異なればコピーする', async () => {
+    await seed(A, 'carryover', { amount: -100 })
+    await seed(A, 'carryover', { amount: -200 })
+    const existing = await seed(A, 'carryover', { month: '202609', amount: -100 })
+    const result = await copyMonthData(db, runtime, A, await options({ mode: 'skip' }))
+    expect(result.skipped.carryovers).toBe(1)
+    expect(result.copied.carryovers).toBe(1)
+    const target = await listRecordsByMonth(db, A, 'carryover', '202609')
+    expect(target).toHaveLength(2)
+    expect(target).toEqual(expect.arrayContaining([existing, expect.objectContaining({ amount: -200 })]))
   })
   it('繰越fingerprint不一致があっても選択ID不存在は404を優先する', async () => {
     await seed()

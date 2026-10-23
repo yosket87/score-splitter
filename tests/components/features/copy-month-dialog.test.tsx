@@ -55,6 +55,42 @@ afterEach(() => {
 })
 
 describe('CopyMonthDialog', () => {
+  it('スキップの条件を関連付け、モード変更・中断・再表示でも現在の選択と一致する', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getCopyMonthPreview).mockResolvedValue({
+      success: true,
+      data: {
+        sourceMonth: '202608', targetMonth: '202609',
+        items: [{ id: 'i1', label: '同名', amount: 100, person: 'husband', type: 'income' }],
+        carryoverCount: 1, carryoverFingerprint: 'dummy-fingerprint', existingCount: 1,
+      },
+    })
+    render(<CopyMonthDialog householdId="A" currentMonth="202609" previousMonth="202608" />)
+    const trigger = screen.getByRole('button', { name: '前月からコピー' })
+    await user.click(trigger)
+    const mode = await screen.findByRole('combobox', { name: '既存データの処理' })
+    expect(mode).not.toHaveAttribute('aria-describedby')
+    await user.click(mode)
+    await user.click(screen.getByRole('option', { name: /スキップ/ }))
+    expect(mode).toHaveAccessibleDescription(/項目名と担当者が同じなら金額が違ってもスキップ/)
+    expect(mode).toHaveAccessibleDescription(/選んだ分をすべてコピー/)
+    expect(mode).toHaveAccessibleDescription(/繰越は金額も同じ場合/)
+    await user.click(mode)
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('dialog')).toBeVisible()
+    expect(mode).toHaveAccessibleDescription(/金額が違ってもスキップ/)
+    await user.click(screen.getByRole('button', { name: 'キャンセル' }))
+    await user.click(trigger)
+    const reopened = await screen.findByRole('combobox', { name: '既存データの処理' })
+    expect(reopened).toHaveTextContent('スキップ')
+    expect(reopened).toHaveAccessibleDescription(/金額が違ってもスキップ/)
+    await user.click(reopened)
+    await user.click(screen.getByRole('option', { name: '追加（既存データを残す）' }))
+    expect(reopened).not.toHaveAttribute('aria-describedby')
+    expect(screen.queryByText(/金額が違ってもスキップ/)).not.toBeInTheDocument()
+    expect(copyMonthData).not.toHaveBeenCalled()
+  })
+
   it('モード一覧のEscapeは選択と親画面を保ち、選択解除と再表示で初期値へ戻す', async () => {
     const user = userEvent.setup()
     vi.mocked(getCopyMonthPreview).mockResolvedValue({

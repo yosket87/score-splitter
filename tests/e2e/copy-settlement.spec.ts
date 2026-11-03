@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test'
 import { login, resetMockData } from './helpers'
 
-test('振込額を数字だけでコピーし、月移動後はその月の額をコピーする', async ({ page, context, request }) => {
+test('振込額を数字だけでコピーし、月移動後はその月の額をコピーする', async ({ page, context, request, browserName }) => {
+  test.skip(browserName !== 'chromium', 'クリップボード権限の自動付与はChromiumで検証する')
   await resetMockData(request)
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.setViewportSize({ width: 375, height: 900 })

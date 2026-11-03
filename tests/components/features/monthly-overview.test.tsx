@@ -5,6 +5,9 @@ import userEvent from '@testing-library/user-event'
 import { MonthlyOverview } from '@/features/monthly-overview'
 import type { MonthlyOverviewSummary } from '@/features/monthly-overview'
 import type { Expense, Income, MonthlySummary } from '@/types'
+import { toast } from 'sonner'
+
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 const mockPush = vi.fn()
 
@@ -101,6 +104,35 @@ function renderOverview(
 }
 
 describe('MonthlyOverview', () => {
+  it.each([
+    { income: 500000, person: 'husband' as const, expected: '250000' },
+    { income: 500000, person: 'wife' as const, expected: '250000' },
+    { income: 101, person: 'husband' as const, expected: '50' },
+  ])('振込額を表示と同じ整数の数字だけでコピーする（$person・$income）', async ({ income, person, expected }) => {
+    const user = userEvent.setup()
+    renderOverview({ incomes: [{ ...incomes[0], amount: income, person }], expenses: [], carryovers: [] })
+
+    await user.click(screen.getByRole('button', { name: '振込額をコピー' }))
+
+    expect(await navigator.clipboard.readText()).toBe(expected)
+    expect(toast.success).toHaveBeenCalledWith('振込額をコピーしました')
+  })
+
+  it('コピーが拒否された場合は失敗を通知する', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValueOnce(new Error('denied'))
+    renderOverview()
+
+    await user.click(screen.getByRole('button', { name: '振込額をコピー' }))
+
+    expect(toast.error).toHaveBeenCalledWith('振込額をコピーできませんでした')
+  })
+
+  it('精算なしの月はコピー操作を表示しない', () => {
+    renderOverview({ incomes: [], expenses: [], carryovers: [] })
+    expect(screen.queryByRole('button', { name: '振込額をコピー' })).not.toBeInTheDocument()
+  })
+
   it('精算額と月収支の間に内訳を配置し、空配列は精算不要にする', async () => {
     const user = userEvent.setup()
     renderOverview({ incomes: [], expenses: [], carryovers: [] })

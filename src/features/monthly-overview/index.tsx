@@ -2,9 +2,11 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Copy } from 'lucide-react'
+import { toast } from 'sonner'
 import { AnimatePresence, motion } from 'motion/react'
 import { AnimatedYen } from '@/components/animations/animated-number'
+import { Button } from '@/components/ui/button'
 import { useMotionPrefs } from '@/components/animations/use-motion-prefs'
 import { TrendCard } from '@/components/charts/trend-card'
 import { AiDiagnosisDialog } from '@/features/ai-diagnosis'
@@ -132,6 +134,17 @@ function ScopedMonthlyOverview({
     router.push(monthToPath(parseMonth(new Date())))
   }
 
+  async function copySettlement() {
+    try {
+      await navigator.clipboard.writeText(
+        String(Math.floor(Math.abs(result.settlement)))
+      )
+      toast.success('振込額をコピーしました')
+    } catch {
+      toast.error('振込額をコピーできませんでした')
+    }
+  }
+
   return (
     <section aria-label="月次要約" className="space-y-4">
       <div className="app-glass-heavy overflow-hidden rounded-[28px] p-4 sm:p-5">
@@ -219,11 +232,24 @@ function ScopedMonthlyOverview({
               </span>
             ) : (
               <>
-                <AnimatedYen
-                  value={result.settlement}
-                  absolute
-                  className="font-mono text-4xl font-bold tracking-tight text-foreground sm:text-5xl"
-                />
+                <span className="inline-flex flex-wrap items-center justify-center gap-2">
+                  <AnimatedYen
+                    value={result.settlement}
+                    absolute
+                    className="font-mono text-4xl font-bold tracking-tight text-foreground sm:text-5xl"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="振込額をコピー"
+                    title="振込額をコピー"
+                    onClick={copySettlement}
+                    className="text-muted-foreground"
+                  >
+                    <Copy aria-hidden="true" />
+                  </Button>
+                </span>
                 <span className="inline-flex rounded-full bg-accent/10 px-3 py-1 text-sm font-semibold text-accent">
                   {settlementDirection}
                 </span>

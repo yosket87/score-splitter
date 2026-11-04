@@ -38,10 +38,13 @@ const runtimeOptions = { modules, modulesRoot: bundle,
   outboundService: () => { outbound++; return new Response('外部通信は禁止', { status: 502 }) },
 }
 mf = createMiniflare(runtimeOptions)
-  const db = await mf.getD1Database('DB')
-  for (const file of (await readdir('cloudflare/worker/migrations')).filter(file => file.endsWith('.sql')).sort()) {
-    await db.exec((await readFile(`cloudflare/worker/migrations/${file}`, 'utf8')).replace(/--[^\n]*/g, '').replace(/\s+/g, ' '))
+  const applyMigrations = async database => {
+    for (const file of (await readdir('cloudflare/worker/migrations')).filter(file => file.endsWith('.sql')).sort()) {
+      await database.exec((await readFile(`cloudflare/worker/migrations/${file}`, 'utf8')).replace(/--[^\n]*/g, '').replace(/\s+/g, ' '))
+    }
   }
+  const db = await mf.getD1Database('DB')
+  await applyMigrations(db)
   const headers = { host: 'app.example.com', 'x-forwarded-proto': 'https', cookie: 'google_mock_scenario=member-a', 'content-type': 'application/json' }
   for (const [path, method] of [['/api/mock/reset', 'POST'], ['/api/mock/ai-diagnosis-stats', 'GET'],
     ['/api/mock/google/prepare', 'POST'], ['/api/mock/firebase/prepare', 'POST'], ['/api/mock/google/authorize?request=fixture', 'GET'], ['/api/mock/__google-ui-fixture.html', 'GET']]) {
@@ -77,6 +80,8 @@ mf = createMiniflare(runtimeOptions)
     FIREBASE_PROJECT_ID: 'fixture-project', FIREBASE_API_KEY: 'public-fixture', FIREBASE_AUTH_DOMAIN: 'fixture-project.firebaseapp.com',
     FIREBASE_AUTH_ORIGIN: 'https://app.example.com', FIREBASE_GOOGLE_ENABLED: 'true', FIREBASE_APPLE_ENABLED: 'true', FIREBASE_AUTH_MOCK: 'true',
   } })
+  // 再作成したMiniflareのDBは空なので、Firebase側にも正規schemaを準備する。
+  await applyMigrations(await mf.getD1Database('DB'))
   const firebaseLogin = await mf.dispatchFetch('https://app.example.com/login', { headers })
   assert.equal(firebaseLogin.status, 200)
   const firebaseHtml = await firebaseLogin.text()

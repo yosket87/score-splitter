@@ -8,6 +8,7 @@ test('停止で旧sessionと導線が終了しGoogle設定と復旧案内は継�
   await expect(page).toHaveURL(/\/login/)
   await expect(page.getByPlaceholder('パスワード')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'パスキーでログイン' })).toHaveCount(0)
+  await page.getByText('ログインでお困りの方へ', { exact: true }).click()
   await expect(page.getByRole('link', { name: /Google.*復旧/ })).toBeVisible()
   await googleLogin(page)
   await expect(page).toHaveURL(/\/\d{4}\/\d{2}/)

@@ -1,3 +1,4 @@
+vi.mock('@/lib/api/households', () => ({ isLegacyAuthEnabled: vi.fn(async () => true) }))
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import ErrorPage from '@/app/error'

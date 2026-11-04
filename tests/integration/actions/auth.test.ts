@@ -3,7 +3,7 @@ import '../../../tests/mocks/next'
 import { mockHeaders, mockRedirect } from '../../../tests/mocks/next'
 import { createFormData } from '../../../tests/mocks/helpers'
 
-const householdMocks = vi.hoisted(() => ({ getLegacyHouseholdContext: vi.fn(async () => ({ householdId: 'A' })) }))
+const householdMocks = vi.hoisted(() => ({ isLegacyAuthEnabled: vi.fn(async () => true), getLegacyHouseholdContext: vi.fn(async () => ({ householdId: 'A' })) }))
 vi.mock('@/lib/api/households', () => householdMocks)
 
 vi.mock('bcryptjs', () => ({
@@ -143,4 +143,13 @@ describe('auth actions', () => {
       expect(checkSession).toHaveBeenCalled()
     })
   })
+})
+
+it('停止後のpassword Actionは正しい入力でもbcryptとsession発行へ進まない', async () => {
+  vi.clearAllMocks()
+  householdMocks.isLegacyAuthEnabled.mockResolvedValueOnce(false)
+  const result = await login({}, createFormData({ password: 'password' }))
+  expect(result.error).toContain('Google')
+  expect(bcrypt.compare).not.toHaveBeenCalled()
+  expect(createSession).not.toHaveBeenCalled()
 })

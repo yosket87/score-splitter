@@ -60,7 +60,7 @@ npm run auth:firebase:admin -- approve-migration --env dev --confirm-database <�
 
 ## 移行と検証
 
-0013を編集せず0014を追加する。既存Google/旧方式のセッションと振込履歴は元の方式・値のまま保持する。本番適用前には現在HEADに対応した本番D1バックアップの全値・schema・復元検証が必要。本PRだけでは本番適用や旧認証の終了を行わない。PR #126はFirebase移行後に再レビューする。
+0013を編集せず0014を追加する。既存Google/旧方式のセッションと振込履歴は元の方式・値のまま保持する。本番適用前には現在HEADに対応した本番D1バックアップの全値・schema・復元検証が必要。本PRだけでは本番適用や旧認証の終了を行わない。旧認証終了は以下のFirebase対応手順で行う。
 
 ```bash
 npm run test:firebase-token:worker
@@ -112,3 +112,18 @@ Firebase Hostingへ`auth.yamawake.app`を登録し、CloudflareにDNS-onlyのCNA
 切替前に、証明書のSAN・有効性と、HTTPSで`https://auth.yamawake.app/__/auth/handler`および`https://auth.yamawake.app/__/auth/iframe`へ接続してFirebaseの認証ヘルパーが配信されることを確認する。確認後、本番の`FIREBASE_AUTH_DOMAIN`を`auth.yamawake.app`へ変更して再配備し、実Googleログインと家計への復帰を検証する。アプリ側で許可する独自ドメインは、projectが`yamawake-prod`、originが`https://app.yamawake.app`の場合の`auth.yamawake.app`のみ。
 
 旧`yamawake-prod.firebaseapp.com`の承認済みドメインとGoogleの既存リダイレクトURIは保持する。切替後に問題があれば`FIREBASE_AUTH_DOMAIN`を`yamawake-prod.firebaseapp.com`へ戻して再配備する。
+
+## 既存2人の移行後に旧認証を終了する
+
+2人がGoogleで再ログインし、従来の家計を利用できることを確認した後に実行する。コードの配備だけでは停止しない。停止は `households.legacy_auth_disabled_at` の単一UPDATEで確定し、DBトリガーが旧パスワード・パスキーのセッションだけを同時に削除する。Firebaseのセッション・資格情報・家計データ・振込履歴を保持する。
+
+権限600の非公開JSONに `projectId`、`householdId`、`confirmedBy`、`members`（2人）を保存する。各memberは `legacySlot`（existing-member-1 / existing-member-2）、`userId`、現在有効なFirebaseの `identityId`、`membershipId`、`sessionEpoch`、それぞれ独立した `reloginRef`・`dataCheckRef` を持つ。確認参照には本人の移行・既存データ確認の運営記録を指定し、個人情報をGitへ追加しない。
+
+```bash
+npm run auth:firebase:admin -- review-finalize --env production --confirm-database <本番D1 UUID> --input-file <非公開確認JSON> --output-file <非公開review JSON>
+npm run auth:firebase:admin -- finalize --env production --confirm-database <本番D1 UUID> --input-file <非公開review JSON>
+```
+
+実行環境の `FIREBASE_PROJECT_ID`、明示したDB、reviewの環境が一致しなければ拒否する。既存Google OIDCからFirebaseへ接続した利用者にも対応し、消費済みの旧GoogleまたはFirebase移行枠と、現在有効なFirebase連携・個人・唯一の世帯所属を照合する。review後に停止・失効・所属追加・世代変更が起きた場合は最終UPDATEでも拒否する。
+
+本番では対応SHAのバックアップ作成・実体再検証とCI成功を確認してから停止する。停止後は旧方式のログイン・パスキー管理・challengeを拒否し、Firebaseでの家計取得、再ログイン、全端末ログアウトを維持する。停止を取り消す目的でDB全体を復元しない。復旧は本人確認を伴うFirebaseの再紐づけ手順を使う。

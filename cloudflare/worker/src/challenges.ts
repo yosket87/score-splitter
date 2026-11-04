@@ -1,6 +1,6 @@
 import type { D1DatabaseLike, Runtime } from './d1'
 import { HttpError } from './http'
-import { assertHouseholdContext, type HouseholdContext } from './households'
+import { assertHouseholdContext, assertLegacyAuthEnabled, getLegacyHouseholdContext, type HouseholdContext } from './households'
 import { assertObject, parsePerson, parseString } from './validation'
 
 export type ChallengeScope =
@@ -32,6 +32,8 @@ function scopePerson(scope: ChallengeScope, person: unknown) {
 
 export async function createChallenge(db: D1DatabaseLike, runtime: Runtime, scope: ChallengeScope, body: unknown) {
   const householdId = scopeHousehold(scope)
+  const loginContext = scope.type === 'registration' ? scope.context : await getLegacyHouseholdContext(db)
+  await assertLegacyAuthEnabled(db, loginContext)
   const input = assertObject(body)
   const id = runtime.randomUUID()
   const challenge = parseString(input.challenge, 'challenge')
@@ -39,19 +41,23 @@ export async function createChallenge(db: D1DatabaseLike, runtime: Runtime, scop
   const expiresAt = parseString(input.expiresAt, 'expiresAt')
   if (!Number.isFinite(Date.parse(expiresAt))) throw new HttpError('expiresAtが不正です', 400)
   const createdAt = runtime.now().toISOString()
-  await db.prepare('INSERT INTO webauthn_challenges (id, challenge, type, person, expires_at, created_at, household_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, challenge, scope.type, person, expiresAt, createdAt, householdId).run()
+  const result = await db.prepare('INSERT INTO webauthn_challenges (id, challenge, type, person, expires_at, created_at, household_id) SELECT ?, ?, ?, ?, ?, ?, ? WHERE EXISTS(SELECT 1 FROM households WHERE id=? AND legacy_auth_disabled_at IS NULL)')
+    .bind(id, challenge, scope.type, person, expiresAt, createdAt, householdId, loginContext.householdId).run()
+  if (result.meta?.changes !== 1) throw new HttpError('旧認証は利用できません', 401)
   return { id, challenge, type: scope.type, person, expiresAt, createdAt, householdId }
 }
 
 // 取得と削除を単一SQLにし、同じブラウザ試行からの二重検証を拒否する。
 export async function consumeChallenge(db: D1DatabaseLike, runtime: Runtime, scope: ChallengeScope, id: string, person: 'husband' | 'wife' | null) {
   const householdId = scopeHousehold(scope)
+  const loginContext = scope.type === 'registration' ? scope.context : await getLegacyHouseholdContext(db)
+  await assertLegacyAuthEnabled(db, loginContext)
   const scopedPerson = scopePerson(scope, person)
   const row = await db.prepare(`DELETE FROM webauthn_challenges
     WHERE id = ? AND type = ? AND household_id IS ? AND person IS ?
-      AND julianday(expires_at) > julianday(?) RETURNING *`)
-    .bind(id, scope.type, householdId, scopedPerson, runtime.now().toISOString()).first<ChallengeRow>()
+      AND julianday(expires_at) > julianday(?)
+      AND EXISTS(SELECT 1 FROM households WHERE id=? AND legacy_auth_disabled_at IS NULL) RETURNING *`)
+    .bind(id, scope.type, householdId, scopedPerson, runtime.now().toISOString(), loginContext.householdId).first<ChallengeRow>()
   return row ? {
     id: row.id, challenge: row.challenge, type: row.type, person: row.person,
     expiresAt: row.expires_at, createdAt: row.created_at, householdId: row.household_id,

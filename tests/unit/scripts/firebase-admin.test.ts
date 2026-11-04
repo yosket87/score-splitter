@@ -31,6 +31,12 @@ describe('Firebase運用',()=>{
    expect((await inspectRequest(db,{code:request.code,householdId})).requests[0].requestId).toBe(request.requestId)
    await approveFromVerifiedRequest(db,domain,'approve-migration',{requestId:request.requestId,code:request.code,approvedBy:'operator',confirmationRef:'record',householdId,legacySlot:'existing-member-1',defaultPerson:'husband'})
    expect(await context.db.prepare('SELECT status FROM firebase_migration_requests').first()).toEqual({status:'approved'})
+   const authenticated=await completeFirebaseLogin(context.db,{now:()=>new Date(),randomUUID:()=>crypto.randomUUID()},
+     {projectId:'project',uid:'uid',provider:'apple.com',email:null,authTime:seconds,issuedAt:seconds,expiresAt:seconds+3600},{mode:'login'})
+   if(authenticated.kind!=='authenticated')throw Error()
+   const inspection=await inspectRequest(db,{code:request.code,householdId})
+   expect(inspection.existingPeople[0]).toMatchObject({membershipId:authenticated.session.membershipId,projectId:'project'})
+   expect(inspection.legacyEnrollments).toContainEqual({legacySlot:'existing-member-1',consumedUserId:authenticated.session.userId})
   } finally {context.sqlite.close();rmSync(directory,{recursive:true,force:true})}
  })
  it('0015は23表を必須にして復元時のFirebase整合性異常を拒否する',()=>{
@@ -42,4 +48,20 @@ describe('Firebase運用',()=>{
   expect(()=>verifyFirebaseIdentityState(()=>[{invalid_floors:0,invalid_sessions:1}])).toThrow()
   expect(()=>verifyFirebaseIdentityState(()=>[{invalid_floors:0,invalid_sessions:0}])).not.toThrow()
  })
+})
+
+import { executeFirebaseFinalizationCommand } from '../../../scripts/firebase-auth-admin.mjs'
+import * as finalization from '../../../cloudflare/worker/src/google-finalization'
+import { finalizationFixture } from '../../helpers/google-finalization'
+it('Firebaseの停止reviewはprojectと環境・DBを固定し明示停止だけで旧認証を終了する', async () => {
+ const context=createFirebaseSqlite({fixture:false})
+ try {
+  const {input}=await finalizationFixture(context.db,{now:()=>new Date(),randomUUID:()=>crypto.randomUUID()})
+  const options={command:'review-finalize',environment:'dev',databaseId:'fixture',projectId:'fixture-project'}
+  await expect(executeFirebaseFinalizationCommand(context.db,finalization,{...options,projectId:'other'},input)).rejects.toThrow()
+  const review=await executeFirebaseFinalizationCommand(context.db,finalization,options,input)
+  expect(await context.db.prepare('SELECT legacy_auth_disabled_at FROM households').first()).toEqual({legacy_auth_disabled_at:null})
+  await expect(executeFirebaseFinalizationCommand(context.db,finalization,{...options,command:'finalize',environment:'production'},review)).rejects.toThrow()
+  expect((await executeFirebaseFinalizationCommand(context.db,finalization,{...options,command:'finalize'},review)).kind).toBe('finalized')
+ } finally {context.sqlite.close()}
 })

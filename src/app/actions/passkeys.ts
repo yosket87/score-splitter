@@ -1,7 +1,7 @@
 'use server'
 
 import { cookies } from 'next/headers'
-import { assertExistingLoginHousehold } from '@/lib/api/households'
+import { assertExistingLoginHousehold, assertLegacyAuthEnabled } from '@/lib/api/households'
 import { assertHouseholdContext } from '@/lib/household-context'
 import {
   generateRegistrationOptions as generateRegOptions,
@@ -49,6 +49,7 @@ export async function generateRegistrationOptions(
       return { success: false, error: '認証が必要です' }
     }
 
+    await assertLegacyAuthEnabled(context)
     const config = getWebAuthnConfig()
     const existingCredentials = await listPasskeysByApi(context, person)
     const userID = new TextEncoder().encode(`${context.householdId}:${person}`)
@@ -99,6 +100,7 @@ export async function verifyRegistration(
       return { success: false, error: '認証が必要です' }
     }
 
+    await assertLegacyAuthEnabled(context)
     const config = getWebAuthnConfig()
     const id = await takeChallengeCookie('registration')
     const challengeRecord = id ? await consumeChallenge({ type: 'registration', context }, id, person) : null
@@ -152,6 +154,7 @@ export async function generateAuthenticationOptions(): Promise<
   ActionResult<PublicKeyCredentialRequestOptionsJSON>
 > {
   try {
+    await assertLegacyAuthEnabled()
     const config = getWebAuthnConfig()
     const options = await generateAuthOptions({
       rpID: config.rpID,
@@ -180,6 +183,7 @@ export async function verifyAuthentication(
   credential: AuthenticationResponseJSON
 ): Promise<ActionResult<{ person: Person }>> {
   try {
+    await assertLegacyAuthEnabled()
     const config = getWebAuthnConfig()
     const storedCredential = await findAuthenticationCredential(credential.id)
 
@@ -247,6 +251,7 @@ export async function listPasskeys(): Promise<ActionResult<PasskeyInfo[]>> {
   }
 
   try {
+    await assertLegacyAuthEnabled(context)
     const passkeys = await listPasskeysByApi(context)
     return {
       success: true,
@@ -275,6 +280,7 @@ export async function deletePasskey(
   }
 
   try {
+    await assertLegacyAuthEnabled(context)
     await deletePasskeyByApi(context, credentialId)
     return { success: true }
   } catch (error) {

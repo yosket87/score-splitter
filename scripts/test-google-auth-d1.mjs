@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import './test-google-auth-admin-transport.mjs'
+import './test-legacy-finalization-d1.mjs'
 import { createHash } from 'node:crypto'
 import { readFile, readdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'

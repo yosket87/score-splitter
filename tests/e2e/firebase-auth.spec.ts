@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { resetMockData } from './helpers'
+import { resetMockData, login } from './helpers'
 
 test.skip(process.env.FIREBASE_AUTH_MOCK !== 'true', 'Firebase専用のローカルモック起動で実行する')
 test.beforeEach(async ({ request }) => resetMockData(request))
@@ -57,3 +57,31 @@ test('未知UIDには家計を表示せず照合コードを案内する', async
   await page.goto('/settings')
   await expect(page).toHaveURL(/\/login$/)
 })
+
+ test('旧認証停止で旧sessionを失効しFirebaseの家計・設定・空月・再ログインを維持する', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 })
+  await login(page)
+  expect((await page.request.post('/api/mock/firebase/prepare', { data: { scenario: 'legacy-disabled' } })).ok()).toBe(true)
+  await page.goto('/2026/02')
+  await expect(page).toHaveURL(/\/login$/)
+  await expect(page.getByRole('button', { name: 'パスワードでログイン' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'パスキーでログイン' })).toHaveCount(0)
+  await page.screenshot({ path: '/tmp/legacy-finalization-login.png', fullPage: true })
+  await page.getByRole('button', { name: 'Googleでログイン' }).click()
+  await expect(page).toHaveURL(/\/\d{4}\/\d{2}/)
+  await page.goto('/2026/02')
+  await expect(page.getByText('副業', { exact: true })).toBeVisible()
+  await page.goto('/settings')
+  await expect(page.getByText('firebase.local-layout-test@example.com')).toBeVisible()
+  await expect(page.getByText('パスキー管理', { exact: true })).toHaveCount(0)
+  await page.screenshot({ path: '/tmp/legacy-finalization-settings.png', fullPage: true })
+  await page.goto('/2027/01')
+  await expect(page.getByRole('heading', { name: '収入', exact: true })).toBeVisible()
+  await expect(page.getByTestId('item-row')).toHaveCount(0)
+  expect(await page.locator('body').evaluate(element => element.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.screenshot({ path: '/tmp/legacy-finalization-empty.png', fullPage: true })
+  await page.getByRole('button', { name: 'ログアウト', exact: true }).click()
+  await expect(page).toHaveURL(/\/login$/)
+  await page.getByRole('button', { name: 'Googleでログイン' }).click()
+  await expect(page).toHaveURL(/\/\d{4}\/\d{2}/)
+ })

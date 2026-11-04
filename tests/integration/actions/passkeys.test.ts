@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mockCookies } from '../../../tests/mocks/next'
 vi.mock('server-only', () => ({}))
-const householdMocks = vi.hoisted(() => ({ assertExistingLoginHousehold: vi.fn() }))
+const householdMocks = vi.hoisted(() => ({ assertLegacyAuthEnabled: vi.fn(), assertExistingLoginHousehold: vi.fn() }))
 vi.mock('@/lib/api/households', () => householdMocks)
 const context = { householdId: 'A', person: null, authMethod: 'password' }
 const household = { householdId: 'A' }
@@ -667,4 +667,20 @@ describe('passkey actions', () => {
     expect(sessionMocks.createSession).not.toHaveBeenCalled()
   })
 
+})
+
+it('停止世帯の有効Google sessionでも全旧Actionを直接呼び出せない', async () => {
+  vi.clearAllMocks()
+  sessionMocks.getSession.mockResolvedValue({ householdId: 'A', person: 'husband', authMethod: 'google', userId: 'verified-user' })
+  householdMocks.assertLegacyAuthEnabled.mockRejectedValue(new Error('旧認証は終了しました'))
+  try {
+    for (const call of [() => generateRegistrationOptions('husband'), () => verifyRegistration('husband', registrationCredential),
+      () => listPasskeys(), () => deletePasskey('credential'), () => generateAuthenticationOptions(), () => verifyAuthentication(authenticationCredential)]) {
+      expect(await call()).toMatchObject({ success: false })
+    }
+    expect(mockPasskeysApi.createChallenge).not.toHaveBeenCalled()
+    expect(mockPasskeysApi.createPasskey).not.toHaveBeenCalled()
+    expect(mockPasskeysApi.deletePasskey).not.toHaveBeenCalled()
+    expect(sessionMocks.createSession).not.toHaveBeenCalled()
+  } finally { householdMocks.assertLegacyAuthEnabled.mockResolvedValue(undefined) }
 })

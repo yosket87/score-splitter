@@ -5,6 +5,7 @@ import LoginPage from '@/app/login/page'
 import { isAuthenticated } from '@/lib/webauthn/session'
 
 vi.mock('next/font/local', () => ({ default: () => ({ className: 'font-test' }) }))
+vi.mock('@/lib/api/households', () => ({ isLegacyAuthEnabled: vi.fn(async () => true) }))
 vi.mock('@/lib/auth/google-config', () => ({ googleOAuthConfig: () => null }))
 vi.mock('@/lib/auth/firebase-config', () => ({ firebaseAuthConfig: () => null }))
 vi.mock('@/features/firebase-auth/firebase-login', () => ({ FirebaseLogin: () => null }))
@@ -95,4 +96,13 @@ it.each([
   vi.mocked(isAuthenticated).mockResolvedValue(false)
   render(await LoginPage({ searchParams: Promise.resolve({ google }) }))
   expect(screen.getByText(message)).toBeInTheDocument()
+})
+
+import { LoginForm } from '@/app/login/login-form'
+it('旧認証停止後もGoogleと復旧案内を残し旧ログイン入口を隠す', () => {
+  render(<LoginForm googleEnabled legacyEnabled={false} />)
+  expect(screen.getByRole('link', { name: 'Googleでログイン' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'パスワードでログイン' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'パスキーでログイン' })).not.toBeInTheDocument()
+  expect(screen.getByRole('link', { name: /Google.*復旧/ })).toBeInTheDocument()
 })

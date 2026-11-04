@@ -10,7 +10,7 @@ import { PasskeyLoginButton } from '@/features/passkey'
 import { FirebaseLogin } from '@/features/firebase-auth/firebase-login'
 import type { FirebaseClientConfig } from '@/lib/auth/firebase-client-config'
 
-export function LoginForm({ googleEnabled = false, googleMessage, firebaseConfig }: { googleEnabled?: boolean; googleMessage?: string; firebaseConfig?: FirebaseClientConfig }) {
+export function LoginForm({ googleEnabled = false, googleMessage, firebaseConfig, legacyEnabled = true }: { legacyEnabled?: boolean; googleEnabled?: boolean; googleMessage?: string; firebaseConfig?: FirebaseClientConfig }) {
   const [state, formAction, isPending] = useActionState(login, {})
   const [showPassword, setShowPassword] = useState(false)
   const [passwordOpen, setPasswordOpen] = useState(false)
@@ -33,9 +33,10 @@ export function LoginForm({ googleEnabled = false, googleMessage, firebaseConfig
           <div className="space-y-3">
             {firebaseConfig && <FirebaseLogin config={firebaseConfig} />}
             {googleEnabled && !firebaseConfig && <GoogleLoginLink />}
-            <PasskeyLoginButton />
+            {legacyEnabled && <PasskeyLoginButton />}
           </div>
 
+          {legacyEnabled && <>
           <div className="my-6 flex items-center gap-4" aria-hidden="true">
             <div className="h-px flex-1 bg-border" />
             <span className="text-xs text-sub-text">または</span>
@@ -68,12 +69,14 @@ export function LoginForm({ googleEnabled = false, googleMessage, firebaseConfig
               </button>
             </form>}
           </div>
+          </>}
+          {!legacyEnabled && <p className="mt-6 text-sm leading-relaxed text-sub-text">パスワードとパスキーによるログインは終了しました。</p>}
         </section>
         <div className="mt-6 text-center text-xs leading-relaxed text-sub-text">
           <details>
             <summary className="mx-auto w-fit cursor-pointer rounded-md px-2 py-3 text-accent focus-visible:outline-2 focus-visible:outline-ring">ログインでお困りの方へ</summary>
             <div className="mt-2 space-y-3 text-left">
-              <p>パスワードを忘れた場合は、管理者に問い合わせてください。</p>
+              {legacyEnabled && <p>パスワードを忘れた場合は、管理者に問い合わせてください。</p>}
               <GoogleRecoveryHelp />
             </div>
           </details>

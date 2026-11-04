@@ -1,3 +1,4 @@
+import { isLegacyAuthEnabled } from '@/lib/api/households'
 import { googleOAuthConfig } from '@/lib/auth/google-config'
 import { redirect } from 'next/navigation'
 import { LoginForm } from './login-form'
@@ -16,6 +17,6 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const config = firebaseAuthConfig()
   const host = (await headers()).get('host')
   const firebaseConfig = config && host === new URL(config.origin).host ? config.client : undefined
-  return <LoginForm googleEnabled={!config && !!googleOAuthConfig()} firebaseConfig={firebaseConfig}
+  return <LoginForm legacyEnabled={await isLegacyAuthEnabled()} googleEnabled={!config && !!googleOAuthConfig()} firebaseConfig={firebaseConfig}
     googleMessage={firebase === 'recovered' ? 'アカウントを復旧しました。もう一度ログインしてください。' : googleMessage} />
 }
